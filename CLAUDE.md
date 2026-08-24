@@ -2,7 +2,7 @@
 
 Sitio de una sola página (HTML/CSS/JS puro, sin build, sin frameworks) que cuenta la historia de un grupo de amigos a través de temporadas (S0–S5), con personajes, lugares, un mapa de relaciones, y una sección final "Armagedón" con el destino de cada integrante.
 
-**Archivo principal:** `index.html` — HTML, CSS y JS viven en este único archivo. No hay build step: se edita directo y se abre en el navegador. Las fotos de personajes son archivos reales en `/images` (NO base64 inline — se sacaron de ahí porque hacían el archivo pesadísimo), referenciadas por ruta relativa.
+**Archivos principales:** `index.html` (HTML + CSS + JS de lógica/vistas) y `data.js` (el objeto `DATA` con toda la historia: personajes, lugares, temporadas), cargado por `index.html` vía `<script src="data.js">`. No hay build step: se edita directo y se abre en el navegador. Se separó `DATA` a su propio archivo porque es la parte que más crece con cada historia nueva — así una edición de contenido no requiere tocar el archivo con el CSS y la lógica de vistas. Las fotos de personajes son archivos reales en `/images` (NO base64 inline — se sacaron de ahí porque hacían el archivo pesadísimo), referenciadas por ruta relativa.
 
 ## Cómo probar cambios
 
@@ -39,7 +39,7 @@ No hay tests automatizados formales — la validación es: syntax check + un par
 
 ## Arquitectura
 
-Todo vive en un objeto global `DATA` (dentro del `<script>`), con esta forma:
+Todo vive en un objeto global `DATA` (en `data.js`), con esta forma:
 
 ```js
 const DATA = {
@@ -81,7 +81,7 @@ Hay una función `autoTagText(text)` que hace esto automáticamente a partir de 
 
 ### Vistas (router por hash, sin librería)
 
-`render()` lee `location.hash` y despacha a: `viewHome()`, `viewSeason(id)`, `viewCharacter(id)`, `viewPlace(id)`, `viewMap()`, `viewArmageddon()`. Todo vive en el mismo `<script>`, sin imports.
+`render()` lee `location.hash` y despacha a: `viewHome()`, `viewSeason(id)`, `viewCharacter(id)`, `viewPlace(id)`, `viewMap()`, `viewArmageddon()`. Viven en el `<script>` de `index.html`, sin imports — `DATA` (de `data.js`) está disponible ahí porque `data.js` se carga antes en el HTML, no porque cuelgue de `window`.
 
 ### Persistencia (modo edición)
 
@@ -120,4 +120,6 @@ Cada ficha de personaje tiene un wash de color de fondo (`--pcolor`, tomado de `
 
 ## Deploy
 
-Pensado para GitHub Pages: el archivo se llama `index.html` a propósito para que quede servido en la raíz del sitio sin configurar nada más. La carpeta `/images` viaja junto al `index.html` en el mismo repo/rama, así las rutas relativas funcionan igual en local y en Pages. `git init` → commit → push a `main` → activar Pages en Settings del repo (source: `main` branch, carpeta raíz).
+Pensado para GitHub Pages: el archivo se llama `index.html` a propósito para que quede servido en la raíz del sitio sin configurar nada más. `data.js` y la carpeta `/images` viajan junto al `index.html` en el mismo repo/rama, así las rutas relativas funcionan igual en local y en Pages. `git init` → commit → push a `main` → activar Pages en Settings del repo (source: `main` branch, carpeta raíz).
+
+Se trabaja siempre directo sobre `main` (sin ramas ni PRs) — es un proyecto de una sola persona.
