@@ -2,7 +2,7 @@
 
 Sitio de una sola página (HTML/CSS/JS puro, sin build, sin frameworks) que cuenta la historia de un grupo de amigos a través de temporadas (S0–S5), con personajes, lugares, un mapa de relaciones, y una sección final "Armagedón" con el destino de cada integrante.
 
-**Archivo principal:** `index.html` — todo (HTML, CSS, JS y las imágenes de personajes en base64) vive en este único archivo. No hay build step: se edita directo y se abre en el navegador.
+**Archivo principal:** `index.html` — HTML, CSS y JS viven en este único archivo. No hay build step: se edita directo y se abre en el navegador. Las fotos de personajes son archivos reales en `/images` (NO base64 inline — se sacaron de ahí porque hacían el archivo pesadísimo), referenciadas por ruta relativa.
 
 ## Cómo probar cambios
 
@@ -47,9 +47,9 @@ const DATA = {
     "id-slug": {
       name, role, tier: "primario"|"secundario", color: "#hex",
       bio, apodo, frase, habilidad, destino,   // cualquiera puede ser null
-      photo: "data:image/jpeg;base64,...",     // avatar chico circular (opcional)
-      photoLarge: "data:image/png;base64,...", // retrato grande, UNA foto (legacy, usar photos en su lugar)
-      photos: ["data:image/png;base64,...", ...], // retrato grande, VARIAS fotos con carrusel (preferido)
+      photo: "images/id-slug-1.jpg",     // avatar chico circular (opcional), ruta relativa a /images
+      photoLarge: "images/id-slug-2.png", // retrato grande, UNA foto (legacy, usar photos en su lugar)
+      photos: ["images/id-slug-2.png", ...], // retrato grande, VARIAS fotos con carrusel (preferido)
       tags: ["..."]
     }
   },
@@ -96,7 +96,7 @@ Proceso para agregar una foto de personaje:
 1. El usuario manda una ilustración (idealmente ya con fondo transparente, herramientas como Photoroom sirven).
 2. Verificar transparencia real: `Image.open(path).convert('RGBA').getchannel('A').getextrema()` — si da `(0,255)` hay canal alfa real; si no, es fondo blanco sólido y hay que removerlo (ver más abajo).
 3. Redimensionar a max width ~700px, guardar como PNG optimizado.
-4. Convertir a base64 y pegar como `data:image/png;base64,...` dentro de `photos: [...]` (o `photoLarge` si es solo una).
+4. Guardar el archivo en `/images/<id-slug>-N.png` (o `.jpg`) y referenciarlo por ruta relativa dentro de `photos: [...]` (o `photoLarge` si es solo una). **No** convertir a base64 inline — eso es lo que hacía el `index.html` pesar varios MB.
 5. Si el fondo NO era transparente, removerlo con flood-fill desde las esquinas (tolerancia por distancia de color) + `scipy.ndimage.gaussian_filter` para suavizar el borde — ver conversación anterior para el script exacto (usa `skimage.segmentation.flood`).
 
 El carrusel de fotos (`cyclePhoto()`) cicla entre `photos[]` con una transición tipo "portal warp" (scale + rotateY + blur). Si un personaje solo tiene una foto, el click no hace nada (por diseño).
@@ -120,4 +120,4 @@ Cada ficha de personaje tiene un wash de color de fondo (`--pcolor`, tomado de `
 
 ## Deploy
 
-Pensado para GitHub Pages: el archivo se llama `index.html` a propósito para que quede servido en la raíz del sitio sin configurar nada más. `git init` → commit → push a `main` → activar Pages en Settings del repo (source: `main` branch, carpeta raíz).
+Pensado para GitHub Pages: el archivo se llama `index.html` a propósito para que quede servido en la raíz del sitio sin configurar nada más. La carpeta `/images` viaja junto al `index.html` en el mismo repo/rama, así las rutas relativas funcionan igual en local y en Pages. `git init` → commit → push a `main` → activar Pages en Settings del repo (source: `main` branch, carpeta raíz).
