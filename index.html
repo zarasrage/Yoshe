@@ -94,32 +94,46 @@ nav.seasons-strip button.active{background:var(--amber); color:var(--hole); bord
 .hero h1 em{font-style:italic; font-weight:500; color:var(--amber); position:relative;}
 .hero p.tag{max-width:560px; color:var(--ink-dim); font-size:1.05rem; margin:22px auto 0; line-height:1.6;}
 
-.constellation-wrap{position:relative; width:min(860px,92vw); aspect-ratio:16/10; margin:60px auto 6px;}
-#constellationSvg{position:absolute; inset:0; width:100%; height:100%; overflow:visible;}
-.constellation-line{stroke:rgba(150,200,255,.28); stroke-width:1; fill:none; filter:drop-shadow(0 0 2px rgba(120,190,255,.25));}
+.constellation-wrap{position:relative; width:min(920px,92vw); aspect-ratio:16/9; margin:72px auto 10px; isolation:isolate;}
+.constellation-wrap::before{
+  content:''; position:absolute; inset:-18% -8%; z-index:0; pointer-events:none;
+  background:radial-gradient(ellipse 58% 62% at 50% 46%, rgba(91,143,232,.16), transparent 68%);
+  filter:blur(18px);
+}
+#constellationSvg{position:absolute; inset:0; width:100%; height:100%; overflow:visible; z-index:1;}
+.constellation-line{
+  fill:none; stroke-width:1.1; vector-effect:non-scaling-stroke;
+  filter:drop-shadow(0 0 2.5px rgba(120,190,255,.4));
+  stroke-linecap:round;
+}
+.micro-star{position:absolute; border-radius:50%; background:#eaf2ff; transform:translate(-50%,-50%); animation:microTwinkle 4.5s ease-in-out infinite; pointer-events:none; z-index:1;}
+@keyframes microTwinkle{0%,100%{opacity:.15;} 50%{opacity:.85;}}
 .star-node{position:absolute; transform:translate(-50%,-50%); display:flex; flex-direction:column; align-items:center; cursor:pointer; z-index:2; --pcolor:var(--amber);}
 .star-node .star-dot{
-  width:13px; height:13px; border-radius:50%;
+  position:relative; width:12px; height:12px; border-radius:50%;
   background:radial-gradient(circle at 35% 30%, #ffffff, var(--pcolor) 55%, transparent 78%);
   box-shadow:0 0 8px 2px color-mix(in srgb, var(--pcolor) 65%, transparent), 0 0 20px 7px color-mix(in srgb, var(--pcolor) 30%, transparent);
   transition:transform .3s, box-shadow .3s;
+  animation:starBreathe 3.6s ease-in-out infinite;
+  animation-delay:var(--bdelay,0s);
 }
-.star-node:hover .star-dot{transform:scale(1.7); box-shadow:0 0 14px 4px var(--pcolor), 0 0 30px 12px color-mix(in srgb, var(--pcolor) 45%, transparent);}
-.star-node .star-code{font-family:'JetBrains Mono',monospace; font-weight:700; font-size:.72rem; color:var(--ink); margin-top:9px; letter-spacing:.08em;}
-.star-node .star-label{font-size:.6rem; color:var(--ink-dim); margin-top:2px; max-width:104px; text-align:center; line-height:1.2;}
+@keyframes starBreathe{0%,100%{filter:brightness(1);} 50%{filter:brightness(1.35);}}
+.star-node:hover .star-dot{transform:scale(1.7); box-shadow:0 0 14px 4px var(--pcolor), 0 0 30px 12px color-mix(in srgb, var(--pcolor) 45%, transparent); animation-play-state:paused;}
+.star-node .star-code{font-family:'JetBrains Mono',monospace; font-weight:700; font-size:.72rem; color:var(--ink); margin-top:10px; letter-spacing:.14em;}
+.star-node .star-label{font-family:'Fraunces',serif; font-style:italic; font-weight:500; font-size:.72rem; color:var(--ink-dim); margin-top:3px; max-width:120px; text-align:center; line-height:1.25; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
 .star-node.s0 .star-dot{--pcolor:var(--violet);}
-.star-node.armageddon-node{opacity:.45; transition:opacity .3s;}
-.star-node.armageddon-node .star-dot{width:6px; height:6px; background:rgba(255,255,255,.35); box-shadow:none;}
-.star-node.armageddon-node .star-code{color:rgba(255,255,255,.35); font-size:.6rem;}
-.star-node.armageddon-node .star-label{color:rgba(255,255,255,.25); font-size:.5rem;}
+.star-node.armageddon-node{opacity:.4; transition:opacity .3s;}
+.star-node.armageddon-node .star-dot{width:6px; height:6px; background:rgba(255,255,255,.35); box-shadow:none; animation:none;}
+.star-node.armageddon-node .star-code{color:rgba(255,255,255,.4); font-size:.62rem; letter-spacing:.1em;}
+.star-node.armageddon-node .star-label{color:rgba(255,255,255,.28); font-size:.58rem; font-style:normal; font-family:'JetBrains Mono',monospace;}
 .star-node.armageddon-node:hover{opacity:1;}
 @media (max-width:600px){
   .hero{padding:44px 16px 16px; min-height:auto;}
-  .constellation-wrap{width:96vw; aspect-ratio:9/12; margin:36px auto 4px;}
-  .star-node .star-dot{width:16px; height:16px;}
+  .constellation-wrap{width:96vw; aspect-ratio:3/4; margin:40px auto 4px;}
+  .star-node .star-dot{width:15px; height:15px;}
   .star-node{padding:8px; margin:-8px;} /* larger invisible tap area */
-  .star-node .star-code{font-size:.8rem; margin-top:6px;}
-  .star-node .star-label{font-size:.62rem; max-width:78px;}
+  .star-node .star-code{font-size:.8rem; margin-top:7px;}
+  .star-node .star-label{font-size:.68rem; max-width:96px;}
   .star-node.armageddon-node .star-dot{width:8px; height:8px;}
 }
 
@@ -928,21 +942,48 @@ function viewHome(){
   renderSeasonsStrip(undefined);
   const app=document.getElementById("app");
 
-  // Hand-arranged constellation layout (percent coordinates) — not a circle, like a scattered star chart
-  const CONSTELLATION_POS = [
-    {x:9,  y:74}, {x:24, y:38}, {x:41, y:60},
-    {x:57, y:22}, {x:75, y:47}, {x:92, y:28}
+  // Hand-arranged constellation layout (percent coordinates) — not a circle, like a scattered star chart.
+  // Two layouts: a wide scatter for the 16:9 desktop box, a tall serpentine for the 3:4 mobile box
+  // (stretching one set of points across both boxes made the lines steep and chunky on narrow screens).
+  const isNarrow = window.matchMedia("(max-width:600px)").matches;
+  const CONSTELLATION_POS = isNarrow ? [
+    {x:32, y:7},  {x:74, y:19}, {x:22, y:36},
+    {x:70, y:52}, {x:26, y:68}, {x:66, y:85}
+  ] : [
+    {x:7,  y:68}, {x:23, y:26}, {x:40, y:52},
+    {x:59, y:15}, {x:76, y:44}, {x:94, y:22}
   ];
-  const ARMAGEDDON_POS = {x:50, y:92};
+  const ARMAGEDDON_POS = isNarrow ? {x:50, y:96} : {x:96, y:88};
 
+  // gentle arcs instead of straight zigzag segments, alternating bow direction, colored by a
+  // gradient between each pair of season colors
   const linesSvg = DATA.seasons.slice(1).map((s,i)=>{
     const a = CONSTELLATION_POS[i], b = CONSTELLATION_POS[i+1];
-    return `<line class="constellation-line" x1="${a.x}%" y1="${a.y}%" x2="${b.x}%" y2="${b.y}%"></line>`;
+    const prev = DATA.seasons[i];
+    const mx = (a.x+b.x)/2, my = (a.y+b.y)/2;
+    const dx = b.x-a.x, dy = b.y-a.y;
+    const bow = (i%2===0? 1 : -1) * 6;
+    const len = Math.hypot(dx,dy) || 1;
+    const cx = mx + (-dy/len)*bow, cy = my + (dx/len)*bow;
+    const gid = `seg-grad-${i}`;
+    return `<defs><linearGradient id="${gid}" x1="${a.x}%" y1="${a.y}%" x2="${b.x}%" y2="${b.y}%">
+        <stop offset="0%" stop-color="${prev.color}" stop-opacity=".55"/>
+        <stop offset="100%" stop-color="${s.color}" stop-opacity=".55"/>
+      </linearGradient></defs>
+      <path class="constellation-line" stroke="url(#${gid})" d="M ${a.x} ${a.y} Q ${cx} ${cy} ${b.x} ${b.y}"></path>`;
+  }).join("");
+
+  const microStars = Array.from({length:26}, (_,i)=>{
+    const x = (i*37.4113) % 100, y = (i*61.803) % 100;
+    const size = (2 + (i%5)*0.7).toFixed(1);
+    const delay = (i*0.71) % 4.5;
+    return `<div class="micro-star" style="left:${x}%; top:${y}%; width:${size}px; height:${size}px; animation-delay:${delay}s"></div>`;
   }).join("");
 
   const seasonNodesHtml = DATA.seasons.map((s,i)=>{
     const p = CONSTELLATION_POS[i] || {x:50,y:50};
-    return `<div class="star-node ${s.id===0?'s0':''}" style="left:${p.x}%; top:${p.y}%; --pcolor:${s.color}" onclick="location.hash='#/season/${s.id}'">
+    const bdelay = ((i*0.63) % 3.6).toFixed(2);
+    return `<div class="star-node ${s.id===0?'s0':''}" style="left:${p.x}%; top:${p.y}%; --pcolor:${s.color}; --bdelay:${bdelay}s" onclick="location.hash='#/season/${s.id}'">
       <div class="star-dot"></div>
       <div class="star-code" style="color:${s.color}">${s.code}</div>
       <div class="star-label">${escapeHtml(s.title)}</div>
@@ -981,7 +1022,7 @@ function viewHome(){
     Elige una estrella para caer dentro de esa temporada.</p>
     <div class="constellation-wrap">
       <svg id="constellationSvg" viewBox="0 0 100 100" preserveAspectRatio="none">${linesSvg}</svg>
-      ${seasonNodesHtml}${armageddonNode}
+      ${microStars}${seasonNodesHtml}${armageddonNode}
     </div>
     <div class="scroll-cue">Explora el elenco y los lugares<div class="chevron"></div></div>
   </section>
@@ -1366,7 +1407,22 @@ function render(){
   }
 }
 window.addEventListener("hashchange", render);
-window.addEventListener("resize", ()=>{ if(!location.hash || location.hash==="#/home"){ /* constellation is percentage-based, no redraw needed */ } });
+(function(){
+  // the constellation uses a different point layout above/below the 600px breakpoint
+  // (see viewHome), so crossing it needs a re-render, not just a redraw of the same points
+  let resizeTimer;
+  const mq = window.matchMedia("(max-width:600px)");
+  let wasNarrow = mq.matches;
+  window.addEventListener("resize", ()=>{
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(()=>{
+      const nowNarrow = mq.matches;
+      const onHome = !location.hash || location.hash==="#/" || location.hash==="#/home";
+      if(onHome && nowNarrow!==wasNarrow) viewHome();
+      wasNarrow = nowNarrow;
+    }, 200);
+  });
+})();
 
 try{
   if(isEditOn()){
@@ -1380,42 +1436,121 @@ try{
 (function starfield(){
   const c=document.getElementById("stars");
   const ctx=c.getContext("2d");
-  let stars=[], nebulae=[];
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let stars=[], nebulae=[], shots=[];
+  let rafId=null, lastT=0, shotCooldown=4+Math.random()*5;
   const nebulaColors=["70,150,230","90,190,220","150,190,255"];
+
   function resize(){
     c.width=window.innerWidth; c.height=document.documentElement.scrollHeight;
-    stars = Array.from({length: Math.floor((c.width*600)/8000)}, ()=>({
+    const area = c.width*c.height;
+    const count = Math.min(900, Math.max(140, Math.round(area/9000)));
+    stars = Array.from({length: count}, ()=>({
       x:Math.random()*c.width, y:Math.random()*c.height,
-      r:Math.random()*1.4+0.2, a:Math.random()*0.65+0.15,
-      glow: Math.random()<0.08
+      r:Math.random()*1.4+0.25, base:Math.random()*0.55+0.2,
+      glow: Math.random()<0.08,
+      phase: Math.random()*Math.PI*2, speed: 0.4+Math.random()*0.7,
+      vx:(Math.random()-0.5)*0.012, vy:(Math.random()*0.5+0.15)*0.012
     }));
     nebulae = Array.from({length: Math.max(3, Math.floor(c.height/700))}, (_,i)=>({
       x:Math.random()*c.width, y:Math.random()*c.height,
-      r: Math.random()*260+180, color: nebulaColors[i%nebulaColors.length], a:Math.random()*0.05+0.03
+      r: Math.random()*260+180, color: nebulaColors[i%nebulaColors.length],
+      base:Math.random()*0.05+0.03, phase:Math.random()*Math.PI*2,
+      vx:(Math.random()-0.5)*0.006, vy:(Math.random()-0.5)*0.006
     }));
-    draw();
+    if(reduced){ drawStatic(); }
   }
-  function draw(){
+
+  // static single frame for prefers-reduced-motion: no twinkle, no drift, no shooting stars
+  function drawStatic(){
     ctx.clearRect(0,0,c.width,c.height);
     nebulae.forEach(n=>{
       const grad = ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,n.r);
-      grad.addColorStop(0, `rgba(${n.color},${n.a})`);
+      grad.addColorStop(0, `rgba(${n.color},${n.base})`);
       grad.addColorStop(1, `rgba(${n.color},0)`);
       ctx.fillStyle=grad;
       ctx.beginPath(); ctx.arc(n.x,n.y,n.r,0,Math.PI*2); ctx.fill();
     });
     stars.forEach(s=>{
       ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
-      ctx.fillStyle=`rgba(224,238,255,${s.a})`;
-      if(s.glow){ ctx.shadowColor="rgba(140,200,255,.9)"; ctx.shadowBlur=6; }
-      else{ ctx.shadowBlur=0; }
+      ctx.fillStyle=`rgba(224,238,255,${s.base})`;
+      if(s.glow){ ctx.shadowColor="rgba(140,200,255,.9)"; ctx.shadowBlur=6; } else{ ctx.shadowBlur=0; }
       ctx.fill();
     });
     ctx.shadowBlur=0;
   }
+
+  function maybeSpawnShot(dt){
+    shotCooldown -= dt;
+    if(shotCooldown>0) return;
+    shotCooldown = 5+Math.random()*7;
+    const fromLeft = Math.random()<0.5;
+    const x = fromLeft ? -20 : c.width+20;
+    const y = Math.random()*c.height*0.6;
+    const angle = fromLeft ? (Math.PI*0.15+Math.random()*0.1) : (Math.PI*0.85-Math.random()*0.1);
+    const speed = 620+Math.random()*260;
+    shots.push({x,y,vx:Math.cos(angle)*speed*(fromLeft?1:-1),vy:Math.sin(angle)*speed,life:0,maxLife:0.8+Math.random()*0.3});
+  }
+
+  function draw(t){
+    const dt = lastT? Math.min((t-lastT)/1000, 0.08) : 0;
+    lastT = t;
+
+    stars.forEach(s=>{
+      s.x += s.vx; s.y += s.vy;
+      if(s.x<-5) s.x=c.width+5; if(s.x>c.width+5) s.x=-5;
+      if(s.y<-5) s.y=c.height+5; if(s.y>c.height+5) s.y=-5;
+    });
+    nebulae.forEach(n=>{
+      n.x += n.vx; n.y += n.vy;
+      if(n.x<-n.r) n.x=c.width+n.r; if(n.x>c.width+n.r) n.x=-n.r;
+      if(n.y<-n.r) n.y=c.height+n.r; if(n.y>c.height+n.r) n.y=-n.r;
+    });
+    maybeSpawnShot(dt||0.016);
+    shots.forEach(sh=>{ sh.x+=sh.vx*dt; sh.y+=sh.vy*dt; sh.life+=dt; });
+    shots = shots.filter(sh=> sh.life<sh.maxLife && sh.x>-60 && sh.x<c.width+60 && sh.y<c.height+60);
+
+    ctx.clearRect(0,0,c.width,c.height);
+    nebulae.forEach(n=>{
+      const breathe = 0.85+0.15*Math.sin(t*0.00006+n.phase);
+      const grad = ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,n.r*breathe);
+      grad.addColorStop(0, `rgba(${n.color},${(n.base*breathe).toFixed(3)})`);
+      grad.addColorStop(1, `rgba(${n.color},0)`);
+      ctx.fillStyle=grad;
+      ctx.beginPath(); ctx.arc(n.x,n.y,n.r*breathe,0,Math.PI*2); ctx.fill();
+    });
+    stars.forEach(s=>{
+      const a = s.base*(0.55+0.45*Math.sin(t*0.001*s.speed+s.phase));
+      ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+      ctx.fillStyle=`rgba(224,238,255,${Math.max(0,a).toFixed(3)})`;
+      if(s.glow){ ctx.shadowColor="rgba(140,200,255,.9)"; ctx.shadowBlur=6; } else{ ctx.shadowBlur=0; }
+      ctx.fill();
+    });
+    ctx.shadowBlur=0;
+    shots.forEach(sh=>{
+      const p = sh.life/sh.maxLife;
+      const fade = p<0.15 ? p/0.15 : 1-((p-0.15)/0.85);
+      const tailX = sh.x - sh.vx*0.05, tailY = sh.y - sh.vy*0.05;
+      const grad = ctx.createLinearGradient(tailX,tailY,sh.x,sh.y);
+      grad.addColorStop(0, "rgba(210,230,255,0)");
+      grad.addColorStop(1, `rgba(255,255,255,${(0.85*fade).toFixed(3)})`);
+      ctx.strokeStyle=grad; ctx.lineWidth=1.6; ctx.lineCap="round";
+      ctx.beginPath(); ctx.moveTo(tailX,tailY); ctx.lineTo(sh.x,sh.y); ctx.stroke();
+    });
+
+    rafId = requestAnimationFrame(draw);
+  }
+
+  function start(){ if(rafId===null){ lastT=0; rafId = requestAnimationFrame(draw); } }
+  function stop(){ if(rafId!==null){ cancelAnimationFrame(rafId); rafId=null; } }
+
   window.addEventListener("resize", resize);
   window.addEventListener("hashchange", ()=>setTimeout(resize,80));
-  setTimeout(resize,120);
+  document.addEventListener("visibilitychange", ()=>{
+    if(reduced) return;
+    if(document.hidden) stop(); else start();
+  });
+  setTimeout(()=>{ resize(); if(!reduced) start(); }, 120);
 })();
 }catch(e){ /* decorative starfield failing should never block the app */ }
 
