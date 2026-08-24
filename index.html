@@ -28,11 +28,12 @@ html{scroll-behavior:smooth;}
 body{
   margin:0;
   background:
-    radial-gradient(ellipse 55% 40% at 80% 6%, rgba(255,190,140,.05), transparent 60%),
-    radial-gradient(ellipse 70% 55% at 52% 16%, rgba(127,212,255,.20), transparent 68%),
-    radial-gradient(ellipse 90% 60% at 20% 34%, rgba(63,120,214,.17), transparent 72%),
-    radial-gradient(ellipse 120% 80% at 65% 92%, rgba(20,40,80,.55), transparent 70%),
-    radial-gradient(ellipse 140% 100% at 50% 45%, transparent 45%, rgba(1,3,8,.7) 100%),
+    radial-gradient(ellipse 55% 40% at 84% 4%, rgba(255,190,140,.05), transparent 60%),
+    linear-gradient(132deg, transparent 28%, rgba(120,195,255,.09) 44%, rgba(175,230,255,.15) 51%, rgba(120,195,255,.08) 58%, transparent 74%),
+    radial-gradient(ellipse 72% 58% at 48% 15%, rgba(130,215,255,.28), transparent 68%),
+    radial-gradient(ellipse 92% 62% at 16% 34%, rgba(70,130,225,.22), transparent 72%),
+    radial-gradient(ellipse 120% 80% at 68% 94%, rgba(16,34,74,.6), transparent 70%),
+    radial-gradient(ellipse 150% 105% at 50% 42%, transparent 38%, rgba(1,3,8,.78) 100%),
     var(--void);
   background-attachment:fixed;
   color:var(--ink);
@@ -101,9 +102,9 @@ nav.seasons-strip button.active{background:var(--amber); color:var(--hole); bord
 
 .constellation-wrap{position:relative; width:min(920px,92vw); aspect-ratio:16/9; margin:72px auto 10px; isolation:isolate;}
 .constellation-wrap::before{
-  content:''; position:absolute; inset:-18% -8%; z-index:0; pointer-events:none;
-  background:radial-gradient(ellipse 58% 62% at 50% 46%, rgba(91,143,232,.16), transparent 68%);
-  filter:blur(18px);
+  content:''; position:absolute; inset:-22% -10%; z-index:0; pointer-events:none;
+  background:radial-gradient(ellipse 60% 64% at 50% 46%, rgba(120,200,255,.24), rgba(91,143,232,.1) 45%, transparent 72%);
+  filter:blur(20px);
 }
 #constellationSvg{position:absolute; inset:0; width:100%; height:100%; overflow:visible; z-index:1;}
 .constellation-line{
@@ -124,6 +125,15 @@ nav.seasons-strip button.active{background:var(--amber); color:var(--hole); bord
 }
 @keyframes starBreathe{0%,100%{filter:brightness(1);} 50%{filter:brightness(1.35);}}
 .star-node:hover .star-dot{transform:scale(1.7); box-shadow:0 0 14px 4px var(--pcolor), 0 0 30px 12px color-mix(in srgb, var(--pcolor) 45%, transparent); animation-play-state:paused;}
+/* soft 4-point glint, echoing the lens-flare stars in the reference photos */
+.star-node .star-dot::before, .star-node .star-dot::after{
+  content:''; position:absolute; left:50%; top:50%; pointer-events:none;
+  background:linear-gradient(90deg, transparent, color-mix(in srgb, var(--pcolor) 75%, white) 50%, transparent);
+  opacity:.5; animation:starBreathe 3.6s ease-in-out infinite; animation-delay:var(--bdelay,0s);
+}
+.star-node .star-dot::before{width:36px; height:1.4px; transform:translate(-50%,-50%);}
+.star-node .star-dot::after{width:1.4px; height:36px; transform:translate(-50%,-50%);}
+.star-node.armageddon-node .star-dot::before, .star-node.armageddon-node .star-dot::after{display:none;}
 .star-node .star-code{font-family:'JetBrains Mono',monospace; font-weight:700; font-size:.72rem; color:var(--ink); margin-top:10px; letter-spacing:.14em;}
 .star-node .star-label{font-family:'Fraunces',serif; font-style:italic; font-weight:500; font-size:.72rem; color:var(--ink-dim); margin-top:3px; max-width:120px; text-align:center; line-height:1.25; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
 .star-node.s0 .star-dot{--pcolor:var(--violet);}
@@ -1443,71 +1453,123 @@ try{
   const ctx=c.getContext("2d");
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   let stars=[], nebulae=[], shots=[];
-  let rafId=null, lastT=0, shotCooldown=4+Math.random()*5;
-  const nebulaColors=["70,150,230","90,190,220","150,190,255"];
+  let rafId=null, lastT=0, shotCooldown=3+Math.random()*4;
+  const nebulaColors=["60,140,230","70,185,225","130,180,255","90,160,240"];
+
+  // a soft diagonal "galaxy arm" band, like the Milky Way core in a real night-sky photo:
+  // stars are denser and the sky itself is tinted brighter along this line
+  let band = {a:0,b:0,c:0,halfW:0};
+  function setBand(){
+    // line through two fractional points of the canvas, band angle echoes the CSS body gradient
+    const p1={x:c.width*0.06, y:c.height*0.22}, p2={x:c.width*0.82, y:c.height*0.06};
+    const dx=p2.x-p1.x, dy=p2.y-p1.y, len=Math.hypot(dx,dy)||1;
+    band = {nx:-dy/len, ny:dx/len, px:p1.x, py:p1.y, halfW: Math.max(c.width,420)*0.16};
+  }
+  function bandDist(x,y){ return (x-band.px)*band.nx + (y-band.py)*band.ny; }
 
   // three brightness tiers so the sky has real depth: dim distant dust, mid-field stars,
-  // and a handful of vivid electric-blue "feature" stars for contrast (dark blue <-> bright blue)
-  function makeStar(){
+  // and a handful of vivid electric-blue "feature" stars (some rendered as 4-point glints)
+  // for contrast between dark blue voids and bright blue points, like the reference photos.
+  function makeStar(onBand){
     const roll = Math.random();
-    if(roll<0.62){
-      return { tier:0, x:Math.random()*c.width, y:Math.random()*c.height,
-        r:Math.random()*0.9+0.2, base:Math.random()*0.3+0.08, color:"170,195,230", glow:false,
-        phase:Math.random()*Math.PI*2, speed:0.3+Math.random()*0.5,
+    let s;
+    if(roll<0.58){
+      s = { tier:0, r:Math.random()*0.9+0.2, base:Math.random()*0.3+0.08, color:"170,195,230",
+        glow:false, sparkle:false, speed:0.3+Math.random()*0.5,
         vx:(Math.random()-0.5)*0.01, vy:(Math.random()*0.4+0.1)*0.01 };
-    } else if(roll<0.92){
-      return { tier:1, x:Math.random()*c.width, y:Math.random()*c.height,
-        r:Math.random()*1.1+0.5, base:Math.random()*0.45+0.3, color:"224,238,255", glow:false,
-        phase:Math.random()*Math.PI*2, speed:0.4+Math.random()*0.7,
+    } else if(roll<0.90){
+      s = { tier:1, r:Math.random()*1.1+0.5, base:Math.random()*0.45+0.3, color:"224,238,255",
+        glow:false, sparkle:false, speed:0.4+Math.random()*0.7,
         vx:(Math.random()-0.5)*0.012, vy:(Math.random()*0.5+0.15)*0.012 };
+    } else {
+      s = { tier:2, r:Math.random()*1.1+1.2, base:Math.random()*0.3+0.65, color:"175,228,255",
+        glow:true, sparkle:Math.random()<0.4, speed:0.5+Math.random()*0.6,
+        vx:(Math.random()-0.5)*0.014, vy:(Math.random()*0.5+0.15)*0.014 };
     }
-    return { tier:2, x:Math.random()*c.width, y:Math.random()*c.height,
-      r:Math.random()*1.1+1.2, base:Math.random()*0.3+0.65, color:"175,228,255", glow:true,
-      phase:Math.random()*Math.PI*2, speed:0.5+Math.random()*0.6,
-      vx:(Math.random()-0.5)*0.014, vy:(Math.random()*0.5+0.15)*0.014 };
+    if(onBand){
+      const d = (Math.random()-0.5)*2*band.halfW*0.5;
+      const along = Math.random()*Math.max(c.width,c.height)*1.3 - Math.max(c.width,c.height)*0.15;
+      s.x = band.px + band.nx*d - band.ny*along;
+      s.y = band.py + band.ny*d + band.nx*along;
+    } else {
+      s.x = Math.random()*c.width; s.y = Math.random()*c.height;
+    }
+    s.phase = Math.random()*Math.PI*2;
+    return s;
   }
+
   function resize(){
     c.width=window.innerWidth; c.height=document.documentElement.scrollHeight;
+    setBand();
     const area = c.width*c.height;
-    const count = Math.min(950, Math.max(150, Math.round(area/8500)));
-    stars = Array.from({length: count}, makeStar);
-    nebulae = Array.from({length: Math.max(3, Math.floor(c.height/700))}, (_,i)=>({
-      x:Math.random()*c.width, y:Math.random()*c.height,
-      r: Math.random()*260+180, color: nebulaColors[i%nebulaColors.length],
-      base:Math.random()*0.05+0.03, phase:Math.random()*Math.PI*2,
-      vx:(Math.random()-0.5)*0.006, vy:(Math.random()-0.5)*0.006
-    }));
+    const baseCount = Math.min(820, Math.max(140, Math.round(area/9500)));
+    const bandCount = Math.min(360, Math.max(60, Math.round(area/16000)));
+    stars = Array.from({length: baseCount}, ()=>makeStar(false))
+      .concat(Array.from({length: bandCount}, ()=>makeStar(true)));
+    // wispy nebula clouds: each is a cluster of 3-4 soft overlapping puffs, not one clean circle
+    nebulae = Array.from({length: Math.max(3, Math.floor(c.height/650))}, (_,i)=>{
+      const cx=Math.random()*c.width, cy=Math.random()*c.height;
+      const color = nebulaColors[i%nebulaColors.length];
+      const baseR = Math.random()*220+160;
+      const puffs = Array.from({length:3+Math.floor(Math.random()*2)}, ()=>({
+        dx:(Math.random()-0.5)*baseR*1.4, dy:(Math.random()-0.5)*baseR*1.1,
+        r: baseR*(0.55+Math.random()*0.6)
+      }));
+      return { x:cx, y:cy, r:baseR, color, puffs,
+        base:Math.random()*0.045+0.028, phase:Math.random()*Math.PI*2,
+        vx:(Math.random()-0.5)*0.006, vy:(Math.random()-0.5)*0.006 };
+    });
     if(reduced){ drawStatic(); }
+  }
+
+  function paintNebula(n, breathe){
+    n.puffs.forEach(p=>{
+      const px=n.x+p.dx, py=n.y+p.dy, pr=p.r*breathe;
+      const grad = ctx.createRadialGradient(px,py,0,px,py,pr);
+      grad.addColorStop(0, `rgba(${n.color},${(n.base*breathe).toFixed(3)})`);
+      grad.addColorStop(1, `rgba(${n.color},0)`);
+      ctx.fillStyle=grad;
+      ctx.beginPath(); ctx.arc(px,py,pr,0,Math.PI*2); ctx.fill();
+    });
+  }
+
+  function paintStar(s, a){
+    ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+    ctx.fillStyle=`rgba(${s.color},${Math.max(0,a).toFixed(3)})`;
+    if(s.glow){ ctx.shadowColor="rgba(150,215,255,.95)"; ctx.shadowBlur=9; } else{ ctx.shadowBlur=0; }
+    ctx.fill();
+    ctx.shadowBlur=0;
+    if(s.sparkle && a>0.35){
+      // soft 4-point glint, like the lens-flare stars in the reference photo
+      const len = s.r*7.5*a;
+      const grad = ctx.createRadialGradient(s.x,s.y,0,s.x,s.y,len);
+      grad.addColorStop(0, `rgba(220,240,255,${(a*0.5).toFixed(3)})`);
+      grad.addColorStop(1, "rgba(220,240,255,0)");
+      ctx.save();
+      ctx.translate(s.x,s.y);
+      ctx.strokeStyle=grad; ctx.lineWidth=0.9;
+      ctx.beginPath(); ctx.moveTo(-len,0); ctx.lineTo(len,0);
+      ctx.moveTo(0,-len); ctx.lineTo(0,len); ctx.stroke();
+      ctx.restore();
+    }
   }
 
   // static single frame for prefers-reduced-motion: no twinkle, no drift, no shooting stars
   function drawStatic(){
     ctx.clearRect(0,0,c.width,c.height);
-    nebulae.forEach(n=>{
-      const grad = ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,n.r);
-      grad.addColorStop(0, `rgba(${n.color},${n.base})`);
-      grad.addColorStop(1, `rgba(${n.color},0)`);
-      ctx.fillStyle=grad;
-      ctx.beginPath(); ctx.arc(n.x,n.y,n.r,0,Math.PI*2); ctx.fill();
-    });
-    stars.forEach(s=>{
-      ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
-      ctx.fillStyle=`rgba(${s.color},${s.base})`;
-      if(s.glow){ ctx.shadowColor="rgba(150,215,255,.95)"; ctx.shadowBlur=9; } else{ ctx.shadowBlur=0; }
-      ctx.fill();
-    });
-    ctx.shadowBlur=0;
+    nebulae.forEach(n=>paintNebula(n,1));
+    stars.forEach(s=>paintStar(s,s.base));
   }
 
   function maybeSpawnShot(dt){
     shotCooldown -= dt;
     if(shotCooldown>0) return;
-    shotCooldown = 5+Math.random()*7;
+    shotCooldown = 4.5+Math.random()*6;
     const fromLeft = Math.random()<0.5;
     const x = fromLeft ? -20 : c.width+20;
-    const y = Math.random()*c.height*0.6;
+    const y = Math.random()*c.height*0.55;
     const angle = fromLeft ? (Math.PI*0.15+Math.random()*0.1) : (Math.PI*0.85-Math.random()*0.1);
-    const speed = 620+Math.random()*260;
+    const speed = 600+Math.random()*260;
     shots.push({x,y,vx:Math.cos(angle)*speed*(fromLeft?1:-1),vy:Math.sin(angle)*speed,life:0,maxLife:0.8+Math.random()*0.3});
   }
 
@@ -1530,33 +1592,39 @@ try{
     shots = shots.filter(sh=> sh.life<sh.maxLife && sh.x>-60 && sh.x<c.width+60 && sh.y<c.height+60);
 
     ctx.clearRect(0,0,c.width,c.height);
+
+    // slow continuous drift of the whole sky (independent of per-star twinkle), so the
+    // universe itself feels like it's gently panning rather than merely twinkling in place
+    const driftX = Math.sin(t*0.000022)*22;
+    const driftY = Math.cos(t*0.000017)*14;
+    ctx.save();
+    ctx.translate(driftX, driftY);
+
     nebulae.forEach(n=>{
       const breathe = 0.85+0.15*Math.sin(t*0.00006+n.phase);
-      const grad = ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,n.r*breathe);
-      grad.addColorStop(0, `rgba(${n.color},${(n.base*breathe).toFixed(3)})`);
-      grad.addColorStop(1, `rgba(${n.color},0)`);
-      ctx.fillStyle=grad;
-      ctx.beginPath(); ctx.arc(n.x,n.y,n.r*breathe,0,Math.PI*2); ctx.fill();
+      paintNebula(n, breathe);
     });
     stars.forEach(s=>{
       const a = s.base*(0.55+0.45*Math.sin(t*0.001*s.speed+s.phase));
-      ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
-      ctx.fillStyle=`rgba(${s.color},${Math.max(0,a).toFixed(3)})`;
-      if(s.glow){ ctx.shadowColor="rgba(150,215,255,.95)"; ctx.shadowBlur=9; } else{ ctx.shadowBlur=0; }
-      ctx.fill();
+      paintStar(s, a);
     });
-    ctx.shadowBlur=0;
     shots.forEach(sh=>{
       const p = sh.life/sh.maxLife;
       const fade = p<0.15 ? p/0.15 : 1-((p-0.15)/0.85);
-      const tailX = sh.x - sh.vx*0.05, tailY = sh.y - sh.vy*0.05;
+      const tailX = sh.x - sh.vx*0.055, tailY = sh.y - sh.vy*0.055;
       const grad = ctx.createLinearGradient(tailX,tailY,sh.x,sh.y);
       grad.addColorStop(0, "rgba(210,230,255,0)");
-      grad.addColorStop(1, `rgba(255,255,255,${(0.85*fade).toFixed(3)})`);
-      ctx.strokeStyle=grad; ctx.lineWidth=1.6; ctx.lineCap="round";
+      grad.addColorStop(1, `rgba(255,255,255,${(0.9*fade).toFixed(3)})`);
+      ctx.strokeStyle=grad; ctx.lineWidth=1.7; ctx.lineCap="round";
       ctx.beginPath(); ctx.moveTo(tailX,tailY); ctx.lineTo(sh.x,sh.y); ctx.stroke();
+      const headGlow = ctx.createRadialGradient(sh.x,sh.y,0,sh.x,sh.y,10);
+      headGlow.addColorStop(0, `rgba(255,255,255,${(0.7*fade).toFixed(3)})`);
+      headGlow.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle=headGlow;
+      ctx.beginPath(); ctx.arc(sh.x,sh.y,10,0,Math.PI*2); ctx.fill();
     });
 
+    ctx.restore();
     rafId = requestAnimationFrame(draw);
   }
 
