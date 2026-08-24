@@ -28,9 +28,11 @@ html{scroll-behavior:smooth;}
 body{
   margin:0;
   background:
-    radial-gradient(ellipse 60% 45% at 78% 8%, rgba(255,190,140,.06), transparent 60%),
-    radial-gradient(ellipse 90% 60% at 22% 30%, rgba(63,143,214,.16), transparent 70%),
-    radial-gradient(ellipse 120% 80% at 60% 90%, rgba(56,208,224,.08), transparent 70%),
+    radial-gradient(ellipse 55% 40% at 80% 6%, rgba(255,190,140,.05), transparent 60%),
+    radial-gradient(ellipse 70% 55% at 52% 16%, rgba(127,212,255,.20), transparent 68%),
+    radial-gradient(ellipse 90% 60% at 20% 34%, rgba(63,120,214,.17), transparent 72%),
+    radial-gradient(ellipse 120% 80% at 65% 92%, rgba(20,40,80,.55), transparent 70%),
+    radial-gradient(ellipse 140% 100% at 50% 45%, transparent 45%, rgba(1,3,8,.7) 100%),
     var(--void);
   background-attachment:fixed;
   color:var(--ink);
@@ -48,7 +50,10 @@ a{color:inherit;text-decoration:none;}
 ::selection{background:var(--amber); color:var(--hole);}
 
 /* background texture: starfield + grain */
-#stars{position:fixed; inset:0; z-index:0; pointer-events:none;}
+/* absolute (not fixed): the canvas buffer spans the whole document height, so it needs to
+   scroll with the page - fixed would freeze it to the first viewport and everything below
+   the fold would never be seen */
+#stars{position:absolute; top:0; left:0; right:0; z-index:0; pointer-events:none;}
 #grain{position:fixed; inset:0; z-index:1; pointer-events:none; opacity:.05; mix-blend-mode:overlay;
   background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
 }
@@ -1441,17 +1446,31 @@ try{
   let rafId=null, lastT=0, shotCooldown=4+Math.random()*5;
   const nebulaColors=["70,150,230","90,190,220","150,190,255"];
 
+  // three brightness tiers so the sky has real depth: dim distant dust, mid-field stars,
+  // and a handful of vivid electric-blue "feature" stars for contrast (dark blue <-> bright blue)
+  function makeStar(){
+    const roll = Math.random();
+    if(roll<0.62){
+      return { tier:0, x:Math.random()*c.width, y:Math.random()*c.height,
+        r:Math.random()*0.9+0.2, base:Math.random()*0.3+0.08, color:"170,195,230", glow:false,
+        phase:Math.random()*Math.PI*2, speed:0.3+Math.random()*0.5,
+        vx:(Math.random()-0.5)*0.01, vy:(Math.random()*0.4+0.1)*0.01 };
+    } else if(roll<0.92){
+      return { tier:1, x:Math.random()*c.width, y:Math.random()*c.height,
+        r:Math.random()*1.1+0.5, base:Math.random()*0.45+0.3, color:"224,238,255", glow:false,
+        phase:Math.random()*Math.PI*2, speed:0.4+Math.random()*0.7,
+        vx:(Math.random()-0.5)*0.012, vy:(Math.random()*0.5+0.15)*0.012 };
+    }
+    return { tier:2, x:Math.random()*c.width, y:Math.random()*c.height,
+      r:Math.random()*1.1+1.2, base:Math.random()*0.3+0.65, color:"175,228,255", glow:true,
+      phase:Math.random()*Math.PI*2, speed:0.5+Math.random()*0.6,
+      vx:(Math.random()-0.5)*0.014, vy:(Math.random()*0.5+0.15)*0.014 };
+  }
   function resize(){
     c.width=window.innerWidth; c.height=document.documentElement.scrollHeight;
     const area = c.width*c.height;
-    const count = Math.min(900, Math.max(140, Math.round(area/9000)));
-    stars = Array.from({length: count}, ()=>({
-      x:Math.random()*c.width, y:Math.random()*c.height,
-      r:Math.random()*1.4+0.25, base:Math.random()*0.55+0.2,
-      glow: Math.random()<0.08,
-      phase: Math.random()*Math.PI*2, speed: 0.4+Math.random()*0.7,
-      vx:(Math.random()-0.5)*0.012, vy:(Math.random()*0.5+0.15)*0.012
-    }));
+    const count = Math.min(950, Math.max(150, Math.round(area/8500)));
+    stars = Array.from({length: count}, makeStar);
     nebulae = Array.from({length: Math.max(3, Math.floor(c.height/700))}, (_,i)=>({
       x:Math.random()*c.width, y:Math.random()*c.height,
       r: Math.random()*260+180, color: nebulaColors[i%nebulaColors.length],
@@ -1473,8 +1492,8 @@ try{
     });
     stars.forEach(s=>{
       ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
-      ctx.fillStyle=`rgba(224,238,255,${s.base})`;
-      if(s.glow){ ctx.shadowColor="rgba(140,200,255,.9)"; ctx.shadowBlur=6; } else{ ctx.shadowBlur=0; }
+      ctx.fillStyle=`rgba(${s.color},${s.base})`;
+      if(s.glow){ ctx.shadowColor="rgba(150,215,255,.95)"; ctx.shadowBlur=9; } else{ ctx.shadowBlur=0; }
       ctx.fill();
     });
     ctx.shadowBlur=0;
@@ -1522,8 +1541,8 @@ try{
     stars.forEach(s=>{
       const a = s.base*(0.55+0.45*Math.sin(t*0.001*s.speed+s.phase));
       ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
-      ctx.fillStyle=`rgba(224,238,255,${Math.max(0,a).toFixed(3)})`;
-      if(s.glow){ ctx.shadowColor="rgba(140,200,255,.9)"; ctx.shadowBlur=6; } else{ ctx.shadowBlur=0; }
+      ctx.fillStyle=`rgba(${s.color},${Math.max(0,a).toFixed(3)})`;
+      if(s.glow){ ctx.shadowColor="rgba(150,215,255,.95)"; ctx.shadowBlur=9; } else{ ctx.shadowBlur=0; }
       ctx.fill();
     });
     ctx.shadowBlur=0;
