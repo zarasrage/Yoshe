@@ -100,7 +100,22 @@ nav.seasons-strip button.active{background:var(--amber); color:var(--hole); bord
 .hero h1 em{font-style:italic; font-weight:500; color:var(--amber); position:relative;}
 .hero p.tag{max-width:560px; color:var(--ink-dim); font-size:1.05rem; margin:22px auto 0; line-height:1.6;}
 
+/* one-shot entrance on first load this session (see viewHome/setupHeroIntro) - a returning
+   visit, or a reduced-motion session, never gets the .intro-play class and renders instantly */
+.hero.intro-play .eyebrow{animation:heroFadeUp .9s cubic-bezier(.16,1,.3,1) both;}
+.hero.intro-play h1{animation:heroTitleIn 1.15s cubic-bezier(.16,1,.3,1) .15s both;}
+.hero.intro-play p.tag{animation:heroFadeUp .9s cubic-bezier(.16,1,.3,1) .55s both;}
+.hero.intro-play .scroll-cue{animation:heroFadeUp .9s ease .95s both;}
+.hero.intro-play .star-node{animation:starIgnite .7s cubic-bezier(.2,1,.3,1) var(--idelay,0s) both;}
+@keyframes heroFadeUp{from{opacity:0; transform:translateY(14px);} to{opacity:1; transform:translateY(0);}}
+@keyframes heroTitleIn{from{opacity:0; transform:translateY(22px) scale(.96); filter:blur(6px);} to{opacity:1; transform:translateY(0) scale(1); filter:blur(0);}}
+@keyframes starIgnite{from{opacity:0; transform:translate(-50%,-50%) scale(.2);} to{opacity:1; transform:translate(-50%,-50%) scale(1);}}
+
 .constellation-wrap{position:relative; width:min(920px,92vw); aspect-ratio:16/9; margin:72px auto 10px; isolation:isolate;}
+/* outer wrap carries the scroll-recede transform (JS, see setupHeroDepth); the inner tilt
+   layer carries the pointer-tilt transform (JS, see setupHeroDepth) - two independent
+   inline-style writers on the same element would clobber each other, hence the split */
+.constellation-tilt{position:absolute; inset:0; will-change:transform;}
 .constellation-wrap::before{
   content:''; position:absolute; inset:-22% -10%; z-index:0; pointer-events:none;
   background:radial-gradient(ellipse 60% 64% at 50% 46%, rgba(120,200,255,.24), rgba(91,143,232,.1) 45%, transparent 72%);
@@ -111,7 +126,9 @@ nav.seasons-strip button.active{background:var(--amber); color:var(--hole); bord
   fill:none; stroke-width:1.1; vector-effect:non-scaling-stroke;
   filter:drop-shadow(0 0 2.5px rgba(120,190,255,.4));
   stroke-linecap:round;
+  transition:stroke-width .25s, filter .25s;
 }
+.constellation-line.line-hot{stroke-width:2.2; filter:drop-shadow(0 0 6px rgba(170,220,255,.95));}
 .micro-star{position:absolute; border-radius:50%; background:#eaf2ff; transform:translate(-50%,-50%); animation:microTwinkle 4.5s ease-in-out infinite; pointer-events:none; z-index:1;}
 @keyframes microTwinkle{0%,100%{opacity:.15;} 50%{opacity:.85;}}
 .star-node{position:absolute; transform:translate(-50%,-50%); display:flex; flex-direction:column; align-items:center; cursor:pointer; z-index:2; --pcolor:var(--amber);}
@@ -970,10 +987,22 @@ function viewHome(){
   ];
   const ARMAGEDDON_POS = isNarrow ? {x:50, y:96} : {x:96, y:88};
 
+  // The star nodes are plain positioned divs (left/top %), so they don't care about the
+  // svg's own coordinate system - but the connecting <path>s do. A 100x100 viewBox stretched
+  // non-uniformly onto a 16:9 (or 3:4) box via preserveAspectRatio="none" used to make the
+  // *visual* curve line up with the divs, but it also meant path-length-based math (the dash
+  // draw-in below) was computed in a squashed space that didn't match the rendered geometry -
+  // stroke-dasharray/getTotalLength() and vector-effect:non-scaling-stroke disagreed about
+  // what "the whole line" meant, so the draw-in animation stalled a few percent in. Building
+  // the viewBox in the box's real aspect ratio (and rescaling only the Y going into the path
+  // data) keeps the scale uniform, so both agree again.
+  const vbH = isNarrow ? 100 * (4/3) : 100 * (9/16);
+  const toVB = p => ({x:p.x, y:p.y*vbH/100});
+
   // gentle arcs instead of straight zigzag segments, alternating bow direction, colored by a
   // gradient between each pair of season colors
   const linesSvg = DATA.seasons.slice(1).map((s,i)=>{
-    const a = CONSTELLATION_POS[i], b = CONSTELLATION_POS[i+1];
+    const a = toVB(CONSTELLATION_POS[i]), b = toVB(CONSTELLATION_POS[i+1]);
     const prev = DATA.seasons[i];
     const mx = (a.x+b.x)/2, my = (a.y+b.y)/2;
     const dx = b.x-a.x, dy = b.y-a.y;
@@ -985,7 +1014,7 @@ function viewHome(){
         <stop offset="0%" stop-color="${prev.color}" stop-opacity=".55"/>
         <stop offset="100%" stop-color="${s.color}" stop-opacity=".55"/>
       </linearGradient></defs>
-      <path class="constellation-line" stroke="url(#${gid})" d="M ${a.x} ${a.y} Q ${cx} ${cy} ${b.x} ${b.y}"></path>`;
+      <path class="constellation-line" data-idx="${i}" stroke="url(#${gid})" d="M ${a.x} ${a.y} Q ${cx} ${cy} ${b.x} ${b.y}"></path>`;
   }).join("");
 
   const microStars = Array.from({length:26}, (_,i)=>{
@@ -998,14 +1027,16 @@ function viewHome(){
   const seasonNodesHtml = DATA.seasons.map((s,i)=>{
     const p = CONSTELLATION_POS[i] || {x:50,y:50};
     const bdelay = ((i*0.63) % 3.6).toFixed(2);
-    return `<div class="star-node ${s.id===0?'s0':''}" style="left:${p.x}%; top:${p.y}%; --pcolor:${s.color}; --bdelay:${bdelay}s" onclick="location.hash='#/season/${s.id}'">
+    const idelay = (0.55 + i*0.13).toFixed(2);
+    return `<div class="star-node ${s.id===0?'s0':''}" data-nodeidx="${i}" style="left:${p.x}%; top:${p.y}%; --pcolor:${s.color}; --bdelay:${bdelay}s; --idelay:${idelay}s" onclick="location.hash='#/season/${s.id}'">
       <div class="star-dot"></div>
       <div class="star-code" style="color:${s.color}">${s.code}</div>
       <div class="star-label">${escapeHtml(s.title)}</div>
     </div>`;
   }).join("");
 
-  const armageddonNode = `<div class="star-node armageddon-node" style="left:${ARMAGEDDON_POS.x}%; top:${ARMAGEDDON_POS.y}%;" onclick="location.hash='#/armageddon'">
+  const armageddonIdelay = (0.55 + DATA.seasons.length*0.13 + 0.2).toFixed(2);
+  const armageddonNode = `<div class="star-node armageddon-node" style="left:${ARMAGEDDON_POS.x}%; top:${ARMAGEDDON_POS.y}%; --idelay:${armageddonIdelay}s" onclick="location.hash='#/armageddon'">
     <div class="star-dot"></div>
     <div class="star-code">†</div>
     <div class="star-label">armagedón</div>
@@ -1029,15 +1060,26 @@ function viewHome(){
       <div class="pdesc">${escapeHtml(p.desc)}</div>
     </div>`).join("");
 
+  // the hero's "ignite" entrance only plays once per browser session, and never under
+  // prefers-reduced-motion - a returning visit (or a second trip back to #/home) just
+  // renders the final state directly instead of replaying the reveal
+  const INTRO_KEY = "ychHeroIntroPlayed";
+  let playIntro = false;
+  try{
+    playIntro = !sessionStorage.getItem(INTRO_KEY) && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }catch(e){ playIntro = false; }
+
   app.innerHTML = `
-  <section class="hero">
+  <section class="hero${playIntro?' intro-play':''}">
     <div class="eyebrow">La crónica de un grupo de amigos</div>
     <h1>Yoshe con <em>Hoyo</em></h1>
     <p class="tag">Cinco temporadas (y una S0) de historias, viajes y desastres compartidos.
     Elige una estrella para caer dentro de esa temporada.</p>
     <div class="constellation-wrap">
-      <svg id="constellationSvg" viewBox="0 0 100 100" preserveAspectRatio="none">${linesSvg}</svg>
-      ${microStars}${seasonNodesHtml}${armageddonNode}
+      <div class="constellation-tilt" id="constellationTilt">
+        <svg id="constellationSvg" viewBox="0 0 100 ${vbH.toFixed(3)}" preserveAspectRatio="none">${linesSvg}</svg>
+        ${microStars}${seasonNodesHtml}${armageddonNode}
+      </div>
     </div>
     <div class="scroll-cue">Explora el elenco y los lugares<div class="chevron"></div></div>
   </section>
@@ -1068,8 +1110,51 @@ function viewHome(){
 
   <footer class="site-footer">Yoshe con Hoyo · una crónica en construcción · S0 → S5</footer>
   `;
+
+  if(playIntro){ try{ sessionStorage.setItem(INTRO_KEY, "1"); }catch(e){} }
+  setupConstellationFX();
 }
 
+// lines fade in one after another on first appearance, and glow along the pair connected
+// to whichever season star you're hovering - both purely visual, both skipped under
+// prefers-reduced-motion (the paths just render fully drawn, hover highlight still works
+// since it's an instant class toggle, not an animation).
+// NOTE: this used to be a stroke-dasharray "hand drawn" reveal, but Chromium's dash-pattern
+// layout for vector-effect:non-scaling-stroke paths doesn't match what getTotalLength()
+// reports once any scale transform is involved (confirmed by testing: the exact same
+// dasharray/dashoffset values render a full line with non-scaling-stroke off, and a few
+// percent of it with non-scaling-stroke on) - so the "on" dash only ever covered the first
+// few percent of each curve, never the whole line. A plain fade sidesteps the bug entirely.
+function setupConstellationFX(){
+  const svg = document.getElementById("constellationSvg");
+  const wrap = document.querySelector(".constellation-wrap");
+  if(!svg || !wrap) return;
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const paths = Array.from(svg.querySelectorAll(".constellation-line"));
+
+  if(!reduced && paths.length){
+    paths.forEach((p,i)=>{
+      p.style.opacity = "0";
+      p.style.transition = `opacity .85s ease ${(i*0.12).toFixed(2)}s, stroke-width .25s, filter .25s`;
+    });
+    const io = new IntersectionObserver((entries)=>{
+      entries.forEach(en=>{
+        if(en.isIntersecting){
+          paths.forEach(p=>{ p.style.opacity = "1"; });
+          io.disconnect();
+        }
+      });
+    }, {threshold:0.3});
+    io.observe(wrap);
+  }
+
+  wrap.querySelectorAll(".star-node[data-nodeidx]").forEach(node=>{
+    const idx = Number(node.dataset.nodeidx);
+    const related = svg.querySelectorAll(`.constellation-line[data-idx="${idx-1}"], .constellation-line[data-idx="${idx}"]`);
+    node.addEventListener("mouseenter", ()=> related.forEach(p=>p.classList.add("line-hot")));
+    node.addEventListener("mouseleave", ()=> related.forEach(p=>p.classList.remove("line-hot")));
+  });
+}
 
 /* =========================== render: SEASON =========================== */
 function viewSeason(id){
@@ -1640,6 +1725,60 @@ try{
   setTimeout(()=>{ resize(); if(!reduced) start(); }, 120);
 })();
 }catch(e){ /* decorative starfield failing should never block the app */ }
+
+// hero depth: (a) the star canvas scrolls slower than the page (distance parallax), and
+// (b) the constellation recedes/fades as the hero scrolls past, while (c) it tilts gently
+// toward the pointer on hover-capable devices - all three share one rAF loop since they're
+// just cheap transform writes, no layout thrash. Skips entirely under reduced motion.
+try{
+  const heroReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if(!heroReduced){
+    const canHover = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+    let rafId = null;
+    let targetTiltX = 0, targetTiltY = 0, tiltX = 0, tiltY = 0;
+
+    if(canHover){
+      document.addEventListener("pointermove", (e)=>{
+        const wrap = document.querySelector(".constellation-wrap");
+        if(!wrap) return;
+        const r = wrap.getBoundingClientRect();
+        const px = (e.clientX - (r.left + r.width/2)) / (r.width/2 || 1);
+        const py = (e.clientY - (r.top + r.height/2)) / (r.height/2 || 1);
+        targetTiltX = Math.max(-1, Math.min(1, px)) * 11;
+        targetTiltY = Math.max(-1, Math.min(1, py)) * 8;
+      });
+    }
+
+    function tick(){
+      const starsEl = document.getElementById("stars");
+      if(starsEl) starsEl.style.transform = `translateY(${(window.scrollY*0.35).toFixed(1)}px)`;
+
+      const hero = document.querySelector(".hero");
+      if(hero){
+        const rect = hero.getBoundingClientRect();
+        const span = rect.height || window.innerHeight;
+        const progress = Math.min(1, Math.max(0, -rect.top/span));
+        const wrap = hero.querySelector(".constellation-wrap");
+        if(wrap){
+          wrap.style.transform = `translateY(${(progress*46).toFixed(1)}px) scale(${(1-progress*0.06).toFixed(3)})`;
+          wrap.style.opacity = (1 - progress*0.55).toFixed(3);
+        }
+      }
+
+      if(canHover){
+        tiltX += (targetTiltX-tiltX)*0.08; tiltY += (targetTiltY-tiltY)*0.08;
+        const tilt = document.getElementById("constellationTilt");
+        if(tilt) tilt.style.transform = `translate(${tiltX.toFixed(2)}px, ${tiltY.toFixed(2)}px)`;
+      }
+
+      rafId = requestAnimationFrame(tick);
+    }
+    function start(){ if(rafId===null) rafId = requestAnimationFrame(tick); }
+    function stop(){ if(rafId!==null){ cancelAnimationFrame(rafId); rafId=null; } }
+    document.addEventListener("visibilitychange", ()=>{ if(document.hidden) stop(); else start(); });
+    start();
+  }
+}catch(e){ /* decorative depth effects failing should never block the app */ }
 
 render();
 </script>
