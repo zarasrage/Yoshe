@@ -34,7 +34,7 @@ const DATA = {
   },
   seasons: [
     {
-      id:0, code:"S0", title:"— título pendiente —", color:"#8b6bf2",
+      id:0, code:"S0", title:"Preludio", color:"#8b6bf2",
       hito:"Cuéntame cuál fue el hito que marcó el inicio de la S0.",
       events:[
         {
@@ -53,17 +53,17 @@ const DATA = {
       ]
     },
     {
-      id:1, code:"S1", title:"— título pendiente —", color:"#f2a65a",
+      id:1, code:"S1", title:"Los Inicios", color:"#f2a65a",
       hito:"Cuéntame cuál fue el hito que marcó el inicio de la S1.",
       events:[]
     },
     {
-      id:2, code:"S2", title:"— título pendiente —", color:"#3f8c82",
+      id:2, code:"S2", title:"El Grupo", color:"#3f8c82",
       hito:"Cuéntame cuál fue el hito que marcó el inicio de la S2.",
       events:[]
     },
     {
-      id:3, code:"S3", title:"— título pendiente —", color:"#c9853f",
+      id:3, code:"S3", title:"Caos", color:"#c9853f",
       hito:"Cuéntame cuál fue el hito que marcó el inicio de la S3.",
       events:[
         {
@@ -96,12 +96,12 @@ const DATA = {
       ]
     },
     {
-      id:4, code:"S4", title:"— título pendiente —", color:"#d9748a",
+      id:4, code:"S4", title:"La Expansión", color:"#d9748a",
       hito:"Cuéntame cuál fue el hito que marcó el inicio de la S4.",
       events:[]
     },
     {
-      id:5, code:"S5", title:"— título pendiente —", color:"#6b9bf2",
+      id:5, code:"S5", title:"La Estabilidad", color:"#6b9bf2",
       hito:"Cuéntame cuál fue el hito que marcó el inicio de la S5 (temporada actual).",
       events:[
         {
