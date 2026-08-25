@@ -135,23 +135,26 @@ nav.seasons-strip button.active{background:var(--amber); color:var(--hole); bord
 @keyframes microTwinkle{0%,100%{opacity:.15;} 50%{opacity:.85;}}
 .star-node{position:absolute; transform:translate(-50%,-50%); display:flex; flex-direction:column; align-items:center; cursor:pointer; z-index:2; --pcolor:var(--amber);}
 .star-node .star-dot{
-  position:relative; width:12px; height:12px; border-radius:50%;
+  position:relative; z-index:0; width:19px; height:19px; border-radius:50%;
   background:radial-gradient(circle at 35% 30%, #ffffff, var(--pcolor) 55%, transparent 78%);
-  box-shadow:0 0 8px 2px color-mix(in srgb, var(--pcolor) 65%, transparent), 0 0 20px 7px color-mix(in srgb, var(--pcolor) 30%, transparent);
+  box-shadow:0 0 11px 3px color-mix(in srgb, var(--pcolor) 65%, transparent), 0 0 28px 10px color-mix(in srgb, var(--pcolor) 32%, transparent);
   transition:transform .3s, box-shadow .3s;
-  animation:starBreathe 3.6s ease-in-out infinite;
+  animation:starPulseDot 3.4s ease-in-out infinite;
   animation-delay:var(--bdelay,0s);
 }
-@keyframes starBreathe{0%,100%{filter:brightness(1);} 50%{filter:brightness(1.35);}}
-.star-node:hover .star-dot{transform:scale(1.7); box-shadow:0 0 14px 4px var(--pcolor), 0 0 30px 12px color-mix(in srgb, var(--pcolor) 45%, transparent); animation-play-state:paused;}
-/* soft 4-point glint, echoing the lens-flare stars in the reference photos */
+@keyframes starPulseDot{0%,100%{transform:scale(1); filter:brightness(1);} 50%{transform:scale(1.18); filter:brightness(1.5);}}
+.star-node:hover .star-dot{transform:scale(1.7); box-shadow:0 0 16px 5px var(--pcolor), 0 0 34px 14px color-mix(in srgb, var(--pcolor) 45%, transparent); animation-play-state:paused;}
+/* soft 4-point glint, echoing the lens-flare stars in the reference photos - z-index:-1 so
+   the rays sit BEHIND the solid dot (a positive z-index/context on .star-dot above scopes
+   this to just that stacking, not the whole page) instead of drawing over it */
 .star-node .star-dot::before, .star-node .star-dot::after{
-  content:''; position:absolute; left:50%; top:50%; pointer-events:none;
+  content:''; position:absolute; left:50%; top:50%; z-index:-1; pointer-events:none;
   background:linear-gradient(90deg, transparent, color-mix(in srgb, var(--pcolor) 75%, white) 50%, transparent);
-  opacity:.5; animation:starBreathe 3.6s ease-in-out infinite; animation-delay:var(--bdelay,0s);
+  animation:starRayPulse 3.4s ease-in-out infinite; animation-delay:var(--bdelay,0s);
 }
-.star-node .star-dot::before{width:36px; height:1.4px; transform:translate(-50%,-50%);}
-.star-node .star-dot::after{width:1.4px; height:36px; transform:translate(-50%,-50%);}
+.star-node .star-dot::before{width:56px; height:1.7px; transform:translate(-50%,-50%);}
+.star-node .star-dot::after{width:1.7px; height:56px; transform:translate(-50%,-50%);}
+@keyframes starRayPulse{0%,100%{transform:translate(-50%,-50%) scale(1); opacity:.38;} 50%{transform:translate(-50%,-50%) scale(1.3); opacity:.8;}}
 .star-node.armageddon-node .star-dot::before, .star-node.armageddon-node .star-dot::after{display:none;}
 .star-node .star-code{font-family:'JetBrains Mono',monospace; font-weight:700; font-size:.72rem; color:var(--ink); margin-top:10px; letter-spacing:.14em;}
 .star-node .star-label{font-family:'Fraunces',serif; font-style:italic; font-weight:500; font-size:.72rem; color:var(--ink-dim); margin-top:3px; max-width:120px; text-align:center; line-height:1.25; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
@@ -164,7 +167,7 @@ nav.seasons-strip button.active{background:var(--amber); color:var(--hole); bord
 @media (max-width:600px){
   .hero{padding:44px 16px 16px; min-height:auto;}
   .constellation-wrap{width:96vw; aspect-ratio:3/4; margin:40px auto 4px;}
-  .star-node .star-dot{width:15px; height:15px;}
+  .star-node .star-dot{width:23px; height:23px;}
   .star-node{padding:8px; margin:-8px;} /* larger invisible tap area */
   .star-node .star-code{font-size:.8rem; margin-top:7px;}
   .star-node .star-label{font-size:.68rem; max-width:96px;}
@@ -1557,21 +1560,29 @@ try{
   // three brightness tiers so the sky has real depth: dim distant dust, mid-field stars,
   // and a handful of vivid electric-blue "feature" stars (some rendered as 4-point glints)
   // for contrast between dark blue voids and bright blue points, like the reference photos.
+  // drift in a genuinely random direction (full 360°) at a genuinely varied speed - a mix of
+  // near-still stars and a handful of noticeably faster ones - rather than everything sharing
+  // one mostly-downward crawl
+  function randomDrift(maxSpeed){
+    const angle = Math.random()*Math.PI*2;
+    const speed = maxSpeed * Math.pow(Math.random(), 2.2); // biased toward slow, a few fast outliers
+    return { vx: Math.cos(angle)*speed, vy: Math.sin(angle)*speed };
+  }
   function makeStar(onBand){
     const roll = Math.random();
     let s;
     if(roll<0.58){
-      s = { tier:0, r:Math.random()*0.9+0.2, base:Math.random()*0.3+0.08, color:"170,195,230",
-        glow:false, sparkle:false, speed:0.3+Math.random()*0.5,
-        vx:(Math.random()-0.5)*0.01, vy:(Math.random()*0.4+0.1)*0.01 };
+      s = { tier:0, r:Math.random()*0.9+0.2, base:Math.random()*0.32+0.08, color:"170,195,230",
+        glow:false, sparkle:false, speed:0.4+Math.random()*0.9,
+        ...randomDrift(0.028) };
     } else if(roll<0.90){
-      s = { tier:1, r:Math.random()*1.1+0.5, base:Math.random()*0.45+0.3, color:"224,238,255",
-        glow:false, sparkle:false, speed:0.4+Math.random()*0.7,
-        vx:(Math.random()-0.5)*0.012, vy:(Math.random()*0.5+0.15)*0.012 };
+      s = { tier:1, r:Math.random()*1.1+0.5, base:Math.random()*0.48+0.3, color:"224,238,255",
+        glow:false, sparkle:false, speed:0.5+Math.random()*1.15,
+        ...randomDrift(0.038) };
     } else {
-      s = { tier:2, r:Math.random()*1.1+1.2, base:Math.random()*0.3+0.65, color:"175,228,255",
-        glow:true, sparkle:Math.random()<0.4, speed:0.5+Math.random()*0.6,
-        vx:(Math.random()-0.5)*0.014, vy:(Math.random()*0.5+0.15)*0.014 };
+      s = { tier:2, r:Math.random()*1.1+1.2, base:Math.random()*0.32+0.65, color:"175,228,255",
+        glow:true, sparkle:Math.random()<0.4, speed:0.6+Math.random()*1.05,
+        ...randomDrift(0.05) };
     }
     if(onBand){
       const d = (Math.random()-0.5)*2*band.halfW*0.5;
@@ -1653,13 +1664,22 @@ try{
   function maybeSpawnShot(dt){
     shotCooldown -= dt;
     if(shotCooldown>0) return;
-    shotCooldown = 4.5+Math.random()*6;
-    const fromLeft = Math.random()<0.5;
-    const x = fromLeft ? -20 : c.width+20;
-    const y = Math.random()*c.height*0.55;
-    const angle = fromLeft ? (Math.PI*0.15+Math.random()*0.1) : (Math.PI*0.85-Math.random()*0.1);
-    const speed = 600+Math.random()*260;
-    shots.push({x,y,vx:Math.cos(angle)*speed*(fromLeft?1:-1),vy:Math.sin(angle)*speed,life:0,maxLife:0.8+Math.random()*0.3});
+    shotCooldown = 2+Math.random()*3;
+    // spawn relative to the CURRENT scroll position, not a fixed band near the top of the
+    // document - the canvas covers the whole page, so anchoring shots to (say) the first
+    // 900px meant they'd only ever be seen if you happened to be scrolled to the very top;
+    // anywhere else on a long page, they were spawning far off-screen and expiring unseen.
+    const viewTop = window.scrollY, viewH = window.innerHeight;
+    const edge = Math.floor(Math.random()*4);
+    const spread = (Math.random()-0.5)*(Math.PI*0.55);
+    let x,y,baseAngle;
+    if(edge===0){ x=-20; y=viewTop+Math.random()*viewH*0.9; baseAngle=0; }
+    else if(edge===1){ x=c.width+20; y=viewTop+Math.random()*viewH*0.9; baseAngle=Math.PI; }
+    else if(edge===2){ x=Math.random()*c.width; y=viewTop-20; baseAngle=Math.PI/2; }
+    else{ x=Math.random()*c.width; y=viewTop+viewH+20; baseAngle=-Math.PI/2; }
+    const angle = baseAngle + spread;
+    const speed = 560+Math.random()*320;
+    shots.push({x,y,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,life:0,maxLife:0.75+Math.random()*0.35});
   }
 
   function draw(t){
@@ -1694,7 +1714,7 @@ try{
       paintNebula(n, breathe);
     });
     stars.forEach(s=>{
-      const a = s.base*(0.55+0.45*Math.sin(t*0.001*s.speed+s.phase));
+      const a = s.base*(0.4+0.6*Math.sin(t*0.0012*s.speed+s.phase));
       paintStar(s, a);
     });
     shots.forEach(sh=>{
