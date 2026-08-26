@@ -143,33 +143,42 @@ nav.seasons-strip button.active{background:var(--amber); color:var(--hole); bord
 .micro-star{position:absolute; border-radius:50%; background:#eaf2ff; transform:translate(-50%,-50%); animation:microTwinkle 4.5s ease-in-out infinite; pointer-events:none; z-index:1;}
 @keyframes microTwinkle{0%,100%{opacity:.15;} 50%{opacity:.85;}}
 .star-node{position:absolute; transform:translate(-50%,-50%); display:flex; flex-direction:column; align-items:center; cursor:pointer; z-index:2; --pcolor:var(--amber);}
+/* .star-dot is now just a positioning anchor with three real stacked children in DOM order
+   (ray-h, ray-v, core) instead of the ball being the element's own background with the rays
+   as z-index:-1 pseudo-elements: negative z-index only sinks something below NORMAL content,
+   never below the box's own background/fill, so the rays were always painting on top of the
+   ball no matter what z-index they got. Plain DOM order (later = on top, all at the same auto
+   stacking level) is what actually puts the core in front and the rays behind it. */
 .star-node .star-dot{
-  position:relative; z-index:0; width:19px; height:19px; border-radius:50%;
-  background:radial-gradient(circle at 35% 30%, #ffffff, var(--pcolor) 55%, transparent 78%);
-  box-shadow:0 0 11px 3px color-mix(in srgb, var(--pcolor) 65%, transparent), 0 0 28px 10px color-mix(in srgb, var(--pcolor) 32%, transparent);
-  transition:transform .3s, box-shadow .3s;
+  position:relative; width:19px; height:19px;
   animation:starPulseDot 3.4s ease-in-out infinite;
   animation-delay:var(--bdelay,0s);
 }
+.star-node .star-dot .core{
+  position:absolute; inset:0; border-radius:50%;
+  background:radial-gradient(circle at 35% 30%, #ffffff, var(--pcolor) 55%, transparent 78%);
+  box-shadow:0 0 11px 3px color-mix(in srgb, var(--pcolor) 65%, transparent), 0 0 28px 10px color-mix(in srgb, var(--pcolor) 32%, transparent);
+  transition:box-shadow .3s;
+}
 @keyframes starPulseDot{0%,100%{transform:scale(1); filter:brightness(1);} 50%{transform:scale(1.18); filter:brightness(1.5);}}
-.star-node:hover .star-dot{transform:scale(1.7); box-shadow:0 0 16px 5px var(--pcolor), 0 0 34px 14px color-mix(in srgb, var(--pcolor) 45%, transparent); animation-play-state:paused;}
-/* soft 4-point glint, echoing the lens-flare stars in the reference photos - z-index:-1 so
-   the rays sit BEHIND the solid dot (a positive z-index/context on .star-dot above scopes
-   this to just that stacking, not the whole page) instead of drawing over it */
-.star-node .star-dot::before, .star-node .star-dot::after{
-  content:''; position:absolute; left:50%; top:50%; z-index:-1; pointer-events:none;
+.star-node:hover .star-dot{transform:scale(1.7); animation-play-state:paused;}
+.star-node:hover .star-dot .core{box-shadow:0 0 16px 5px var(--pcolor), 0 0 34px 14px color-mix(in srgb, var(--pcolor) 45%, transparent);}
+/* soft 4-point glint, echoing the lens-flare stars in the reference photos */
+.star-node .star-dot .ray{
+  position:absolute; left:50%; top:50%; pointer-events:none;
   background:linear-gradient(90deg, transparent, color-mix(in srgb, var(--pcolor) 75%, white) 50%, transparent);
   animation:starRayPulse 3.4s ease-in-out infinite; animation-delay:var(--bdelay,0s);
 }
-.star-node .star-dot::before{width:56px; height:1.7px; transform:translate(-50%,-50%);}
-.star-node .star-dot::after{width:1.7px; height:56px; transform:translate(-50%,-50%);}
+.star-node .star-dot .ray-h{width:56px; height:1.7px; transform:translate(-50%,-50%);}
+.star-node .star-dot .ray-v{width:1.7px; height:56px; transform:translate(-50%,-50%);}
 @keyframes starRayPulse{0%,100%{transform:translate(-50%,-50%) scale(1); opacity:.38;} 50%{transform:translate(-50%,-50%) scale(1.3); opacity:.8;}}
-.star-node.armageddon-node .star-dot::before, .star-node.armageddon-node .star-dot::after{display:none;}
+.star-node.armageddon-node .star-dot .ray{display:none;}
 .star-node .star-code{font-family:'JetBrains Mono',monospace; font-weight:700; font-size:.72rem; color:var(--ink); margin-top:10px; letter-spacing:.14em;}
 .star-node .star-label{font-family:'Fraunces',serif; font-style:italic; font-weight:500; font-size:.72rem; color:var(--ink-dim); margin-top:3px; max-width:120px; text-align:center; line-height:1.25; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
 .star-node.s0 .star-dot{--pcolor:var(--violet);}
 .star-node.armageddon-node{opacity:.4; transition:opacity .3s;}
-.star-node.armageddon-node .star-dot{width:6px; height:6px; background:rgba(255,255,255,.35); box-shadow:none; animation:none;}
+.star-node.armageddon-node .star-dot{width:6px; height:6px; animation:none;}
+.star-node.armageddon-node .star-dot .core{background:rgba(255,255,255,.35); box-shadow:none;}
 .star-node.armageddon-node .star-code{color:rgba(255,255,255,.4); font-size:.62rem; letter-spacing:.1em;}
 .star-node.armageddon-node .star-label{color:rgba(255,255,255,.28); font-size:.58rem; font-style:normal; font-family:'JetBrains Mono',monospace;}
 .star-node.armageddon-node:hover{opacity:1;}
@@ -1043,7 +1052,7 @@ function viewHome(){
     const bdelay = ((i*0.63) % 3.6).toFixed(2);
     const idelay = (0.55 + i*0.13).toFixed(2);
     return `<div class="star-node ${s.id===0?'s0':''}" data-nodeidx="${i}" style="left:${p.x}%; top:${p.y}%; --pcolor:${s.color}; --bdelay:${bdelay}s; --idelay:${idelay}s" onclick="location.hash='#/season/${s.id}'">
-      <div class="star-dot"></div>
+      <div class="star-dot"><i class="ray ray-h"></i><i class="ray ray-v"></i><i class="core"></i></div>
       <div class="star-code" style="color:${s.color}">${s.code}</div>
       <div class="star-label">${escapeHtml(s.title)}</div>
     </div>`;
@@ -1051,7 +1060,7 @@ function viewHome(){
 
   const armageddonIdelay = (0.55 + DATA.seasons.length*0.13 + 0.2).toFixed(2);
   const armageddonNode = `<div class="star-node armageddon-node" style="left:${ARMAGEDDON_POS.x}%; top:${ARMAGEDDON_POS.y}%; --idelay:${armageddonIdelay}s" onclick="location.hash='#/armageddon'">
-    <div class="star-dot"></div>
+    <div class="star-dot"><i class="core"></i></div>
     <div class="star-code">†</div>
     <div class="star-label">armagedón</div>
   </div>`;
