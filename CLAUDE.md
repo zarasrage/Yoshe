@@ -103,11 +103,32 @@ El carrusel de fotos (`cyclePhoto()`) cicla entre `photos[]` con una transición
 
 ## Diseño / paleta
 
-Tema "espacio profundo, cielo estrellado azul" (nebulosa azul-cian sobre negro-azulado, estrellas con glow). Variables CSS en `:root`: `--void`, `--void-2`, `--void-3`, `--hole`, `--ink`, `--ink-dim`, `--amber` (acento brillante, ahora azul-cian pese al nombre), `--violet`, `--teal`, `--line`, `--card`. Cambiar la paleta = redefinir estas variables, no hay que tocar el resto del CSS.
+Tema "espacio profundo, cielo estrellado azul". Variables CSS en `:root`: `--void`, `--void-2`, `--void-3`, `--hole`, `--ink`, `--ink-dim`, `--ink-faint`, `--amber` (acento principal, cian, el nombre quedó por historia), `--violet`, `--teal`, `--line`, `--line-soft`, `--card`, `--card-hi`, `--ease`. Cambiar la paleta = redefinir estas variables, no hay que tocar el resto del CSS. Los valores actuales están muestreados de los píxeles reales de `images/fondo_final.jpg`.
 
-Tipografías: `Fraunces` (serif, títulos/nombres), `Inter` (body), `JetBrains Mono` (labels, fechas, código).
+Tipografías: `Cormorant Garamond` (serif de display: títulos, nombres, números de stats), `Outfit` (body/UI), `JetBrains Mono` (labels, fechas, chips, código).
 
-Página principal: los nodos de temporada son una **constelación dibujada a mano** (posiciones fijas en `CONSTELLATION_POS`, no un layout circular), conectados por líneas SVG finas. El nodo "Armagedón" está deliberadamente apagado/discreto (opacity baja, sin glow), separado de la constelación principal.
+### El cielo (fondo)
+
+Tres capas `position:fixed` a tamaño de viewport, detrás de todo, en este orden de pintado:
+
+1. `#skyPhoto` — la foto real (`images/sky-wide.jpg`, o `sky-tall.jpg` bajo 700px de ancho), con un `skyDrift` de 140s que la desplaza lentísimo.
+2. `#skyWash` — degradados de tono/viñeta que garantizan un piso de contraste constante para el texto, sea cual sea la zona de la foto que quede detrás.
+3. `#stars` — canvas animado (titileo, deriva en 360°, parallax por profundidad al hacer scroll, estrellas fugaces desde los 4 bordes).
+
+**Por qué fijas y no del alto del documento:** la página mide varios miles de px; una foto estirada a ese alto se ve borrosa y en mosaico se nota la repetición. Fijas, el cielo simplemente se queda quieto mientras el contenido pasa por encima — y de paso el canvas solo necesita el tamaño del viewport (mucho más barato de animar) en vez del alto completo del documento.
+
+Las fuentes originales de las imágenes (`fondo_final.jpg`, 6000×4000) se conservan en `/images`; las versiones que sirve la página son las optimizadas `sky-wide.jpg` / `sky-tall.jpg`.
+
+### Movimiento
+
+- `.reveal` / `.reveal-stagger` + `setupReveals()` — entrada al hacer scroll, vía IntersectionObserver. Hay que llamar a `setupReveals()` al final de cada `view*()` que use esas clases. Si no hay IntersectionObserver o el usuario pidió `prefers-reduced-motion`, todo se muestra de inmediato (importante: `.reveal` arranca en `opacity:0`, así que sin ese fallback la página quedaría en blanco).
+- `#app.route-in` — transición de entrada en cada cambio de ruta (`replayRouteAnimation()`).
+- Un solo bucle `requestAnimationFrame` maneja el nav que se condensa, el hero que retrocede al hacer scroll y el tilt de la constelación con el puntero.
+- `backdrop-filter` se usa **solo** en superficies grandes y pocas a la vez (nav, modales, buscador, paneles del timeline, paneles de perfil). Las tarjetas que se renderizan de a decenas (`.cast-card`, `.place-card`, `.epitaph-card`, `.story-link-card`) usan un fondo plano más opaco: se ve casi igual sobre la foto oscura y cuesta una fracción.
+
+Página principal: los nodos de temporada son una **constelación dibujada a mano** (posiciones fijas en `CONSTELLATION_POS`, no un layout circular), conectados por curvas SVG. El nodo "Armagedón" está deliberadamente apagado/discreto, separado de la constelación principal. El ancho de `.constellation-wrap` está limitado también por `vh` para que todo el hero (copy + constelación + scroll cue) entre en pantallas de laptop bajitas (1280×720).
+
+Armagedón es la única ruta que cambia el humor del sitio: `body.mood-doom` (lo pone el router) tiñe `#skyWash` de rojo y desatura `#skyPhoto`.
 
 Cada ficha de personaje tiene un wash de color de fondo (`--pcolor`, tomado de `character.color`) y, si tiene `photos`/`photoLarge`, un layout partido (texto a un lado, retrato grande con marco de esquinas al otro). Sin foto, cae a un layout centrado con avatar circular chico.
 
