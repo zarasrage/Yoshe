@@ -161,12 +161,17 @@ nav.seasons-strip button.active{
   min-height:100dvh; display:flex; flex-direction:column; align-items:center; justify-content:center;
   text-align:center; padding:24px 20px 26px; position:relative;
 }
-/* readability pocket behind the headline: the photo behind it is busy, this keeps a
-   consistent ground under the copy without dimming the sky anywhere else */
-.hero::before{
-  content:''; position:absolute; z-index:-1; left:50%; top:40px; transform:translateX(-50%);
-  width:min(900px,96vw); height:420px; pointer-events:none;
-  background:radial-gradient(ellipse 62% 100% at 50% 36%, rgba(1,7,18,.7), rgba(1,7,18,.34) 55%, transparent 82%);
+/* Readability pocket behind the headline: the photo behind it is busy, this keeps a
+   consistent ground under the copy without dimming the sky anywhere else.
+   It hangs off .hero-copy (not .hero) so its height is derived from the actual text box.
+   As a fixed-height box on .hero it ran ~115px past the end of the subtitle and visibly
+   greyed out the top of the constellation. */
+.hero-copy::before{
+  content:''; position:absolute; z-index:-1; pointer-events:none;
+  left:50%; transform:translateX(-50%);
+  top:-30px; height:calc(100% + 38px);
+  width:min(900px,96vw);
+  background:radial-gradient(ellipse 62% 100% at 50% 50%, rgba(1,7,18,.72), rgba(1,7,18,.3) 58%, transparent 80%);
 }
 .hero .eyebrow{
   font-family:'JetBrains Mono',monospace; color:var(--amber); font-size:.72rem;
