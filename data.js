@@ -4,7 +4,7 @@ const DATA = {
     "agustin-gonzalez":   {name:"Agustín González",        role:"— rol pendiente —", tier:"primario", color:"#8b6bf2", photos:["images/agustin-gonzalez-1.png","images/agustin-gonzalez-2.png"], bio:"Cuéntame el rol de Agustín en el grupo, su personalidad y alguna anécdota o dato curioso.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
     "hernan-suarez":      {name:"Hernán Suárez",           role:"— rol pendiente —", tier:"primario", color:"#3f8c82", bio:"Cuéntame el rol de Hernán en el grupo, su personalidad y alguna anécdota o dato curioso.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
     "cristobal-jones":    {name:"Cristóbal Jones",         role:"— rol pendiente —", tier:"primario", color:"#c9853f", bio:"Cuéntame el rol de Cristóbal en el grupo, su personalidad y alguna anécdota o dato curioso.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
-    "maria-ignacia-demandes": {name:"María Ignacia Demandes", role:"— rol pendiente —", tier:"primario", color:"#d9748a", bio:"Cuéntame el rol de María Ignacia (Demandes) en el grupo, su personalidad y alguna anécdota o dato curioso.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
+    "maria-ignacia-demandes": {name:"María Ignacia Demandes", role:"— rol pendiente —", tier:"primario", color:"#d9748a", bio:"Cuéntame el rol de María Ignacia (Demandes) en el grupo, su personalidad y alguna anécdota o dato curioso.", apodo:"Nacha", frase:null, habilidad:null, destino:null, tags:[]},
     "hugo-demandes":      {name:"Hugo Demandes",           role:"— rol pendiente —", tier:"primario", color:"#6b9bf2", photo:"images/hugo-demandes-1.jpg", photos:["images/hugo-demandes-2.png","images/hugo-demandes-3.png","images/hugo-demandes-4.png"], bio:"Traumatólogo de profesión. Un caballero elegante, muy chistoso y espontáneo, con una personalidad que combina el porte fino con el humor inmediato — siempre tiene un chiste o comentario ocurrente listo. Olvidadizo por naturaleza, pero un galán nato... aunque el amor nunca parece acompañarlo del todo.", apodo:null, frase:"El amor me es esquivo", habilidad:"Diagnostica una fractura a simple vista y aparece con lomitos justo cuando más se necesita — pero jamás recuerda dónde dejó las llaves.", destino:null, tags:[]},
     "gerardo-cortes":     {name:"Gerardo Cortés",          role:"— rol pendiente —", tier:"primario", color:"#7fae6f", photo:"images/gerardo-cortes-1.jpg", photoLarge:"images/gerardo-cortes-2.png", bio:"Agrónomo de profesión, actualmente trabajando como temporero. Tiene un estilo relajado y alegre, con un toque hippie-liviano (sin exagerar) que combina con un aire de clase alta despreocupada. Alegre, de buena onda, contagia tranquilidad al grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
     "paula-jara":         {name:"Paula Jara",              role:"— rol pendiente —", tier:"primario", color:"#e0b84f", bio:"Cuéntame el rol de Paula en el grupo, su personalidad y alguna anécdota o dato curioso.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
@@ -133,6 +133,25 @@ const DATA = {
             {t:"text",v:"\". Con él, "},
             {t:"char",id:"paula-jara"},
             {t:"text",v:" terminó peleada.\n\nAl final de la noche, el marcador no dejaba dudas: todo el equipo tuvo una tasa de éxito altísima. Fue, sin exagerar, una noche de oro para el team."}
+          ]
+        },
+        {
+          date:"Sábado 14 de agosto de 2026", title:"Estudio y tarreo en Costa Cachagua",
+          place:"costa-cachagua", chars:["agustin-gonzalez","sofia-yanez","hernan-suarez","maria-ignacia-demandes","heidi-meyer"],
+          content:[
+            {t:"text",v:"El fin de semana del 14 de agosto, "},
+            {t:"char",id:"agustin-gonzalez"},
+            {t:"text",v:", "},
+            {t:"char",id:"sofia-yanez"},
+            {t:"text",v:", "},
+            {t:"char",id:"hernan-suarez"},
+            {t:"text",v:" y "},
+            {t:"char",id:"maria-ignacia-demandes"},
+            {t:"text",v:" se fueron a una reunión de estudio en "},
+            {t:"place",id:"costa-cachagua"},
+            {t:"text",v:". Iba a ir también "},
+            {t:"char",id:"heidi-meyer"},
+            {t:"text",v:", pero cagoneó a último minuto.\n\nLas chicas llegaron en modo estudio: presentaciones, pendientes, todo lo que había que sacarse de encima. Los chicos, en cambio, se llevaron el PC de torre de cada uno y armaron un tarreo de antología — horas de Palworld hasta quedar completamente chatos.\n\nHubo trago, hubo risas, y pasó alguna que otra cosa por ahí que esta crónica no necesita detallar. En resumen: una escapada perfecta."}
           ]
         },
         {
