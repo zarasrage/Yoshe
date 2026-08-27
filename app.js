@@ -413,6 +413,33 @@ function renderContent(content){
   }).join("");
 }
 function escapeHtml(s){const d=document.createElement("div");d.textContent=(s===null||s===undefined)?"":String(s);return d.innerHTML;}
+
+/* An event can carry photos (e.images[], or legacy single e.image) and/or a video (e.video).
+   Multiple items render as a fanned strip of polaroids instead of one — same card, same
+   frame, just more of them. No media at all falls back to the place-plate (see below):
+   a real place plate reads as finished design, whereas an empty polaroid frame reads as a
+   missing asset. */
+function renderEventMedia(e, place){
+  const media = [];
+  (Array.isArray(e.images) && e.images.length ? e.images : (e.image ? [e.image] : []))
+    .forEach(src=>media.push({type:"image", src}));
+  if(e.video) media.push({type:"video", src:e.video});
+  if(!media.length){
+    return `<div class="place-plate"${e.place?` onclick="navigateTo('place','${e.place}')"`:""}>
+             <span class="pp-icon">${place?place.icon:"✧"}</span>
+             <span class="pp-name">${place?escapeHtml(place.name):"Lugar sin registrar"}</span>
+           </div>`;
+  }
+  const cap = `${place?escapeHtml(place.name):"lugar sin registrar"} · ${escapeHtml(e.date)}`;
+  const items = media.map((m,i)=>{
+    const rot = (i%2===0? -1.4 : 1.6) * (1 + (i%2));
+    const frame = m.type==="video"
+      ? `<div class="frame"><video controls playsinline preload="metadata" src="${escapeHtml(m.src)}"></video></div>`
+      : `<div class="frame" style="background:url('${escapeHtml(m.src)}') center/cover no-repeat"></div>`;
+    return `<div class="polaroid" style="--rot:${rot}deg">${frame}<div class="cap">${cap}</div></div>`;
+  }).join("");
+  return media.length>1 ? `<div class="polaroid-stack">${items}</div>` : items;
+}
 function navigateTo(view,id){ location.hash = `#/${view}/${id}`; }
 
 /* =========================== render: NAV STRIP =========================== */
@@ -657,17 +684,7 @@ function viewSeason(id){
       <div class="node-dot" style="border-color:${s.color}"></div>
       <div class="edate">${escapeHtml(e.date)} · ${s.code}</div>
       <h3>${escapeHtml(e.title)}</h3>
-      ${e.image
-        ? `<div class="polaroid">
-             <div class="frame" style="background:url('${escapeHtml(e.image)}') center/cover no-repeat"></div>
-             <div class="cap">${place?escapeHtml(place.name):"lugar sin registrar"} · ${escapeHtml(e.date)}</div>
-           </div>`
-        /* no photo for this story yet: a real place plate reads as finished design, whereas
-           an empty polaroid frame reads as a missing asset */
-        : `<div class="place-plate"${e.place?` onclick="navigateTo('place','${e.place}')"`:""}>
-             <span class="pp-icon">${place?place.icon:"✧"}</span>
-             <span class="pp-name">${place?escapeHtml(place.name):"Lugar sin registrar"}</span>
-           </div>`}
+      ${renderEventMedia(e, place)}
       <div class="story-text">${renderContent(e.content)}</div>
       <div class="event-tags">
         ${e.chars.map(cid=>DATA.characters[cid]?`<span class="chip-small">${escapeHtml(DATA.characters[cid].name)}</span>`:"").join("")}

@@ -548,6 +548,10 @@ footer.site-footer{
   transition:transform .55s var(--ease), box-shadow .55s var(--ease);
 }
 .event:hover .polaroid{transform:rotate(0deg) translateY(-5px) scale(1.02); box-shadow:0 26px 55px rgba(0,2,10,.7);}
+/* more than one photo/video on an event: a fanned strip instead of one polaroid.
+   Children get margin:0 - .polaroid-stack itself carries the bottom margin instead. */
+.polaroid-stack{display:flex; flex-wrap:wrap; gap:16px; margin:0 0 22px;}
+.polaroid-stack .polaroid{margin:0; max-width:220px;}
 
 /* Single-column timeline on narrow screens: the spine moves to the left edge and every card
    hangs off it. Kept as ONE rule (it used to be split across a 820px and a 720px block that
@@ -565,12 +569,14 @@ footer.site-footer{
   .event::after{display:none;}
   .event h3{font-size:1.5rem;}
   .polaroid, .event.left .polaroid, .event.right .polaroid{margin-left:0; margin-right:auto;}
+  .event.left .polaroid-stack .polaroid, .event.right .polaroid-stack .polaroid{margin:0; max-width:150px;}
 }
 .polaroid .frame{
   aspect-ratio:4/3; border-radius:2px; display:flex; align-items:center; justify-content:center;
   font-family:'JetBrains Mono',monospace; font-size:.6rem; color:rgba(0,0,0,.4); text-align:center;
-  padding:10px; letter-spacing:.06em; text-transform:uppercase;
+  padding:10px; letter-spacing:.06em; text-transform:uppercase; overflow:hidden;
 }
+.polaroid .frame video{width:100%; height:100%; object-fit:cover; display:block;}
 .polaroid .cap{font-family:'JetBrains Mono',monospace; font-size:.6rem; color:rgba(0,0,0,.55); text-align:center; margin-top:9px; letter-spacing:.05em;}
 
 /* empty season: instead of a paragraph floating in dead space, a small orbiting figure

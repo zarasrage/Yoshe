@@ -138,6 +138,7 @@ const DATA = {
         {
           date:"Sábado 14 de agosto de 2026", title:"Estudio y tarreo en Costa Cachagua",
           place:"costa-cachagua", chars:["agustin-gonzalez","sofia-yanez","hernan-suarez","maria-ignacia-demandes","heidi-meyer"],
+          video:"images/costa-cachagua-tarreo-1.mp4",
           content:[
             {t:"text",v:"El fin de semana del 14 de agosto, "},
             {t:"char",id:"agustin-gonzalez"},
