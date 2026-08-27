@@ -1,0 +1,942 @@
+:root{
+  /* palette sampled directly from images/fondo_definitivo.jpg (the source of sky-wide.jpg):
+     near-black navy at the frame edges, deeper navy in the field, electric blue where the
+     nebula bands run, bluish-white stars */
+  --void:#011223;
+  --void-2:#021933;
+  --void-3:#06304f;
+  --hole:#010a14;
+  --ink:#eef4ff;
+  --ink-dim:#9db7d6;
+  --ink-faint:#6b86a8;
+  --amber:#68d8ff;      /* primary accent (cyan) - name kept for historical reasons */
+  --amber-dim:#3a9fd0;
+  --violet:#6f8fe8;
+  --teal:#33d6e0;
+  --line: rgba(140,190,255,0.16);
+  --line-soft: rgba(140,190,255,0.09);
+  --card: rgba(3,12,28,0.62);
+  --card-hi: rgba(10,28,58,0.72);
+  --radius: 18px;
+  --ease: cubic-bezier(.16,1,.3,1);
+}
+*{box-sizing:border-box;}
+/* overflow-x:clip (not hidden) as a backstop against decorative bleed: unlike hidden it does
+   not turn <html> into a scroll container, so position:fixed layers and position:sticky still
+   behave. Individual offenders are still fixed at the source rather than left to this. */
+html{scroll-behavior:smooth; overflow-x:clip;}
+body{
+  margin:0;
+  background:var(--void);
+  color:var(--ink);
+  font-family:'Outfit',system-ui,sans-serif;
+  overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+@media (prefers-reduced-motion: reduce){
+  html{scroll-behavior:auto;}
+  *{animation-duration:.001ms !important; transition-duration:.001ms !important;}
+}
+h1,h2,h3,.display{font-family:'Cormorant Garamond',Georgia,serif; font-weight:600; letter-spacing:.005em;}
+.mono{font-family:'JetBrains Mono',monospace; letter-spacing:.04em;}
+a{color:inherit;text-decoration:none;}
+::selection{background:var(--amber); color:var(--hole);}
+
+/* ===== THE SKY =====
+   Three stacked fixed layers behind everything: the photo, a tone/vignette wash that keeps
+   text readable over it, and the animated star canvas. All are position:fixed and
+   viewport-sized on purpose - the page is several thousand px tall, and a document-height
+   photo would either have to stretch (blurry) or tile (visibly repeating). Fixed means the
+   sky simply stays put while content scrolls over it, which also lets the canvas be
+   viewport-sized instead of document-sized (much cheaper to animate). */
+/* The drift transform lives on the ::before, not on #skyPhoto itself, and #skyPhoto clips it.
+   A scale() on the fixed layer directly grows its bounding box past the viewport, which some
+   engines count as scrollable overflow - that produced a real horizontal scrollbar on the
+   home page at phone and tablet widths. */
+#skyPhoto{position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden;}
+#skyPhoto::before{
+  content:''; position:absolute; inset:0;
+  background:url("images/sky-wide.jpg") center center/cover no-repeat;
+  animation:skyDrift 140s ease-in-out infinite alternate;
+  will-change:transform;
+}
+@keyframes skyDrift{
+  0%  {transform:scale(1.06) translate(-0.6%, -0.4%);}
+  100%{transform:scale(1.12) translate(0.6%, 0.5%);}
+}
+/* tone wash: deepens the corners and lifts the centre a touch, so UI text always has a
+   consistent ground regardless of which part of the photo is behind it */
+#skyWash{
+  position:fixed; inset:0; z-index:0; pointer-events:none;
+  background:
+    radial-gradient(ellipse 90% 70% at 50% 42%, rgba(3,16,36,.18), transparent 72%),
+    radial-gradient(ellipse 140% 110% at 50% 45%, transparent 38%, rgba(1,5,13,.82) 100%),
+    linear-gradient(to bottom, rgba(1,6,15,.55) 0%, transparent 22%, transparent 74%, rgba(1,6,15,.7) 100%);
+}
+#stars{position:fixed; inset:0; z-index:0; pointer-events:none;}
+#grain{position:fixed; inset:0; z-index:1; pointer-events:none; opacity:.045; mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+@media (max-width:700px){
+  #skyPhoto::before{background-image:url("images/sky-tall.jpg");}
+}
+
+/* NAV */
+header.topnav{
+  position:sticky; top:0; z-index:40;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 28px; gap:12px; flex-wrap:wrap;
+  backdrop-filter:blur(16px) saturate(130%);
+  -webkit-backdrop-filter:blur(16px) saturate(130%);
+  background:linear-gradient(to bottom, rgba(2,9,20,.86), rgba(2,9,20,.42));
+  border-bottom:1px solid var(--line-soft);
+  transition:padding .4s var(--ease), background .4s var(--ease), border-color .4s var(--ease);
+}
+/* nav condenses once you leave the top of the page (set by the scroll loop) */
+header.topnav.condensed{
+  padding:9px 28px;
+  background:linear-gradient(to bottom, rgba(2,9,20,.94), rgba(2,9,20,.72));
+  border-bottom-color:var(--line);
+}
+.brand{display:flex; align-items:center; gap:12px; cursor:pointer;}
+.brand .mark{
+  position:relative; width:28px; height:28px; border-radius:50%;
+  background:radial-gradient(circle at 34% 32%, #ffffff, var(--amber) 42%, var(--violet) 74%, transparent 78%);
+  box-shadow:0 0 16px 2px rgba(104,216,255,.55), 0 0 34px 8px rgba(111,143,232,.28);
+  flex-shrink:0;
+  animation:markPulse 5s ease-in-out infinite;
+  transition:transform .45s var(--ease);
+}
+@keyframes markPulse{0%,100%{filter:brightness(1);} 50%{filter:brightness(1.35);}}
+.brand:hover .mark{transform:scale(1.14) rotate(12deg);}
+.brand .name{font-family:'Cormorant Garamond',Georgia,serif; font-size:1.28rem; font-weight:600; letter-spacing:.015em;}
+.brand .name em{font-style:italic; color:var(--amber); font-weight:500;}
+nav.seasons-strip{display:flex; gap:5px; align-items:center;}
+nav.seasons-strip button{
+  position:relative; font-family:'JetBrains Mono',monospace; font-size:.7rem; letter-spacing:.06em;
+  padding:7px 12px; border-radius:999px; border:1px solid var(--line-soft);
+  background:rgba(120,180,255,.03); color:var(--ink-dim);
+  cursor:pointer; overflow:hidden;
+  transition:color .3s var(--ease), border-color .3s var(--ease), background .3s var(--ease), transform .3s var(--ease);
+}
+nav.seasons-strip button::after{
+  content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+  background:radial-gradient(circle at 50% 120%, rgba(104,216,255,.5), transparent 70%);
+  opacity:0; transition:opacity .3s var(--ease);
+}
+nav.seasons-strip button:hover{border-color:rgba(104,216,255,.55); color:var(--ink); transform:translateY(-1px);}
+nav.seasons-strip button:hover::after{opacity:1;}
+nav.seasons-strip button:active{transform:translateY(0) scale(.96);}
+nav.seasons-strip button.active{
+  background:linear-gradient(160deg, var(--amber), #3aa9dd);
+  color:#03121f; border-color:transparent; font-weight:700;
+  box-shadow:0 0 16px rgba(104,216,255,.45);
+}
+
+/* VIEW SWITCH */
+.view{display:none; position:relative; z-index:2;}
+.view.active{display:block;}
+
+/* every route change replays this, so navigating anywhere feels like arriving rather than
+   cutting (see render()) */
+#app.route-in{animation:routeIn .62s var(--ease) both;}
+@keyframes routeIn{
+  from{opacity:0; transform:translateY(16px) scale(.994); filter:blur(3px);}
+  to  {opacity:1; transform:translateY(0) scale(1); filter:blur(0);}
+}
+
+/* ===== HOME / PORTAL ===== */
+/* 100dvh (not vh) so the mobile address bar can't push the constellation past the fold */
+.hero{
+  min-height:100dvh; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  text-align:center; padding:24px 20px 26px; position:relative;
+}
+/* Readability pocket behind the headline: the photo behind it is busy, this keeps a
+   consistent ground under the copy without dimming the sky anywhere else.
+   It hangs off .hero-copy (not .hero) so its height is derived from the actual text box.
+   As a fixed-height box on .hero it ran ~115px past the end of the subtitle and visibly
+   greyed out the top of the constellation. */
+.hero-copy::before{
+  content:''; position:absolute; z-index:-1; pointer-events:none;
+  left:50%; transform:translateX(-50%);
+  top:-30px; height:calc(100% + 38px);
+  width:min(900px,96vw);
+  background:radial-gradient(ellipse 62% 100% at 50% 50%, rgba(1,7,18,.72), rgba(1,7,18,.3) 58%, transparent 80%);
+}
+.hero .eyebrow{
+  font-family:'JetBrains Mono',monospace; color:var(--amber); font-size:.72rem;
+  letter-spacing:.34em; text-transform:uppercase; margin-bottom:22px;
+  text-shadow:0 0 18px rgba(104,216,255,.5);
+}
+.hero h1{
+  font-size:clamp(3rem,8.4vw,6.4rem); line-height:1.0; margin:0; font-weight:500;
+  letter-spacing:-.005em;
+  text-shadow:0 2px 40px rgba(1,8,20,.9), 0 0 70px rgba(104,216,255,.16);
+}
+.hero h1 em{
+  font-style:italic; font-weight:400; color:var(--amber); position:relative;
+  text-shadow:0 0 34px rgba(104,216,255,.55), 0 2px 30px rgba(1,8,20,.9);
+  animation:emGlow 6s ease-in-out infinite;
+}
+@keyframes emGlow{
+  0%,100%{text-shadow:0 0 30px rgba(104,216,255,.45), 0 2px 30px rgba(1,8,20,.9);}
+  50%    {text-shadow:0 0 52px rgba(104,216,255,.8), 0 2px 30px rgba(1,8,20,.9);}
+}
+.hero p.tag{
+  max-width:520px; color:var(--ink-dim); font-size:.98rem; margin:20px auto 0; line-height:1.65;
+  font-weight:300; text-shadow:0 1px 16px rgba(1,8,20,.95);
+}
+.hero-copy{position:relative; z-index:3; will-change:transform,opacity;}
+
+/* one-shot entrance on first load this session (see viewHome/setupHeroIntro) - a returning
+   visit, or a reduced-motion session, never gets the .intro-play class and renders instantly */
+.hero.intro-play .eyebrow{animation:heroFadeUp .9s cubic-bezier(.16,1,.3,1) both;}
+.hero.intro-play h1{animation:heroTitleIn 1.15s cubic-bezier(.16,1,.3,1) .15s both;}
+.hero.intro-play p.tag{animation:heroFadeUp .9s cubic-bezier(.16,1,.3,1) .55s both;}
+.hero.intro-play .scroll-cue{animation:heroFadeUp .9s ease .95s both;}
+.hero.intro-play .star-node{animation:starIgnite .7s cubic-bezier(.2,1,.3,1) var(--idelay,0s) both;}
+@keyframes heroFadeUp{from{opacity:0; transform:translateY(14px);} to{opacity:1; transform:translateY(0);}}
+@keyframes heroTitleIn{from{opacity:0; transform:translateY(22px) scale(.96); filter:blur(6px);} to{opacity:1; transform:translateY(0) scale(1); filter:blur(0);}}
+@keyframes starIgnite{from{opacity:0; transform:translate(-50%,-50%) scale(.2);} to{opacity:1; transform:translate(-50%,-50%) scale(1);}}
+
+/* the 86vh term caps the constellation by viewport HEIGHT as well as width: at 16/8.2 the
+   box is ~1.95x wider than tall, so 86vh of width lands it at ~44vh tall, which is what keeps
+   the whole hero (copy + constellation + scroll cue) inside a short 1280x720 laptop screen */
+.constellation-wrap{position:relative; width:min(880px,90vw,80vh); aspect-ratio:16/8.2; margin:22px auto 2px; isolation:isolate;}
+/* short laptop screens (1280x720, 1366x768): trim the copy so the hero still lands the
+   scroll cue above the fold instead of hiding the bottom of the constellation */
+@media (min-width:601px) and (max-height:800px){
+  .hero{padding-top:14px; padding-bottom:16px;}
+  .hero h1{font-size:clamp(2.4rem,5.6vw,3.9rem);}
+  .hero .eyebrow{margin-bottom:14px; font-size:.66rem;}
+  .hero p.tag{margin-top:14px; font-size:.9rem;}
+  .constellation-wrap{margin-top:12px;}
+  .scroll-cue{margin-top:14px;}
+}
+/* outer wrap carries the scroll-recede transform (JS, see setupHeroDepth); the inner tilt
+   layer carries the pointer-tilt transform (JS, see setupHeroDepth) - two independent
+   inline-style writers on the same element would clobber each other, hence the split */
+.constellation-tilt{position:absolute; inset:0; will-change:transform;}
+/* the constellation sits on top of a busy photograph, so it needs its own pocket of calm:
+   a soft darkening that lets the season stars and their labels read, with just a hint of
+   blue lift in the middle so it still feels like part of the sky rather than a panel */
+/* horizontal inset stays at 0: the wrap is already up to 96vw on phones, so any negative
+   left/right here pushes the glow past the viewport and creates a horizontal scrollbar.
+   The gradient is widened instead, which looks the same without the overflow. */
+.constellation-wrap::before{
+  content:''; position:absolute; inset:-26% 0; z-index:0; pointer-events:none;
+  background:
+    radial-gradient(ellipse 74% 62% at 50% 48%, rgba(80,170,255,.13), transparent 70%),
+    radial-gradient(ellipse 82% 70% at 50% 48%, rgba(1,7,17,.62), rgba(1,7,17,.28) 52%, transparent 80%);
+  filter:blur(14px);
+}
+#constellationSvg{position:absolute; inset:0; width:100%; height:100%; overflow:visible; z-index:1;}
+.constellation-line{
+  fill:none; stroke-width:1.6; vector-effect:non-scaling-stroke;
+  filter:drop-shadow(0 0 4px rgba(140,205,255,.75)) drop-shadow(0 1px 3px rgba(0,0,0,.9));
+  stroke-linecap:round;
+  transition:stroke-width .3s var(--ease), filter .3s var(--ease);
+}
+.constellation-line.line-hot{stroke-width:3; filter:drop-shadow(0 0 9px rgba(180,228,255,1)) drop-shadow(0 1px 3px rgba(0,0,0,.9));}
+.micro-star{position:absolute; border-radius:50%; background:#eaf2ff; transform:translate(-50%,-50%); animation:microTwinkle 4.5s ease-in-out infinite; pointer-events:none; z-index:1;}
+@keyframes microTwinkle{0%,100%{opacity:.15;} 50%{opacity:.85;}}
+.star-node{position:absolute; transform:translate(-50%,-50%); display:flex; flex-direction:column; align-items:center; cursor:pointer; z-index:2; --pcolor:var(--amber);}
+/* .star-dot is now just a positioning anchor with three real stacked children in DOM order
+   (ray-h, ray-v, core) instead of the ball being the element's own background with the rays
+   as z-index:-1 pseudo-elements: negative z-index only sinks something below NORMAL content,
+   never below the box's own background/fill, so the rays were always painting on top of the
+   ball no matter what z-index they got. Plain DOM order (later = on top, all at the same auto
+   stacking level) is what actually puts the core in front and the rays behind it. */
+.star-node .star-dot{
+  position:relative; width:19px; height:19px;
+  animation:starPulseDot 3.4s ease-in-out infinite;
+  animation-delay:var(--bdelay,0s);
+}
+.star-node .star-dot .core{
+  position:absolute; inset:0; border-radius:50%;
+  background:radial-gradient(circle at 35% 30%, #ffffff, var(--pcolor) 55%, transparent 78%);
+  box-shadow:0 0 11px 3px color-mix(in srgb, var(--pcolor) 65%, transparent), 0 0 28px 10px color-mix(in srgb, var(--pcolor) 32%, transparent);
+  transition:box-shadow .3s;
+}
+@keyframes starPulseDot{0%,100%{transform:scale(1); filter:brightness(1);} 50%{transform:scale(1.18); filter:brightness(1.5);}}
+.star-node:hover .star-dot{transform:scale(1.7); animation-play-state:paused;}
+.star-node:hover .star-dot .core{box-shadow:0 0 16px 5px var(--pcolor), 0 0 34px 14px color-mix(in srgb, var(--pcolor) 45%, transparent);}
+/* soft 4-point glint, echoing the lens-flare stars in the reference photos */
+.star-node .star-dot .ray{
+  position:absolute; left:50%; top:50%; pointer-events:none;
+  background:linear-gradient(90deg, transparent, color-mix(in srgb, var(--pcolor) 75%, white) 50%, transparent);
+  animation:starRayPulse 3.4s ease-in-out infinite; animation-delay:var(--bdelay,0s);
+}
+.star-node .star-dot .ray-h{width:56px; height:1.7px; transform:translate(-50%,-50%);}
+.star-node .star-dot .ray-v{width:1.7px; height:56px; transform:translate(-50%,-50%);}
+@keyframes starRayPulse{0%,100%{transform:translate(-50%,-50%) scale(1); opacity:.38;} 50%{transform:translate(-50%,-50%) scale(1.3); opacity:.8;}}
+.star-node.armageddon-node .star-dot .ray{display:none;}
+/* labels sit over a photograph, so they carry their own shadow rather than relying on the
+   backdrop being dark wherever they happen to land */
+.star-node .star-code{
+  font-family:'JetBrains Mono',monospace; font-weight:700; font-size:.78rem;
+  color:var(--ink); margin-top:12px; letter-spacing:.18em;
+  text-shadow:0 1px 10px rgba(1,6,15,1), 0 0 22px rgba(1,6,15,.9);
+  transition:letter-spacing .35s var(--ease), color .35s var(--ease);
+}
+.star-node .star-label{
+  font-family:'Cormorant Garamond',Georgia,serif; font-style:italic; font-weight:500;
+  font-size:1rem; color:#cfe2fa; margin-top:2px; max-width:150px; text-align:center;
+  line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  text-shadow:0 1px 10px rgba(1,6,15,1), 0 0 20px rgba(1,6,15,.95);
+  transition:color .35s var(--ease), transform .35s var(--ease);
+}
+.star-node:hover .star-code{letter-spacing:.26em; color:#fff;}
+.star-node:hover .star-label{color:#fff; transform:translateY(1px);}
+.star-node.s0 .star-dot{--pcolor:var(--violet);}
+.star-node.armageddon-node{opacity:.42; transition:opacity .4s var(--ease);}
+.star-node.armageddon-node .star-dot{width:7px; height:7px; animation:none;}
+.star-node.armageddon-node .star-dot .core{background:rgba(255,190,190,.45); box-shadow:0 0 10px rgba(255,110,110,.3);}
+.star-node.armageddon-node .star-code{color:rgba(255,190,190,.6); font-size:.66rem; letter-spacing:.1em;}
+.star-node.armageddon-node .star-label{color:rgba(255,200,200,.45); font-size:.62rem; font-style:normal; font-family:'JetBrains Mono',monospace; letter-spacing:.14em;}
+.star-node.armageddon-node:hover{opacity:1;}
+.star-node.armageddon-node:hover .star-dot .core{background:rgba(255,150,150,.9); box-shadow:0 0 18px rgba(255,80,80,.8);}
+@media (max-width:600px){
+  .hero{padding:44px 16px 16px; min-height:auto;}
+  .constellation-wrap{width:96vw; aspect-ratio:3/4; margin:40px auto 4px;}
+  .star-node .star-dot{width:23px; height:23px;}
+  .star-node{padding:8px; margin:-8px;} /* larger invisible tap area */
+  .star-node .star-code{font-size:.8rem; margin-top:8px;}
+  .star-node .star-label{font-size:.92rem; max-width:110px;}
+  .star-node.armageddon-node .star-dot{width:9px; height:9px;}
+}
+
+/* ===== ARMAGEDDON ===== */
+/* Armagedón is the one place the blue sky turns: an extra fixed red wash sits over the photo
+   for this route only (body.mood-doom, set by the router) so the whole page shifts mood
+   rather than just the header being red on an otherwise blue sky. */
+body.mood-doom #skyWash{
+  background:
+    radial-gradient(ellipse 80% 55% at 50% 6%, rgba(150,18,18,.42), transparent 68%),
+    radial-gradient(ellipse 90% 70% at 50% 42%, rgba(60,6,10,.42), transparent 74%),
+    radial-gradient(ellipse 140% 110% at 50% 45%, transparent 34%, rgba(6,1,3,.88) 100%);
+}
+#skyWash{transition:background 1.1s var(--ease);}
+body.mood-doom #skyPhoto{filter:saturate(.42) hue-rotate(-18deg) brightness(.72); transition:filter 1.1s var(--ease);}
+#skyPhoto{transition:filter 1.1s var(--ease);}
+
+.armageddon-hero{padding:104px 28px 60px; text-align:center; position:relative; overflow:hidden; border-bottom:1px solid rgba(220,50,50,.22); isolation:isolate;}
+.armageddon-hero .wash{
+  position:absolute; left:-10%; right:-10%; top:-70px; height:500px; z-index:-1;
+  background:radial-gradient(ellipse 55% 68% at 50% 12%, rgba(190,26,26,.36), transparent 72%);
+  filter:blur(10px); animation:doomPulse 7s ease-in-out infinite;
+}
+@keyframes doomPulse{0%,100%{opacity:.75; transform:scale(1);} 50%{opacity:1; transform:scale(1.05);}}
+.armageddon-hero .eyebrow{font-family:'JetBrains Mono',monospace; color:#ff6a6a; font-size:.72rem; letter-spacing:.36em; text-transform:uppercase; margin-bottom:18px; text-shadow:0 0 20px rgba(255,60,60,.6);}
+.armageddon-hero h1{
+  font-family:'Cormorant Garamond',Georgia,serif; font-size:clamp(2.8rem,7.6vw,5.2rem); letter-spacing:.06em;
+  font-weight:500; color:#ffe2e2; margin:0;
+  text-shadow:0 0 44px rgba(220,50,50,.6), 0 2px 30px rgba(6,1,3,.9);
+  animation:emGlow 7s ease-in-out infinite;
+}
+.armageddon-hero .prophecy{max-width:620px; margin:24px auto 0; color:#e0bcbc; line-height:1.85; font-size:1.02rem; font-style:italic; font-weight:300;}
+.armageddon-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:18px; max-width:1120px; margin:0 auto; padding:0 28px 120px;}
+/* same reasoning as .cast-card: many of these on screen at once, so flat fill not blur */
+.epitaph-card{
+  position:relative; border:1px solid rgba(220,50,50,.24); border-radius:16px; padding:22px;
+  background:rgba(26,5,9,.72); cursor:pointer; overflow:hidden;
+  transition:transform .45s var(--ease), border-color .45s var(--ease), background .45s var(--ease), box-shadow .45s var(--ease);
+}
+.epitaph-card::before{
+  content:''; position:absolute; inset:0; pointer-events:none; border-radius:inherit;
+  background:linear-gradient(115deg, transparent 30%, rgba(255,120,120,.1) 48%, transparent 66%);
+  transform:translateX(-120%); transition:transform .85s var(--ease);
+}
+.epitaph-card:hover::before{transform:translateX(120%);}
+.epitaph-card:hover{
+  border-color:rgba(255,90,90,.6); background:rgba(52,8,12,.66); transform:translateY(-5px);
+  box-shadow:0 16px 44px rgba(10,0,2,.65), 0 0 30px rgba(220,50,50,.18);
+}
+.epitaph-card .ename{font-family:'Cormorant Garamond',Georgia,serif; font-size:1.36rem; font-weight:600; color:#ffc2c2;}
+.epitaph-card .edestino{color:#cfa9a9; font-size:.88rem; margin-top:9px; line-height:1.65; font-style:italic; font-weight:300;}
+.epitaph-card .edestino.pending{opacity:.5;}
+/* keep the shared section chrome on-theme inside the doom route */
+body.mood-doom .section-head .eyebrow{color:#ff6a6a; text-shadow:0 0 16px rgba(255,60,60,.5);}
+body.mood-doom .section-head::after{background:linear-gradient(to right, #ff5252, rgba(255,82,82,.12) 45%, transparent);}
+body.mood-doom .back-btn:hover{border-color:rgba(255,110,110,.6); color:#ff9a9a; background:rgba(60,10,14,.7);}
+
+.scroll-cue{
+  margin-top:22px; color:var(--ink-faint); font-size:.68rem; font-family:'JetBrains Mono',monospace;
+  letter-spacing:.2em; text-transform:uppercase;
+  display:flex; flex-direction:column; align-items:center; gap:10px; opacity:.75;
+  text-shadow:0 1px 10px rgba(1,6,15,1);
+}
+.scroll-cue .chevron{width:9px;height:9px;border-right:1.5px solid var(--amber); border-bottom:1.5px solid var(--amber); transform:rotate(45deg); animation:bob 1.9s infinite;}
+@keyframes bob{0%,100%{transform:rotate(45deg) translate(0,0); opacity:.5;}50%{transform:rotate(45deg) translate(5px,5px); opacity:1;}}
+
+/* ===== SHARED: sections, cards, reveals ===== */
+.section-wrap{max-width:1160px; margin:0 auto; padding:110px 28px;}
+.section-head{margin-bottom:46px; position:relative;}
+.section-head .eyebrow{
+  font-family:'JetBrains Mono',monospace; color:var(--teal); font-size:.68rem;
+  letter-spacing:.28em; text-transform:uppercase;
+  text-shadow:0 0 16px rgba(51,214,224,.45);
+}
+.section-head h2{
+  font-size:clamp(2.1rem,4.6vw,3.2rem); margin:10px 0 0; font-weight:500; letter-spacing:.005em;
+  text-shadow:0 2px 24px rgba(1,8,20,.9);
+}
+/* hairline that draws itself in when the heading enters view */
+.section-head::after{
+  content:''; display:block; height:1px; margin-top:20px; max-width:520px;
+  background:linear-gradient(to right, var(--amber), rgba(104,216,255,.12) 45%, transparent);
+  transform:scaleX(0); transform-origin:left; transition:transform 1.1s var(--ease) .1s;
+}
+.reveal.is-in .section-head::after, .section-head.is-in::after{transform:scaleX(1);}
+
+/* generic scroll-reveal, applied by setupReveals() */
+.reveal{opacity:0; transform:translateY(26px); transition:opacity .8s var(--ease), transform .8s var(--ease);}
+.reveal.is-in{opacity:1; transform:none;}
+.reveal-stagger > *{opacity:0; transform:translateY(24px); transition:opacity .7s var(--ease), transform .7s var(--ease);}
+.reveal-stagger.is-in > *{opacity:1; transform:none;}
+@media (prefers-reduced-motion: reduce){
+  .reveal, .reveal-stagger > *{opacity:1 !important; transform:none !important;}
+  .section-head::after{transform:scaleX(1) !important;}
+}
+
+.grid-cast{display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:18px;}
+/* Deliberately NOT backdrop-filter here, unlike the larger glass surfaces (nav, modals,
+   timeline panels): the home page renders ~36 of these at once, and each blurred backdrop is
+   its own compositing pass. A slightly more opaque flat fill is visually near-identical over
+   a dark photo and costs a fraction as much. */
+.cast-card, .place-card{
+  position:relative; border:1px solid var(--line-soft); border-radius:var(--radius); padding:22px;
+  background:rgba(4,14,32,.74); cursor:pointer; overflow:hidden;
+  /* flex column + auto-margin on the badge keeps every card's badge on the same baseline,
+     however many lines the name wraps to */
+  display:flex; flex-direction:column;
+  transition:transform .45s var(--ease), border-color .45s var(--ease), background .45s var(--ease), box-shadow .45s var(--ease);
+}
+.cast-card .tier-badge{align-self:flex-start; margin-top:auto; padding-top:4px;}
+.cast-card .crole{margin-bottom:12px;}
+/* a light sweep that travels across the card on hover */
+.cast-card::before, .place-card::before{
+  content:''; position:absolute; inset:0; pointer-events:none; border-radius:inherit;
+  background:linear-gradient(115deg, transparent 30%, rgba(150,215,255,.13) 48%, transparent 66%);
+  transform:translateX(-120%); transition:transform .85s var(--ease);
+}
+.cast-card:hover::before, .place-card:hover::before{transform:translateX(120%);}
+.cast-card:hover, .place-card:hover{
+  border-color:rgba(104,216,255,.5); transform:translateY(-5px);
+  background:rgba(12,32,64,.82);
+  box-shadow:0 14px 40px rgba(0,6,18,.6), 0 0 0 1px rgba(104,216,255,.1), 0 0 34px rgba(80,180,255,.14);
+}
+.cast-card:active, .place-card:active{transform:translateY(-1px) scale(.99);}
+.cast-avatar{
+  width:56px;height:56px;border-radius:50%; display:flex;align-items:center;justify-content:center;
+  font-family:'Cormorant Garamond',Georgia,serif; font-weight:600; font-size:1.5rem; margin-bottom:15px; color:var(--hole);
+  box-shadow:0 0 0 1px rgba(255,255,255,.1), 0 6px 18px rgba(0,4,14,.5);
+  transition:transform .5s var(--ease), box-shadow .5s var(--ease);
+}
+.cast-card:hover .cast-avatar{transform:scale(1.08) translateY(-2px); box-shadow:0 0 0 1px rgba(255,255,255,.2), 0 10px 26px rgba(0,4,14,.6), 0 0 26px rgba(120,200,255,.3);}
+.cast-card .cname{font-family:'Cormorant Garamond',Georgia,serif; font-size:1.42rem; font-weight:600; line-height:1.15;}
+.cast-card .crole{color:var(--ink-dim); font-size:.8rem; margin-top:4px; font-weight:300;}
+.tier-badge{display:inline-block; margin-top:12px; font-family:'JetBrains Mono',monospace; font-size:.58rem; letter-spacing:.14em; text-transform:uppercase; padding:4px 10px; border-radius:999px; border:1px solid var(--line);}
+.tier-badge.tier-pri{color:var(--amber); border-color:rgba(104,216,255,.45);}
+.tier-badge.tier-sec{color:var(--ink-faint);}
+
+.grid-places{display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:18px;}
+.place-card .picon{font-size:1.8rem; margin-bottom:12px; display:block; transition:transform .5s var(--ease);}
+.place-card:hover .picon{transform:scale(1.15) rotate(-6deg);}
+.place-card .pname{font-family:'Cormorant Garamond',Georgia,serif; font-size:1.42rem; font-weight:600;}
+.place-card .pdesc{color:var(--ink-dim); font-size:.85rem; margin-top:7px; line-height:1.6; font-weight:300;}
+
+footer.site-footer{
+  border-top:1px solid var(--line-soft); padding:48px 28px; text-align:center;
+  color:var(--ink-faint); font-size:.72rem; font-family:'JetBrains Mono',monospace; letter-spacing:.14em;
+}
+
+/* ===== SEASON VIEW ===== */
+.season-hero{
+  padding:90px 28px 72px; text-align:center; position:relative;
+  border-bottom:1px solid var(--line-soft); overflow:hidden; isolation:isolate;
+}
+/* each season's own colour bleeds in behind its title, so S0..S5 feel like different places
+   in the same sky rather than one repeated template (--scolor is set per season inline) */
+.season-hero::before{
+  content:''; position:absolute; inset:-40% -20% auto -20%; height:520px; z-index:-1; pointer-events:none;
+  background:radial-gradient(ellipse 46% 62% at 50% 42%, color-mix(in srgb, var(--scolor, #68d8ff) 30%, transparent), transparent 72%);
+  filter:blur(24px);
+  animation:seasonAura 9s ease-in-out infinite;
+}
+@keyframes seasonAura{0%,100%{opacity:.72; transform:scale(1);} 50%{opacity:1; transform:scale(1.06);}}
+.season-hero .scode-big{
+  font-family:'JetBrains Mono',monospace; color:var(--scolor,var(--amber));
+  font-size:.76rem; letter-spacing:.42em; text-shadow:0 0 20px currentColor;
+}
+.season-hero h1{
+  font-size:clamp(2.6rem,7vw,5rem); margin:16px 0 6px; font-weight:500;
+  text-shadow:0 2px 34px rgba(1,8,20,.9);
+}
+.season-hero .hito{color:var(--ink-dim); max-width:620px; margin:20px auto 0; font-size:1rem; line-height:1.75; font-weight:300;}
+.hito-badge{
+  display:inline-flex; align-items:center; gap:9px; margin-top:24px; padding:9px 18px;
+  border-radius:999px; border:1px solid color-mix(in srgb, var(--scolor,var(--amber)) 55%, transparent);
+  background:color-mix(in srgb, var(--scolor,var(--amber)) 9%, transparent);
+  color:var(--scolor,var(--amber)); font-family:'JetBrains Mono',monospace; font-size:.7rem;
+  letter-spacing:.08em; max-width:min(760px,92vw); text-align:left; line-height:1.5;
+}
+
+.timeline{max-width:940px; margin:0 auto; padding:80px 24px 150px; position:relative;}
+.timeline::before{
+  content:''; position:absolute; left:50%; top:0; bottom:0; width:1px; transform:translateX(-50%);
+  background:linear-gradient(to bottom, transparent, var(--line) 5%, var(--line) 95%, transparent);
+}
+.tl-progress{
+  position:absolute; left:50%; top:0; width:2px; transform:translateX(-50%);
+  background:linear-gradient(to bottom, var(--amber), var(--violet)); height:0%;
+  box-shadow:0 0 14px rgba(104,216,255,.7); transition:height .12s linear;
+}
+
+/* Each event is a glass panel floating in the sky rather than raw text laid over the
+   photograph - long-form reading needs a consistent ground, and the panel gives it one
+   without hiding the sky around it. Body copy stays left-aligned on both sides: ragged-left
+   paragraphs (text-align:right) are noticeably harder to read for anything multi-line. */
+.event{
+  position:relative; width:calc(50% - 54px); margin-bottom:92px; opacity:0;
+  padding:26px 28px 28px; border-radius:20px; text-align:left;
+  border:1px solid var(--line-soft); background:rgba(3,12,28,.66);
+  backdrop-filter:blur(14px) saturate(120%); -webkit-backdrop-filter:blur(14px) saturate(120%);
+  box-shadow:0 18px 50px rgba(0,4,14,.5);
+  transition:opacity .85s var(--ease), transform .85s var(--ease), border-color .45s var(--ease), box-shadow .45s var(--ease);
+}
+.event.left{margin-right:auto; transform:translateY(34px) translateX(-20px);}
+.event.right{margin-left:auto; transform:translateY(34px) translateX(20px);}
+.event.visible{opacity:1; transform:translateY(0) translateX(0);}
+.event:hover{border-color:rgba(104,216,255,.34); box-shadow:0 22px 60px rgba(0,4,14,.6), 0 0 30px rgba(80,180,255,.1);}
+.event .node-dot{
+  position:absolute; top:30px; width:13px; height:13px; border-radius:50%;
+  background:var(--hole); border:2px solid var(--amber);
+  box-shadow:0 0 0 5px rgba(2,10,24,.9), 0 0 18px rgba(104,216,255,.65);
+  transition:transform .45s var(--ease), box-shadow .45s var(--ease);
+}
+.event.left .node-dot{right:-61px;}
+.event.right .node-dot{left:-61px;}
+.event:hover .node-dot{transform:scale(1.45); box-shadow:0 0 0 5px rgba(2,10,24,.9), 0 0 28px rgba(104,216,255,1);}
+/* hairline connector from the panel out to its dot on the spine */
+.event::after{
+  content:''; position:absolute; top:36px; width:44px; height:1px;
+  background:linear-gradient(to right, rgba(104,216,255,.45), rgba(104,216,255,.05));
+}
+.event.left::after{right:-50px; background:linear-gradient(to left, rgba(104,216,255,.45), rgba(104,216,255,.05));}
+.event.right::after{left:-50px;}
+
+.event .edate{font-family:'JetBrains Mono',monospace; font-size:.64rem; color:var(--amber); letter-spacing:.22em; text-transform:uppercase;}
+.event h3{font-size:1.85rem; margin:10px 0 20px; font-weight:600; line-height:1.15;}
+
+.place-plate{
+  display:inline-flex; align-items:center; gap:10px; margin:0 0 20px;
+  padding:8px 15px 8px 11px; border-radius:999px;
+  border:1px solid var(--line-soft); background:rgba(120,180,255,.06);
+  cursor:pointer; transition:border-color .35s var(--ease), background .35s var(--ease), transform .35s var(--ease);
+}
+.place-plate:hover{border-color:rgba(51,214,224,.5); background:rgba(51,214,224,.1); transform:translateX(3px);}
+.place-plate .pp-icon{font-size:1.05rem; line-height:1;}
+.place-plate .pp-name{font-family:'JetBrains Mono',monospace; font-size:.68rem; letter-spacing:.1em; color:var(--ink-dim); text-transform:uppercase;}
+.place-plate:hover .pp-name{color:var(--teal);}
+
+.polaroid{
+  width:100%; max-width:290px; border-radius:5px; padding:11px 11px 34px;
+  background:linear-gradient(165deg,#f7f3e9,#e9e2d3); color:#231d2e;
+  box-shadow:0 18px 40px rgba(0,2,10,.6), 0 2px 4px rgba(0,0,0,.35);
+  transform:rotate(var(--rot,-1.2deg)); margin:0 0 22px; display:block;
+  transition:transform .55s var(--ease), box-shadow .55s var(--ease);
+}
+.event:hover .polaroid{transform:rotate(0deg) translateY(-5px) scale(1.02); box-shadow:0 26px 55px rgba(0,2,10,.7);}
+
+/* Single-column timeline on narrow screens: the spine moves to the left edge and every card
+   hangs off it. Kept as ONE rule (it used to be split across a 820px and a 720px block that
+   stacked a 46px padding onto a 52px margin and pushed every card off the right edge). */
+@media (max-width:820px){
+  .timeline{padding:56px 18px 100px 54px;}
+  .timeline::before, .tl-progress{left:22px; transform:none;}
+  .event, .event.left, .event.right{
+    width:100%; margin-left:0; margin-right:0; margin-bottom:46px;
+    padding:22px 22px 24px; text-align:left;
+  }
+  .event.left, .event.right{transform:translateY(26px);}
+  .event.visible{transform:none;}
+  .event.left .node-dot, .event.right .node-dot{left:-38px; right:auto;}
+  .event::after{display:none;}
+  .event h3{font-size:1.5rem;}
+  .polaroid, .event.left .polaroid, .event.right .polaroid{margin-left:0; margin-right:auto;}
+}
+.polaroid .frame{
+  aspect-ratio:4/3; border-radius:2px; display:flex; align-items:center; justify-content:center;
+  font-family:'JetBrains Mono',monospace; font-size:.6rem; color:rgba(0,0,0,.4); text-align:center;
+  padding:10px; letter-spacing:.06em; text-transform:uppercase;
+}
+.polaroid .cap{font-family:'JetBrains Mono',monospace; font-size:.6rem; color:rgba(0,0,0,.55); text-align:center; margin-top:9px; letter-spacing:.05em;}
+
+/* empty season: instead of a paragraph floating in dead space, a small orbiting figure
+   that says "nothing here yet" in the language of the rest of the site */
+.season-empty{max-width:560px; margin:0 auto; padding:90px 28px 140px; text-align:center;}
+.empty-orbit{position:relative; width:120px; height:120px; margin:0 auto 38px;}
+.empty-orbit::before{
+  content:''; position:absolute; inset:50% auto auto 50%; width:9px; height:9px; margin:-4.5px 0 0 -4.5px;
+  border-radius:50%; background:var(--scolor,var(--amber));
+  box-shadow:0 0 20px 5px color-mix(in srgb, var(--scolor,var(--amber)) 55%, transparent);
+  animation:starPulseDot 3.4s ease-in-out infinite;
+}
+.empty-orbit span{
+  position:absolute; inset:0; border-radius:50%;
+  border:1px solid color-mix(in srgb, var(--scolor,var(--amber)) 22%, transparent);
+  animation:orbitSpin 14s linear infinite;
+}
+.empty-orbit span:nth-child(2){inset:14%; animation-duration:9s; animation-direction:reverse; border-style:dashed;}
+.empty-orbit span:nth-child(3){inset:28%; animation-duration:20s;}
+@keyframes orbitSpin{from{transform:rotate(0deg) scaleY(.42);} to{transform:rotate(360deg) scaleY(.42);}}
+.season-empty h3{font-size:1.75rem; font-weight:500; margin:0 0 12px;}
+.season-empty p{color:var(--ink-dim); font-size:.98rem; line-height:1.75; font-weight:300; margin:0;}
+.empty-actions{margin-top:30px; display:flex; justify-content:center;}
+
+.story-text{color:#c3d6ee; font-size:1.02rem; line-height:1.85; white-space:pre-wrap; font-weight:300;}
+.tag-char, .tag-place{
+  color:var(--ink); font-weight:500; cursor:pointer; padding:0 2px; position:relative;
+  background-image:linear-gradient(var(--amber),var(--amber));
+  background-size:100% 1px; background-position:0 100%; background-repeat:no-repeat;
+  transition:color .25s var(--ease), background-size .35s var(--ease);
+}
+.tag-char:hover, .tag-place:hover{color:var(--amber); background-size:100% 100%; background-image:linear-gradient(rgba(104,216,255,.16),rgba(104,216,255,.16));}
+.tag-place{background-image:linear-gradient(var(--teal),var(--teal));}
+.tag-place:hover{color:var(--teal); background-image:linear-gradient(rgba(51,214,224,.16),rgba(51,214,224,.16));}
+
+.event-tags{margin-top:18px; display:flex; gap:8px; flex-wrap:wrap;}
+.chip-small{
+  font-family:'JetBrains Mono',monospace; font-size:.62rem; letter-spacing:.06em;
+  padding:5px 11px; border-radius:999px; border:1px solid var(--line-soft);
+  background:rgba(120,180,255,.05); color:var(--ink-dim);
+  transition:border-color .3s var(--ease), color .3s var(--ease), background .3s var(--ease);
+}
+.event:hover .chip-small{border-color:rgba(104,216,255,.3); color:var(--ink);}
+
+/* ===== PROFILE VIEW (character / place) — "dossier" system ===== */
+.profile-hero, .profile-hero-split{
+  position:relative; isolation:isolate; overflow:hidden;
+  --pcolor: var(--amber);
+}
+.hero-wash{
+  position:absolute; left:-10%; right:-10%; top:-60px; height:460px; z-index:-1;
+  background:radial-gradient(ellipse 60% 70% at 50% 10%, color-mix(in srgb, var(--pcolor) 22%, transparent), transparent 72%);
+  pointer-events:none;
+}
+.profile-hero-split .hero-wash{ background:radial-gradient(ellipse 55% 80% at 78% 20%, color-mix(in srgb, var(--pcolor) 20%, transparent), transparent 72%); }
+
+.profile-hero{padding:84px 28px 50px; text-align:center; border-bottom:1px solid var(--line);}
+.profile-avatar{
+  width:112px;height:112px;border-radius:50%; margin:0 auto 22px; display:flex; align-items:center; justify-content:center;
+  font-family:'Cormorant Garamond',Georgia,serif; font-size:2.6rem; font-weight:700; color:var(--hole);
+  border:2px solid color-mix(in srgb, var(--pcolor) 60%, transparent);
+  box-shadow:0 0 44px color-mix(in srgb, var(--pcolor) 40%, transparent);
+}
+.profile-hero h1{font-size:clamp(2rem,5vw,3.2rem); margin:0 0 6px;}
+.meta-row{display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:14px;}
+.role-chip{
+  display:inline-block; font-family:'JetBrains Mono',monospace; font-size:.68rem; letter-spacing:.1em; text-transform:uppercase;
+  padding:6px 13px; border-radius:999px; border:1px solid var(--pcolor); color:var(--pcolor);
+}
+.profile-bio{
+  max-width:640px; margin:26px auto 0; color:#c3d6ee; line-height:1.8; font-size:1rem; font-weight:300;
+  text-align:left; background:var(--card); border:1px solid var(--line-soft); border-left:3px solid var(--pcolor);
+  padding:20px 24px; border-radius:14px;
+  backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+  box-shadow:0 12px 34px rgba(0,4,14,.4);
+}
+.profile-tags{display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:22px;}
+
+.profile-hero-split{
+  display:flex; align-items:center; gap:56px; max-width:1080px; margin:0 auto; text-align:left;
+  flex-wrap:wrap; padding:84px 28px 20px;
+}
+.profile-hero-split .info-side{flex:1 1 320px; min-width:280px;}
+.profile-hero-split .portrait-side{flex:0 0 360px; position:relative; order:2;}
+.portrait-frame{position:relative; perspective:900px;}
+.portrait-glow{
+  position:absolute; inset:-56px; z-index:0; filter:blur(38px); opacity:.4; border-radius:50%;
+  background:radial-gradient(circle, var(--pcolor), transparent 70%);
+}
+.portrait-img{
+  position:relative; z-index:1; width:100%; display:block; filter:drop-shadow(0 24px 40px rgba(0,0,0,.55));
+  transition:transform .24s ease, opacity .24s ease, filter .24s ease; cursor:pointer;
+}
+.portrait-img[title]:not([title=""]):hover{ transform:scale(1.015); }
+.portrait-img.portrait-flip-out{
+  transform:scale(.82) rotateY(14deg); opacity:0; filter:drop-shadow(0 24px 40px rgba(0,0,0,.55)) blur(10px) brightness(1.6);
+}
+.portrait-img.portrait-flip-in{ animation:portraitWarpIn .42s cubic-bezier(.2,.8,.2,1); }
+@keyframes portraitWarpIn{
+  0%{ transform:scale(.82) rotateY(-14deg); opacity:0; filter:drop-shadow(0 24px 40px rgba(0,0,0,.55)) blur(10px) brightness(1.6); }
+  60%{ filter:drop-shadow(0 24px 40px rgba(0,0,0,.55)) blur(0px) brightness(1.15); }
+  100%{ transform:scale(1) rotateY(0deg); opacity:1; filter:drop-shadow(0 24px 40px rgba(0,0,0,.55)) blur(0) brightness(1); }
+}
+.photo-dots{display:flex; gap:7px; justify-content:center; margin-top:16px;}
+.photo-dot{width:7px; height:7px; border-radius:50%; background:var(--line); transition:.25s;}
+.photo-dot.active{background:var(--pcolor); width:20px; border-radius:4px;}
+@media (prefers-reduced-motion: reduce){
+  .portrait-img, .portrait-img.portrait-flip-out, .portrait-img.portrait-flip-in{ transition:none; animation:none; transform:none; filter:drop-shadow(0 24px 40px rgba(0,0,0,.55)); opacity:1; }
+}
+.frame-corner{position:absolute; width:26px; height:26px; border-color:var(--pcolor); opacity:.8; z-index:2;}
+.frame-corner.tl{top:-8px; left:-8px; border-top:2px solid; border-left:2px solid; border-top-left-radius:6px;}
+.frame-corner.tr{top:-8px; right:-8px; border-top:2px solid; border-right:2px solid; border-top-right-radius:6px;}
+.frame-corner.bl{bottom:-8px; left:-8px; border-bottom:2px solid; border-left:2px solid; border-bottom-left-radius:6px;}
+.frame-corner.br{bottom:-8px; right:-8px; border-bottom:2px solid; border-right:2px solid; border-bottom-right-radius:6px;}
+.profile-hero-split .profile-tags, .profile-hero-split .stat-rail{justify-content:flex-start;}
+.profile-hero-split .meta-row{justify-content:flex-start;}
+.profile-hero-split .profile-bio{margin-left:0; margin-right:0;}
+.profile-hero-split .skill-card{margin-left:0; margin-right:0; max-width:none;}
+.profile-hero-split .quote-block{margin-left:0; margin-right:0; max-width:none;}
+@media (max-width: 760px){
+  .profile-hero-split{flex-direction:column; text-align:center; padding-top:56px;}
+  .profile-hero-split .portrait-side{order:0; flex-basis:auto; max-width:250px; margin-bottom:8px;}
+  .profile-hero-split .profile-tags, .profile-hero-split .stat-rail, .profile-hero-split .meta-row{justify-content:center;}
+  .profile-hero-split .profile-bio, .profile-hero-split .info-side{text-align:center;}
+  .profile-hero-split .profile-bio{text-align:left;}
+}
+.apodo{font-family:'Cormorant Garamond',Georgia,serif; font-style:italic; color:var(--pcolor); font-size:1.2rem; margin-top:2px;}
+.skill-card{
+  max-width:440px; margin:22px auto 0; padding:17px 21px; border-radius:14px; display:flex; gap:14px; align-items:flex-start;
+  border:1px solid var(--line-soft); border-left:3px solid var(--pcolor); background:var(--card);
+  backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+  box-shadow:0 12px 34px rgba(0,4,14,.4);
+  transition:border-color .4s var(--ease), transform .4s var(--ease);
+}
+.skill-card:hover{transform:translateY(-2px); border-color:color-mix(in srgb, var(--pcolor) 40%, transparent);}
+.skill-icon{font-size:1.25rem; line-height:1.3; flex-shrink:0;}
+.skill-label{font-family:'JetBrains Mono',monospace; font-size:.65rem; letter-spacing:.14em; text-transform:uppercase; color:var(--pcolor);}
+.skill-value{font-family:'Cormorant Garamond',Georgia,serif; font-size:1.08rem; margin-top:6px; line-height:1.4;}
+.quote-block{
+  position:relative; max-width:480px; margin:26px auto 0; padding:6px 10px 0 30px; font-family:'Cormorant Garamond',Georgia,serif; font-style:italic;
+  font-size:1.22rem; color:var(--ink-dim); text-align:left; line-height:1.5;
+}
+.quote-block::before{
+  content:"\201C"; position:absolute; left:-6px; top:-18px; font-family:'Cormorant Garamond',Georgia,serif; font-size:3.4rem;
+  color:var(--pcolor); opacity:.45;
+}
+.stat-rail{
+  display:flex; flex-wrap:wrap; margin-top:34px; border:1px solid var(--line-soft); border-radius:16px;
+  overflow:hidden; background:var(--card);
+  backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+  box-shadow:0 12px 34px rgba(0,4,14,.4);
+}
+.stat-cell{
+  flex:1 1 140px; padding:18px; text-align:center; border-right:1px solid var(--line-soft);
+  transition:background .35s var(--ease), transform .35s var(--ease); cursor:default;
+}
+.stat-cell:last-child{border-right:none;}
+.stat-cell[data-clickable]{cursor:pointer;}
+.stat-cell[data-clickable]:hover{background:color-mix(in srgb, var(--pcolor) 12%, transparent); transform:translateY(-2px);}
+.stat-num{font-family:'Cormorant Garamond',Georgia,serif; font-size:1.9rem; font-weight:600; color:var(--pcolor); line-height:1; text-shadow:0 0 22px color-mix(in srgb, var(--pcolor) 45%, transparent);}
+.stat-label{font-family:'JetBrains Mono',monospace; font-size:.62rem; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-dim); margin-top:6px; line-height:1.35; max-width:150px; margin-left:auto; margin-right:auto;}
+.dossier-eyebrow{font-family:'JetBrains Mono',monospace; font-size:.68rem; letter-spacing:.2em; text-transform:uppercase; color:var(--pcolor);}
+
+/* ===== TOOLBAR / SEARCH ===== */
+.toolbar{display:flex; gap:6px;}
+.tool-btn{
+  width:34px; height:34px; border-radius:50%; border:1px solid var(--line-soft);
+  background:rgba(120,180,255,.04);
+  color:var(--ink-dim); cursor:pointer; font-size:.92rem; display:flex; align-items:center; justify-content:center;
+  transition:border-color .3s var(--ease), color .3s var(--ease), background .3s var(--ease), transform .3s var(--ease), box-shadow .3s var(--ease);
+}
+.tool-btn:hover{border-color:rgba(104,216,255,.55); color:var(--amber); transform:translateY(-2px) scale(1.06); box-shadow:0 4px 16px rgba(0,8,22,.5), 0 0 18px rgba(104,216,255,.25);}
+.tool-btn:active{transform:translateY(0) scale(.94);}
+.tool-btn.active{background:linear-gradient(160deg,var(--amber),#3aa9dd); border-color:transparent; color:#03121f; box-shadow:0 0 18px rgba(104,216,255,.5);}
+
+.search-overlay{
+  position:fixed; inset:0; z-index:60; background:rgba(1,5,13,.9);
+  backdrop-filter:blur(18px) saturate(120%); -webkit-backdrop-filter:blur(18px) saturate(120%);
+  display:none; flex-direction:column; padding:84px 24px 24px;
+}
+.search-overlay.active{display:flex; animation:overlayIn .35s var(--ease);}
+@keyframes overlayIn{from{opacity:0; backdrop-filter:blur(0);} to{opacity:1;}}
+.search-box{max-width:680px; width:100%; margin:0 auto; display:flex; gap:10px; align-items:center; animation:searchBoxIn .5s var(--ease) .04s both;}
+@keyframes searchBoxIn{from{opacity:0; transform:translateY(-14px);} to{opacity:1; transform:none;}}
+.search-box input{
+  flex:1; background:rgba(8,22,46,.7); border:1px solid var(--line); border-radius:14px; padding:16px 20px;
+  color:var(--ink); font-family:'Outfit',system-ui,sans-serif; font-size:1.05rem; font-weight:300; outline:none;
+  transition:border-color .3s var(--ease), box-shadow .3s var(--ease);
+}
+.search-box input::placeholder{color:var(--ink-faint);}
+.search-box input:focus{border-color:rgba(104,216,255,.7); box-shadow:0 0 0 4px rgba(104,216,255,.1), 0 0 30px rgba(104,216,255,.14);}
+.search-results{max-width:680px; width:100%; margin:26px auto 0; overflow-y:auto;}
+.search-result-group{margin-bottom:24px;}
+.search-result-group h4{font-family:'JetBrains Mono',monospace; font-size:.66rem; color:var(--amber); text-transform:uppercase; letter-spacing:.2em; margin-bottom:12px;}
+.search-result-item{
+  display:block; padding:14px 18px; border-radius:12px; border:1px solid var(--line-soft); margin-bottom:9px;
+  background:rgba(6,18,38,.6); cursor:pointer;
+  transition:border-color .3s var(--ease), background .3s var(--ease), transform .3s var(--ease);
+}
+.search-result-item:hover{border-color:rgba(104,216,255,.5); background:rgba(14,38,74,.75); transform:translateX(5px);}
+.search-result-item .srn{font-weight:500; font-family:'Cormorant Garamond',Georgia,serif; font-size:1.24rem;}
+.search-result-item .srd{font-size:.8rem; color:var(--ink-dim); margin-top:3px; font-weight:300;}
+.search-empty{color:var(--ink-faint); text-align:center; margin-top:46px; font-weight:300;}
+
+/* ===== RELATIONSHIP MAP ===== */
+.map-wrap{max-width:900px; margin:0 auto; padding:10px 24px 110px;}
+.map-svg-wrap{width:100%; aspect-ratio:1/1; max-width:740px; margin:0 auto;}
+.map-legend{
+  text-align:center; color:var(--ink-faint); font-size:.7rem; margin-top:26px;
+  font-family:'JetBrains Mono',monospace; letter-spacing:.12em;
+}
+.map-node-label{
+  fill:#dbe8fa; font-family:'JetBrains Mono',monospace; font-size:9.5px; letter-spacing:.1em;
+  text-anchor:middle; pointer-events:none; text-transform:uppercase;
+  paint-order:stroke; stroke:rgba(1,6,15,.95); stroke-width:3px; stroke-linejoin:round;
+  transition:fill .35s var(--ease);
+}
+/* each node breathes on its own offset, so the whole web has a slow living pulse */
+.map-node{cursor:pointer; animation:mapNodeFloat 7s ease-in-out infinite; transform-box:fill-box; transform-origin:center;}
+@keyframes mapNodeFloat{0%,100%{transform:translateY(0);} 50%{transform:translateY(-4px);}}
+.map-node-circle{transition:filter .35s var(--ease); filter:drop-shadow(0 0 7px color-mix(in srgb, var(--ncolor) 60%, transparent));}
+.map-node-halo{opacity:.16; filter:blur(9px); transition:opacity .4s var(--ease);}
+.map-node-shine{opacity:.4; pointer-events:none;}
+.map-node, .map-node-halo, .map-node-circle, .map-node-label{transition:opacity .4s var(--ease), filter .4s var(--ease), fill .35s var(--ease);}
+.map-node:hover .map-node-circle{filter:brightness(1.35) drop-shadow(0 0 18px var(--ncolor));}
+.map-node:hover .map-node-halo{opacity:.42;}
+.map-node:hover .map-node-label{fill:#fff;}
+.map-node.node-dim{opacity:.2;}
+
+.map-edge{
+  stroke:var(--amber); stroke-linecap:round;
+  stroke-dasharray:3 9;
+  animation:edgeFlow 5.5s linear infinite;
+  transition:stroke-opacity .4s var(--ease), stroke .4s var(--ease), stroke-width .4s var(--ease);
+}
+@keyframes edgeFlow{to{stroke-dashoffset:-28;}}
+.map-edge.edge-hot{stroke:#bfe9ff; stroke-opacity:.95 !important; stroke-width:3.2 !important;}
+.map-edge.edge-dim{stroke-opacity:.05 !important;}
+@media (prefers-reduced-motion: reduce){
+  .map-node{animation:none;}
+  .map-edge{animation:none; stroke-dasharray:none;}
+}
+
+/* ===== EDIT MODE ===== */
+.edit-field{position:relative;}
+.edit-pencil{
+  display:none; margin-left:6px; font-size:.8rem; cursor:pointer; opacity:.7; vertical-align:middle;
+}
+body.edit-on .edit-pencil{display:inline-block;}
+body.edit-on .edit-field:hover{outline:1px dashed var(--amber); outline-offset:4px; border-radius:6px;}
+.edit-bar{
+  position:fixed; bottom:0; left:0; right:0; z-index:55;
+  background:rgba(4,14,32,.92); border-top:1px solid rgba(104,216,255,.45);
+  backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
+  padding:12px 20px; display:none; align-items:center; justify-content:center; gap:14px; flex-wrap:wrap;
+  font-family:'JetBrains Mono',monospace; font-size:.72rem;
+}
+body.edit-on .edit-bar{display:flex; animation:editBarIn .45s var(--ease);}
+@keyframes editBarIn{from{transform:translateY(100%);} to{transform:none;}}
+.edit-bar button{
+  padding:8px 15px; border-radius:9px; border:1px solid rgba(104,216,255,.45);
+  background:rgba(104,216,255,.06); color:var(--amber);
+  cursor:pointer; font-family:'JetBrains Mono',monospace; font-size:.7rem; letter-spacing:.05em;
+  transition:background .3s var(--ease), color .3s var(--ease), transform .3s var(--ease);
+}
+.edit-bar button:hover{background:var(--amber); color:var(--hole); transform:translateY(-2px);}
+.edit-bar button:active{transform:translateY(0) scale(.96);}
+.edit-bar .edit-tag{color:var(--ink-faint);}
+.modal-overlay{
+  position:fixed; inset:0; background:rgba(1,5,13,.82); z-index:70; display:none;
+  align-items:center; justify-content:center; padding:20px;
+  backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+}
+.modal-overlay.active{display:flex; animation:overlayIn .3s var(--ease);}
+.modal-box{
+  background:rgba(7,20,42,.94); border:1px solid var(--line); border-radius:20px; padding:28px;
+  max-width:520px; width:100%; max-height:85vh; overflow-y:auto;
+  box-shadow:0 30px 80px rgba(0,3,12,.75), 0 0 60px rgba(80,180,255,.08);
+  animation:modalIn .45s var(--ease) both;
+}
+@keyframes modalIn{from{opacity:0; transform:translateY(20px) scale(.97);} to{opacity:1; transform:none;}}
+.modal-box h3{margin-top:0; font-size:1.6rem; font-weight:600;}
+.modal-box label{display:block; font-family:'JetBrains Mono',monospace; font-size:.66rem; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-faint); margin:16px 0 6px;}
+.modal-box input, .modal-box textarea, .modal-box select{
+  width:100%; background:rgba(2,10,24,.8); border:1px solid var(--line); border-radius:10px; padding:11px 14px;
+  color:var(--ink); font-family:'Outfit',system-ui,sans-serif; font-size:.92rem; font-weight:300; outline:none;
+  transition:border-color .3s var(--ease), box-shadow .3s var(--ease);
+}
+.modal-box textarea{min-height:96px; resize:vertical; line-height:1.6;}
+.modal-box input:focus, .modal-box textarea:focus, .modal-box select:focus{border-color:rgba(104,216,255,.7); box-shadow:0 0 0 3px rgba(104,216,255,.1);}
+.modal-actions{display:flex; gap:10px; margin-top:24px; justify-content:flex-end;}
+.modal-actions button{
+  padding:10px 18px; border-radius:10px; border:1px solid var(--line);
+  background:rgba(120,180,255,.05); color:var(--ink); cursor:pointer;
+  font-family:'JetBrains Mono',monospace; font-size:.72rem; letter-spacing:.06em;
+  transition:border-color .3s var(--ease), background .3s var(--ease), transform .3s var(--ease);
+}
+.modal-actions button:hover{border-color:rgba(104,216,255,.5); background:rgba(104,216,255,.1); transform:translateY(-2px);}
+.modal-actions button:active{transform:translateY(0) scale(.97);}
+.modal-actions button.primary{background:linear-gradient(160deg,var(--amber),#3aa9dd); border-color:transparent; color:#03121f; font-weight:700; box-shadow:0 0 18px rgba(104,216,255,.35);}
+.modal-actions button.primary:hover{box-shadow:0 4px 24px rgba(104,216,255,.5); background:linear-gradient(160deg,#8ce4ff,#48b8e8);}
+/* !important because some of these rows also need their own display value when visible; an
+   inline `style="display:flex"` used to win over this rule and leak edit controls into the
+   read-only view */
+.edit-only-btn{display:none !important;}
+body.edit-on .edit-only-btn{display:inline-flex !important;}
+body.edit-on .edit-only-btn.edit-row{display:flex !important;}
+.edit-row{gap:10px; justify-content:center; margin-top:22px; flex-wrap:wrap;}
+body.edit-on{padding-bottom:56px;}
+@media (max-width:720px){ .toolbar{gap:2px;} }
+@media (max-width:480px){
+  header.topnav{padding:12px 14px;}
+  .brand .name{font-size:.92rem;}
+  .tool-btn{width:32px; height:32px; font-size:.85rem;}
+}
+
+.related-stories{max-width:860px; margin:0 auto; padding:80px 28px 130px;}
+.related-stories h2{font-size:2rem; margin-bottom:8px; font-weight:500;}
+.related-stories .sub{color:var(--ink-faint); font-size:.82rem; margin-bottom:38px; font-weight:300;}
+.story-link-card{
+  position:relative; display:block; border:1px solid var(--line-soft); border-radius:var(--radius);
+  padding:24px 26px; margin-bottom:14px; background:rgba(4,14,32,.74); overflow:hidden;
+  transition:border-color .4s var(--ease), background .4s var(--ease), transform .4s var(--ease), box-shadow .4s var(--ease);
+}
+/* accent rail that grows in from the left edge on hover */
+.story-link-card::before{
+  content:''; position:absolute; left:0; top:0; bottom:0; width:3px;
+  background:linear-gradient(to bottom, var(--amber), var(--violet));
+  transform:scaleY(0); transform-origin:top; transition:transform .5s var(--ease);
+}
+.story-link-card:hover::before{transform:scaleY(1);}
+.story-link-card:hover{
+  border-color:rgba(104,216,255,.4); background:var(--card-hi); transform:translateX(6px);
+  box-shadow:0 14px 40px rgba(0,4,14,.5);
+}
+.story-link-card .slc-top{display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap;}
+.story-link-card .slc-season{font-family:'JetBrains Mono',monospace; font-size:.68rem; color:var(--amber);}
+.story-link-card .slc-date{font-family:'JetBrains Mono',monospace; font-size:.68rem; color:var(--ink-dim);}
+.story-link-card h4{margin:8px 0 6px; font-size:1.15rem; font-family:'Cormorant Garamond',Georgia,serif;}
+.story-link-card p{margin:0; color:var(--ink-dim); font-size:.92rem; line-height:1.5;}
+
+/* .back-btn is used on BOTH a <div> ("← Volver") and a <button> (the edit actions). A <button>
+   with no background falls back to the UA's `buttonface`, which is near-white - that's why the
+   edit buttons used to appear as glaring white pills on a dark page. Setting background (and
+   the font, which buttons also don't inherit) explicitly keeps both elements identical. */
+.back-btn{
+  display:inline-flex; align-items:center; gap:8px; margin:26px 28px 0; padding:9px 17px; border-radius:999px;
+  border:1px solid var(--line); background:rgba(6,20,42,.55);
+  backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  font-family:'JetBrains Mono',monospace; font-size:.72rem; letter-spacing:.08em;
+  color:var(--ink-dim); cursor:pointer;
+  transition:border-color .35s var(--ease), color .35s var(--ease), background .35s var(--ease), transform .35s var(--ease);
+}
+.back-btn:hover{border-color:rgba(104,216,255,.6); color:var(--amber); background:rgba(12,36,70,.7); transform:translateY(-2px);}
+.back-btn:active{transform:translateY(0) scale(.97);}
+
+/* target highlight flash when navigated to a specific event */
+@keyframes flashHighlight{
+  0%{box-shadow:0 0 0 0 rgba(127,212,255,0);}
+  30%{box-shadow:0 0 0 8px rgba(127,212,255,.22);}
+  100%{box-shadow:0 0 0 0 rgba(127,212,255,0);}
+}
+.event.flash{animation:flashHighlight 1.6s ease;}
+
+/* timeline mobile layout lives in the single 820px rule above - this block is only for
+   chrome that has to disappear on small screens */
+@media (max-width: 720px){
+  nav.seasons-strip{display:none;}
+}

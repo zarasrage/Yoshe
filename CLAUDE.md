@@ -2,7 +2,7 @@
 
 Sitio de una sola página (HTML/CSS/JS puro, sin build, sin frameworks) que cuenta la historia de un grupo de amigos a través de temporadas (S0–S5), con personajes, lugares, un mapa de relaciones, y una sección final "Armagedón" con el destino de cada integrante.
 
-**Archivos principales:** `index.html` (HTML + CSS + JS de lógica/vistas) y `data.js` (el objeto `DATA` con toda la historia: personajes, lugares, temporadas), cargado por `index.html` vía `<script src="data.js">`. No hay build step: se edita directo y se abre en el navegador. Se separó `DATA` a su propio archivo porque es la parte que más crece con cada historia nueva — así una edición de contenido no requiere tocar el archivo con el CSS y la lógica de vistas. Las fotos de personajes son archivos reales en `/images` (NO base64 inline — se sacaron de ahí porque hacían el archivo pesadísimo), referenciadas por ruta relativa.
+**Archivos principales:** `index.html` (esqueleto HTML, ~60 líneas), `styles.css` (todo el CSS), `app.js` (toda la lógica/vistas JS) y `data.js` (el objeto `DATA` con toda la historia: personajes, lugares, temporadas). `index.html` carga los tres vía `<link rel="stylesheet" href="styles.css">` y `<script src="data.js">` + `<script src="app.js">` (data.js primero, porque `app.js` usa `DATA` como variable de módulo top-level sin imports). No hay build step: se edita directo y se abre en el navegador — los cuatro archivos son texto plano, sin bundler, sin transpilación. Se separó `DATA` a su propio archivo porque es la parte que más crece con cada historia nueva, y CSS/JS se separaron de `index.html` por lo mismo en sentido inverso: son las partes que casi no cambian de tamaño pero sí se tocan seguido, así que aislarlas evita cargar ~2300 líneas de HTML+CSS+JS mezclado para tocar un solo estilo o una sola función. Las fotos de personajes son archivos reales en `/images` (NO base64 inline — se sacaron de ahí porque hacían el archivo pesadísimo), referenciadas por ruta relativa.
 
 ## Cómo probar cambios
 
@@ -11,9 +11,8 @@ No hay servidor ni build. Para validar que el JS no tiene errores de sintaxis de
 ```bash
 node -e "
 const fs = require('fs');
-const html = fs.readFileSync('index.html','utf8');
-const script = html.split('<script>')[1].split('</script>')[0];
-new Function(script);
+new Function(fs.readFileSync('app.js','utf8'));
+new Function(fs.readFileSync('data.js','utf8'));
 console.log('JS syntax OK');
 "
 ```
@@ -81,7 +80,7 @@ Hay una función `autoTagText(text)` que hace esto automáticamente a partir de 
 
 ### Vistas (router por hash, sin librería)
 
-`render()` lee `location.hash` y despacha a: `viewHome()`, `viewSeason(id)`, `viewCharacter(id)`, `viewPlace(id)`, `viewMap()`, `viewArmageddon()`. Viven en el `<script>` de `index.html`, sin imports — `DATA` (de `data.js`) está disponible ahí porque `data.js` se carga antes en el HTML, no porque cuelgue de `window`.
+`render()` lee `location.hash` y despacha a: `viewHome()`, `viewSeason(id)`, `viewCharacter(id)`, `viewPlace(id)`, `viewMap()`, `viewArmageddon()`. Viven en `app.js`, sin imports — `DATA` (de `data.js`) está disponible ahí porque `data.js` se carga antes que `app.js` en el HTML, no porque cuelgue de `window`.
 
 ### Persistencia (modo edición)
 
