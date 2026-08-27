@@ -103,7 +103,7 @@ El carrusel de fotos (`cyclePhoto()`) cicla entre `photos[]` con una transición
 
 ## Diseño / paleta
 
-Tema "espacio profundo, cielo estrellado azul". Variables CSS en `:root`: `--void`, `--void-2`, `--void-3`, `--hole`, `--ink`, `--ink-dim`, `--ink-faint`, `--amber` (acento principal, cian, el nombre quedó por historia), `--violet`, `--teal`, `--line`, `--line-soft`, `--card`, `--card-hi`, `--ease`. Cambiar la paleta = redefinir estas variables, no hay que tocar el resto del CSS. Los valores actuales están muestreados de los píxeles reales de `images/fondo_final.jpg`.
+Tema "espacio profundo, cielo estrellado azul". Variables CSS en `:root`: `--void`, `--void-2`, `--void-3`, `--hole`, `--ink`, `--ink-dim`, `--ink-faint`, `--amber` (acento principal, cian, el nombre quedó por historia), `--violet`, `--teal`, `--line`, `--line-soft`, `--card`, `--card-hi`, `--ease`. Cambiar la paleta = redefinir estas variables, no hay que tocar el resto del CSS. Los valores actuales están muestreados de los píxeles reales de `images/fondo_definitivo.jpg`.
 
 Tipografías: `Cormorant Garamond` (serif de display: títulos, nombres, números de stats), `Outfit` (body/UI), `JetBrains Mono` (labels, fechas, chips, código).
 
@@ -117,7 +117,7 @@ Tres capas `position:fixed` a tamaño de viewport, detrás de todo, en este orde
 
 **Por qué fijas y no del alto del documento:** la página mide varios miles de px; una foto estirada a ese alto se ve borrosa y en mosaico se nota la repetición. Fijas, el cielo simplemente se queda quieto mientras el contenido pasa por encima — y de paso el canvas solo necesita el tamaño del viewport (mucho más barato de animar) en vez del alto completo del documento.
 
-Las fuentes originales de las imágenes (`fondo_final.jpg`, 6000×4000) se conservan en `/images`; las versiones que sirve la página son las optimizadas `sky-wide.jpg` / `sky-tall.jpg`.
+La fuente original del cielo (`images/fondo_definitivo.jpg`, 3840×2160) se conserva en el repo, pero la página **nunca la carga**: sirve las versiones optimizadas `sky-wide.jpg` (2560px) y `sky-tall.jpg` (recorte vertical para teléfonos). Al cambiar el fondo hay que regenerar esas dos y volver a muestrear la paleta de `:root`.
 
 ### Movimiento
 
