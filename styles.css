@@ -553,6 +553,18 @@ footer.site-footer{
 .polaroid-stack{display:flex; flex-wrap:wrap; gap:16px; margin:0 0 22px;}
 .polaroid-stack .polaroid{margin:0; max-width:220px;}
 
+/* An event with media splits into two columns instead of stacking media above the text.
+   event-media always sits on the side that faces the timeline spine (DOM order flips per
+   side in renderEventBody - see app.js), event-copy always faces the outer margin.
+   flex-wrap lets the media column drop below the copy on narrow cards on its own, without
+   a dedicated breakpoint - no room for both min-widths means it wraps. */
+.event-split{display:flex; flex-wrap:wrap; gap:16px; align-items:flex-start;}
+.event-copy{flex:2 1 170px; min-width:0;}
+.event-media{flex:1 1 110px; max-width:130px;}
+.event-media .polaroid{max-width:130px; margin:0 0 12px;}
+.event-media .polaroid-stack{margin:0; gap:12px;}
+.event-media .polaroid-stack .polaroid{max-width:130px;}
+
 /* Single-column timeline on narrow screens: the spine moves to the left edge and every card
    hangs off it. Kept as ONE rule (it used to be split across a 820px and a 720px block that
    stacked a 46px padding onto a 52px margin and pushed every card off the right edge). */
@@ -569,7 +581,7 @@ footer.site-footer{
   .event::after{display:none;}
   .event h3{font-size:1.5rem;}
   .polaroid, .event.left .polaroid, .event.right .polaroid{margin-left:0; margin-right:auto;}
-  .event.left .polaroid-stack .polaroid, .event.right .polaroid-stack .polaroid{margin:0; max-width:150px;}
+  .event.left .event-media .polaroid, .event.right .event-media .polaroid{margin:0 0 12px;}
 }
 .polaroid .frame{
   aspect-ratio:4/3; border-radius:2px; display:flex; align-items:center; justify-content:center;

@@ -414,22 +414,17 @@ function renderContent(content){
 }
 function escapeHtml(s){const d=document.createElement("div");d.textContent=(s===null||s===undefined)?"":String(s);return d.innerHTML;}
 
-/* An event can carry photos (e.images[], or legacy single e.image) and/or a video (e.video).
-   Multiple items render as a fanned strip of polaroids instead of one — same card, same
-   frame, just more of them. No media at all falls back to the place-plate (see below):
-   a real place plate reads as finished design, whereas an empty polaroid frame reads as a
-   missing asset. */
-function renderEventMedia(e, place){
+/* An event can carry photos (e.images[], or legacy single e.image) and/or a video (e.video). */
+function getEventMedia(e){
   const media = [];
   (Array.isArray(e.images) && e.images.length ? e.images : (e.image ? [e.image] : []))
     .forEach(src=>media.push({type:"image", src}));
   if(e.video) media.push({type:"video", src:e.video});
-  if(!media.length){
-    return `<div class="place-plate"${e.place?` onclick="navigateTo('place','${e.place}')"`:""}>
-             <span class="pp-icon">${place?place.icon:"✧"}</span>
-             <span class="pp-name">${place?escapeHtml(place.name):"Lugar sin registrar"}</span>
-           </div>`;
-  }
+  return media;
+}
+/* Multiple items render as a fanned strip of polaroids instead of one — same card, same
+   frame, just more of them. */
+function renderMediaItems(media, e, place){
   const cap = `${place?escapeHtml(place.name):"lugar sin registrar"} · ${escapeHtml(e.date)}`;
   const items = media.map((m,i)=>{
     const rot = (i%2===0? -1.4 : 1.6) * (1 + (i%2));
@@ -439,6 +434,32 @@ function renderEventMedia(e, place){
     return `<div class="polaroid" style="--rot:${rot}deg">${frame}<div class="cap">${cap}</div></div>`;
   }).join("");
   return media.length>1 ? `<div class="polaroid-stack">${items}</div>` : items;
+}
+function renderPlacePlate(e, place){
+  return `<div class="place-plate"${e.place?` onclick="navigateTo('place','${e.place}')"`:""}>
+             <span class="pp-icon">${place?place.icon:"✧"}</span>
+             <span class="pp-name">${place?escapeHtml(place.name):"Lugar sin registrar"}</span>
+           </div>`;
+}
+/* No media at all falls back to the place-plate, full width: a real place plate reads as
+   finished design, whereas an empty polaroid frame reads as a missing asset.
+   With media, the card splits into two columns - copy and media - and which side each
+   sits on flips with the card: media always faces the timeline spine (the side the node-dot
+   connects to), copy always faces the outer margin. So a left-side card reads copy-then-media
+   and a right-side card reads media-then-copy, mirroring each other across the spine. */
+function renderEventBody(e, place, side){
+  const media = getEventMedia(e);
+  const tagsHtml = `<div class="event-tags">
+        ${e.chars.map(cid=>DATA.characters[cid]?`<span class="chip-small">${escapeHtml(DATA.characters[cid].name)}</span>`:"").join("")}
+      </div>`;
+  if(!media.length){
+    return `${renderPlacePlate(e, place)}
+      <div class="story-text">${renderContent(e.content)}</div>
+      ${tagsHtml}`;
+  }
+  const mediaHtml = `<div class="event-media">${renderMediaItems(media, e, place)}</div>`;
+  const copyHtml = `<div class="event-copy"><div class="story-text">${renderContent(e.content)}</div>${tagsHtml}</div>`;
+  return `<div class="event-split">${side==="left" ? copyHtml+mediaHtml : mediaHtml+copyHtml}</div>`;
 }
 function navigateTo(view,id){ location.hash = `#/${view}/${id}`; }
 
@@ -684,11 +705,7 @@ function viewSeason(id){
       <div class="node-dot" style="border-color:${s.color}"></div>
       <div class="edate">${escapeHtml(e.date)} · ${s.code}</div>
       <h3>${escapeHtml(e.title)}</h3>
-      ${renderEventMedia(e, place)}
-      <div class="story-text">${renderContent(e.content)}</div>
-      <div class="event-tags">
-        ${e.chars.map(cid=>DATA.characters[cid]?`<span class="chip-small">${escapeHtml(DATA.characters[cid].name)}</span>`:"").join("")}
-      </div>
+      ${renderEventBody(e, place, side)}
     </div>`;
   }).join("");
 
