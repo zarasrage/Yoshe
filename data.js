@@ -21,6 +21,9 @@ const DATA = {
     "vallejos":           {name:"Vallejos",                role:"— rol pendiente —", tier:"secundario", color:"#7fae6f", bio:"Cuéntame más sobre Vallejos: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
     "tort":               {name:"Tort",                    role:"— rol pendiente —", tier:"secundario", color:"#e0b84f", bio:"Cuéntame más sobre Tort: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
     "pezuna":             {name:"Pezuña",                  role:"— rol pendiente —", tier:"secundario", color:"#c9853f", bio:"Cuéntame más sobre Pezuña: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
+    "brenda":             {name:"Brenda",                  role:"— rol pendiente —", tier:"secundario", color:"#d9748a", bio:"Cuéntame más sobre Brenda: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
+    "gian":               {name:"Gian",                    role:"— rol pendiente —", tier:"secundario", color:"#8b6bf2", bio:"Cuéntame más sobre Gian: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
+    "joe-lombardo":       {name:"Joe Lombardo",            role:"— rol pendiente —", tier:"secundario", color:"#3f8c82", bio:"Cuéntame más sobre Joe Lombardo: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
   },
   places: {
 
@@ -166,6 +169,31 @@ const DATA = {
             {t:"text",v:". Ahí conocimos por primera vez al pololo de "},
             {t:"char",id:"pachi"},
             {t:"text",v:". — Cuéntame más: ¿cómo se llama él, cómo estuvo la fiesta, algún momento memorable?"}
+          ]
+        },
+        {
+          date:"Sábado 12 de septiembre de 2026", title:"El cumpleaños de Brenda (y la echada de Vrava)",
+          place:"vrava", chars:["agustin-gonzalez","sofia-yanez","brenda","gian","joe-lombardo"],
+          content:[
+            {t:"text",v:"El grupo volvió a "},
+            {t:"place",id:"vrava"},
+            {t:"text",v:" una vez más, esta vez para el cumpleaños de "},
+            {t:"char",id:"brenda"},
+            {t:"text",v:". Fueron "},
+            {t:"char",id:"agustin-gonzalez"},
+            {t:"text",v:" y "},
+            {t:"char",id:"sofia-yanez"},
+            {t:"text",v:", aunque llegaron bastante tarde: se habían quedado dormidos.\n\nYa en la disco se encontraron con "},
+            {t:"char",id:"gian"},
+            {t:"text",v:" y con "},
+            {t:"char",id:"joe-lombardo"},
+            {t:"text",v:", y le compraron un tequila a "},
+            {t:"char",id:"brenda"},
+            {t:"text",v:" para celebrar. Dijeron, medio en broma, que los amigos internistas de "},
+            {t:"char",id:"brenda"},
+            {t:"text",v:" llevaban ahorrando desde marzo solo para esa fiesta.\n\nLa noche terminó como pocas: "},
+            {t:"char",id:"brenda"},
+            {t:"text",v:" se hizo mierda, tomó demasiado, y terminó siendo echada de Vrava. Motivo de risa asegurada para el grupo. Después de eso, se fueron."}
           ]
         }
       ]
