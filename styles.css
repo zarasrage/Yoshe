@@ -1,5 +1,5 @@
 :root{
-  /* palette sampled directly from images/fondo_definitivo.jpg (the source of sky-wide.jpg):
+  /* palette sampled directly from images/sky/fondo_definitivo.jpg (the source of sky-wide.jpg):
      near-black navy at the frame edges, deeper navy in the field, electric blue where the
      nebula bands run, bluish-white stars */
   --void:#011223;
@@ -56,7 +56,7 @@ a{color:inherit;text-decoration:none;}
 #skyPhoto{position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden;}
 #skyPhoto::before{
   content:''; position:absolute; inset:0;
-  background:url("images/sky-wide.jpg") center center/cover no-repeat;
+  background:url("images/sky/sky-wide.jpg") center center/cover no-repeat;
   animation:skyDrift 140s ease-in-out infinite alternate;
   will-change:transform;
 }
@@ -78,7 +78,7 @@ a{color:inherit;text-decoration:none;}
   background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
 }
 @media (max-width:700px){
-  #skyPhoto::before{background-image:url("images/sky-tall.jpg");}
+  #skyPhoto::before{background-image:url("images/sky/sky-tall.jpg");}
 }
 
 /* NAV */
@@ -688,7 +688,7 @@ footer.site-footer{
    character just reads as the same "size" (same height), narrower or wider as their photo
    actually is, rather than a name for what gets cropped away. */
 .portrait-img{
-  position:relative; z-index:1; height:450px; width:auto; max-width:100%;
+  position:relative; z-index:1; height:500px; width:auto; max-width:100%;
   display:block; filter:drop-shadow(0 24px 40px rgba(0,0,0,.55));
   transition:transform .24s ease, opacity .24s ease, filter .24s ease; cursor:pointer;
 }

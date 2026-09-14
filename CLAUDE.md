@@ -46,9 +46,9 @@ const DATA = {
     "id-slug": {
       name, role, tier: "primario"|"secundario", color: "#hex",
       bio, apodo, frase, habilidad, destino,   // cualquiera puede ser null
-      photo: "images/id-slug-1.jpg",     // avatar chico circular (opcional), ruta relativa a /images
-      photoLarge: "images/id-slug-2.png", // retrato grande, UNA foto (legacy, usar photos en su lugar)
-      photos: ["images/id-slug-2.png", ...], // retrato grande, VARIAS fotos con carrusel (preferido)
+      photo: "images/characters/id-slug/avatar.jpg", // avatar chico circular (opcional)
+      photoLarge: "images/characters/id-slug/1.png", // retrato grande, UNA foto (legacy, usar photos en su lugar)
+      photos: ["images/characters/id-slug/1.png", ...], // retrato grande, VARIAS fotos con carrusel (preferido)
       tags: ["..."]
     }
   },
@@ -61,6 +61,8 @@ const DATA = {
       events: [
         {
           date, title, place: "place-id"|null, chars: ["char-id", ...],
+          images: ["images/events/....jpg", ...],  // opcional, foto(s) de esa historia (o `image` legacy, una sola)
+          video: "images/events/....mp4",           // opcional, un video de esa historia
           content: [
             {t:"text", v:"..."},
             {t:"char", id:"char-id"},   // se renderiza con el nombre de DATA.characters[id]
@@ -95,14 +97,14 @@ Proceso para agregar una foto de personaje:
 1. El usuario manda una ilustración (idealmente ya con fondo transparente, herramientas como Photoroom sirven).
 2. Verificar transparencia real: `Image.open(path).convert('RGBA').getchannel('A').getextrema()` — si da `(0,255)` hay canal alfa real; si no, es fondo blanco sólido y hay que removerlo (ver más abajo).
 3. Redimensionar a max width ~700px, guardar como PNG optimizado.
-4. Guardar el archivo en `/images/<id-slug>-N.png` (o `.jpg`) y referenciarlo por ruta relativa dentro de `photos: [...]` (o `photoLarge` si es solo una). **No** convertir a base64 inline — eso es lo que hacía el `index.html` pesar varios MB.
+4. Guardar el archivo en `/images/characters/<id-slug>/N.png` (o `.jpg`) — cada personaje tiene su propia carpeta, numerada desde 1; el avatar chico circular (si existe) va como `avatar.jpg`/`avatar.png` en la misma carpeta — y referenciarlo por ruta relativa dentro de `photos: [...]` (o `photoLarge` si es solo una). **No** convertir a base64 inline — eso es lo que hacía el `index.html` pesar varios MB.
 5. Si el fondo NO era transparente, removerlo con flood-fill desde las esquinas (tolerancia por distancia de color) + `scipy.ndimage.gaussian_filter` para suavizar el borde — ver conversación anterior para el script exacto (usa `skimage.segmentation.flood`).
 
 El carrusel de fotos (`cyclePhoto()`) cicla entre `photos[]` con una transición tipo "portal warp" (scale + rotateY + blur). Si un personaje solo tiene una foto, el click no hace nada (por diseño).
 
 ## Diseño / paleta
 
-Tema "espacio profundo, cielo estrellado azul". Variables CSS en `:root`: `--void`, `--void-2`, `--void-3`, `--hole`, `--ink`, `--ink-dim`, `--ink-faint`, `--amber` (acento principal, cian, el nombre quedó por historia), `--violet`, `--teal`, `--line`, `--line-soft`, `--card`, `--card-hi`, `--ease`. Cambiar la paleta = redefinir estas variables, no hay que tocar el resto del CSS. Los valores actuales están muestreados de los píxeles reales de `images/fondo_definitivo.jpg`.
+Tema "espacio profundo, cielo estrellado azul". Variables CSS en `:root`: `--void`, `--void-2`, `--void-3`, `--hole`, `--ink`, `--ink-dim`, `--ink-faint`, `--amber` (acento principal, cian, el nombre quedó por historia), `--violet`, `--teal`, `--line`, `--line-soft`, `--card`, `--card-hi`, `--ease`. Cambiar la paleta = redefinir estas variables, no hay que tocar el resto del CSS. Los valores actuales están muestreados de los píxeles reales de `images/sky/fondo_definitivo.jpg`.
 
 Tipografías: `Cormorant Garamond` (serif de display: títulos, nombres, números de stats), `Outfit` (body/UI), `JetBrains Mono` (labels, fechas, chips, código).
 
@@ -110,13 +112,23 @@ Tipografías: `Cormorant Garamond` (serif de display: títulos, nombres, número
 
 Tres capas `position:fixed` a tamaño de viewport, detrás de todo, en este orden de pintado:
 
-1. `#skyPhoto` — la foto real (`images/sky-wide.jpg`, o `sky-tall.jpg` bajo 700px de ancho), con un `skyDrift` de 140s que la desplaza lentísimo.
+1. `#skyPhoto` — la foto real (`images/sky/sky-wide.jpg`, o `sky-tall.jpg` bajo 700px de ancho), con un `skyDrift` de 140s que la desplaza lentísimo.
 2. `#skyWash` — degradados de tono/viñeta que garantizan un piso de contraste constante para el texto, sea cual sea la zona de la foto que quede detrás.
 3. `#stars` — canvas animado (titileo, deriva en 360°, parallax por profundidad al hacer scroll, estrellas fugaces desde los 4 bordes).
 
 **Por qué fijas y no del alto del documento:** la página mide varios miles de px; una foto estirada a ese alto se ve borrosa y en mosaico se nota la repetición. Fijas, el cielo simplemente se queda quieto mientras el contenido pasa por encima — y de paso el canvas solo necesita el tamaño del viewport (mucho más barato de animar) en vez del alto completo del documento.
 
-La fuente original del cielo (`images/fondo_definitivo.jpg`, 3840×2160) se conserva en el repo, pero la página **nunca la carga**: sirve las versiones optimizadas `sky-wide.jpg` (2560px) y `sky-tall.jpg` (recorte vertical para teléfonos). Al cambiar el fondo hay que regenerar esas dos y volver a muestrear la paleta de `:root`.
+La fuente original del cielo (`images/sky/fondo_definitivo.jpg`, 3840×2160) se conserva en el repo, pero la página **nunca la carga**: sirve las versiones optimizadas `sky-wide.jpg` (2560px) y `sky-tall.jpg` (recorte vertical para teléfonos), ambas en `images/sky/`. Al cambiar el fondo hay que regenerar esas dos y volver a muestrear la paleta de `:root`.
+
+### Carpeta `/images`
+
+```
+images/
+  characters/<id-slug>/    # avatar.jpg + N.png por personaje (ver "Imágenes de personajes")
+  sky/                      # sky-wide.jpg, sky-tall.jpg, fondo_definitivo.jpg (fuente, nunca cargada)
+  events/                   # fotos/videos sueltos de una historia puntual (no de un personaje)
+  unused/                   # archivos que quedaron sin usar tras algún cambio de fondo; no referenciados desde el código
+```
 
 ### Movimiento
 
