@@ -369,14 +369,20 @@ function placeStats(id){
 function initials(name){
   return name.split(" ").filter(w=>w[0]===w[0].toUpperCase()).slice(0,2).map(w=>w[0]).join("").slice(0,2) || name.slice(0,2);
 }
-function avatarInner(c){
-  if(c.photo) return `<img src="${c.photo}" alt="${escapeHtml(c.name)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;">`;
-  return initials(c.name);
-}
 function getPhotos(c){
   if(Array.isArray(c.photos) && c.photos.length) return c.photos;
   if(c.photoLarge) return [c.photoLarge];
   return [];
+}
+/* the small circular avatar prefers the dedicated `photo` thumbnail, but falls back to
+   the first large portrait for characters who never got a separate avatar crop - which is
+   most of them. Those are full-body shots, so the img itself pans/zooms toward the top via
+   .avatar-img (see CSS) rather than showing a centered torso crop. */
+function avatarSrc(c){ return c.photo || getPhotos(c)[0] || null; }
+function avatarInner(c){
+  const src = avatarSrc(c);
+  if(src) return `<img src="${src}" alt="${escapeHtml(c.name)}" class="avatar-img">`;
+  return initials(c.name);
 }
 function cyclePhoto(imgEl){
   const id = imgEl.dataset.id;
@@ -548,7 +554,7 @@ function viewHome(){
 
   const castCard = ([id,c])=>`
     <div class="cast-card" onclick="navigateTo('character','${id}')">
-      <div class="cast-avatar" style="background:${c.photo?'transparent':c.color}; overflow:hidden;">${avatarInner(c)}</div>
+      <div class="cast-avatar" style="background:${avatarSrc(c)?'transparent':c.color}; overflow:hidden;">${avatarInner(c)}</div>
       <div class="cname">${escapeHtml(c.name)}</div>
       <div class="crole">${escapeHtml(c.role)}</div>
       <div class="tier-badge tier-${c.tier==='secundario'?'sec':'pri'}">${c.tier==='secundario'?'Secundario':'Primario'}</div>
@@ -840,7 +846,7 @@ function viewCharacter(id){
     <section class="profile-hero" style="--pcolor:${c.color}">
       <div class="hero-wash"></div>
 
-      <div class="profile-avatar" style="background:${c.photo?'transparent':c.color}; overflow:hidden;">${avatarInner(c)}</div>
+      <div class="profile-avatar" style="background:${avatarSrc(c)?'transparent':c.color}; overflow:hidden;">${avatarInner(c)}</div>
       ${infoContent}
     </section>
     `}    <section class="related-stories">

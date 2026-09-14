@@ -434,6 +434,14 @@ body.mood-doom .back-btn:hover{border-color:rgba(255,110,110,.6); color:#ff9a9a;
   transition:transform .5s var(--ease), box-shadow .5s var(--ease);
 }
 .cast-card:hover .cast-avatar{transform:scale(1.08) translateY(-2px); box-shadow:0 0 0 1px rgba(255,255,255,.2), 0 10px 26px rgba(0,4,14,.6), 0 0 26px rgba(120,200,255,.3);}
+/* the avatar circle borrows the first full-body portrait when there's no dedicated avatar
+   crop - object-position:top keeps the face in the visible slice instead of centering on
+   the torso, and the extra scale() (anchored at the top so it doesn't just re-center)
+   zooms in past a plain cover fit, onto roughly head-and-shoulders. */
+.avatar-img{
+  width:100%; height:100%; object-fit:cover; object-position:50% 0%;
+  border-radius:50%; display:block; transform:scale(1.7); transform-origin:50% 0%;
+}
 .cast-card .cname{font-family:'Cormorant Garamond',Georgia,serif; font-size:1.42rem; font-weight:600; line-height:1.15;}
 .cast-card .crole{color:var(--ink-dim); font-size:.8rem; margin-top:4px; font-weight:300;}
 .tier-badge{display:inline-block; margin-top:12px; font-family:'JetBrains Mono',monospace; font-size:.58rem; letter-spacing:.14em; text-transform:uppercase; padding:4px 10px; border-radius:999px; border:1px solid var(--line);}
