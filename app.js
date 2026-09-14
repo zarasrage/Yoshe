@@ -374,11 +374,13 @@ function getPhotos(c){
   if(c.photoLarge) return [c.photoLarge];
   return [];
 }
-/* the small circular avatar prefers the dedicated `photo` thumbnail, but falls back to
-   the first large portrait for characters who never got a separate avatar crop - which is
-   most of them. Those are full-body shots, so the img itself pans/zooms toward the top via
-   .avatar-img (see CSS) rather than showing a centered torso crop. */
-function avatarSrc(c){ return c.photo || getPhotos(c)[0] || null; }
+/* The small circular avatar prefers the first large portrait over the dedicated `photo`
+   thumbnail (only Hugo and Gerardo have one). Those large portraits are transparent-
+   background PNGs the pan/zoom crop reads correctly; the two legacy `photo` avatars are
+   flat JPGs with an opaque light background baked in, which showed as a mismatched white
+   disc once zoomed instead of blending into the sky like everyone else's. `photo` still
+   falls back for a character with only a small avatar and no large carousel at all. */
+function avatarSrc(c){ return getPhotos(c)[0] || c.photo || null; }
 function avatarInner(c){
   const src = avatarSrc(c);
   if(src) return `<img src="${src}" alt="${escapeHtml(c.name)}" class="avatar-img">`;
