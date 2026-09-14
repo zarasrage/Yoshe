@@ -690,14 +690,22 @@ footer.site-footer{
    declared one. Out here the scale is continuous and the img's transform is the
    animation's alone. */
 .portrait-frame{position:relative; perspective:900px;}
-/* Gated on a real pointer. Tapping on a touch screen applies an EMULATED :hover, and iOS
-   drops and restores it around the DOM mutation cyclePhoto does at animationend - which
-   rendered as the photo shrinking 1.5% and growing back over 240ms right at the end of
-   every swap (measured off a phone recording: 222px -> 218px -> 222px). A hover lift has
-   no meaning without a pointer anyway, so it simply should not exist there. */
+/* The hover reaction lives on the corner brackets only, never on the photo itself: scaling
+   the <img> (the previous approach) forces the compositor to stretch an already-rasterized
+   bitmap by a non-integer factor, which measurably softens it (~80% of original edge
+   sharpness even once fully settled, not just mid-transition) - a real cost for a photo
+   people look at directly and repeatedly. The brackets are thin vector strokes, so pushing
+   them outward reads as "the frame is expanding" without moving or resampling a single
+   photo pixel. Gated on a real pointer: tapping a touch screen applies an emulated :hover,
+   and iOS drops/restores it around the DOM mutation cyclePhoto makes at animationend - see
+   the img-scale version of this bug, measured off a phone recording (222px -> 218px ->
+   222px, right at the landing of every swap). */
 @media (hover:hover) and (pointer:fine){
-  .portrait-frame{transition:transform .24s ease;}
-  .portrait-frame.is-cyclable:hover{transform:scale(1.015);}
+  .portrait-frame.is-cyclable:hover .frame-corner{opacity:1;}
+  .portrait-frame.is-cyclable:hover .frame-corner.tl{transform:translate(-5px,-5px);}
+  .portrait-frame.is-cyclable:hover .frame-corner.tr{transform:translate(5px,-5px);}
+  .portrait-frame.is-cyclable:hover .frame-corner.bl{transform:translate(-5px,5px);}
+  .portrait-frame.is-cyclable:hover .frame-corner.br{transform:translate(5px,5px);}
 }
 .portrait-glow{
   position:absolute; inset:-56px; z-index:0; filter:blur(38px); opacity:.4; border-radius:50%;
@@ -729,8 +737,9 @@ footer.site-footer{
 .photo-dot.active{background:var(--pcolor); width:20px; border-radius:4px;}
 @media (prefers-reduced-motion: reduce){
   .portrait-img, .portrait-img.portrait-flip-out, .portrait-img.portrait-flip-in{ transition:none; animation:none; transform:none; filter:drop-shadow(0 24px 40px rgba(0,0,0,.55)); opacity:1; }
+  .frame-corner{transition:none;}
 }
-.frame-corner{position:absolute; width:26px; height:26px; border-color:var(--pcolor); opacity:.8; z-index:2;}
+.frame-corner{position:absolute; width:26px; height:26px; border-color:var(--pcolor); opacity:.8; z-index:2; transition:transform .24s ease, opacity .24s ease;}
 .frame-corner.tl{top:-8px; left:-8px; border-top:2px solid; border-left:2px solid; border-top-left-radius:6px;}
 .frame-corner.tr{top:-8px; right:-8px; border-top:2px solid; border-right:2px solid; border-top-right-radius:6px;}
 .frame-corner.bl{bottom:-8px; left:-8px; border-bottom:2px solid; border-left:2px solid; border-bottom-left-radius:6px;}
