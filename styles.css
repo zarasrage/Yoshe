@@ -678,8 +678,15 @@ footer.site-footer{
   position:absolute; inset:-56px; z-index:0; filter:blur(38px); opacity:.4; border-radius:50%;
   background:radial-gradient(circle, var(--pcolor), transparent 70%);
 }
+/* Fixed aspect-ratio + object-fit:cover: source photos come in wildly different ratios
+   (from ~1.1 to ~1.78 tall/wide) since nobody cropped them to match before upload, and
+   width:100% with a free height made the portrait box jump size on every character and
+   every carousel click. 4/5 sits close to the ratio most existing photos already have,
+   so it crops the fewest of them; object-position keeps the top (face/torso) in frame and
+   trims from the bottom instead, since a full-body shot loses less by cropping feet than face. */
 .portrait-img{
-  position:relative; z-index:1; width:100%; display:block; filter:drop-shadow(0 24px 40px rgba(0,0,0,.55));
+  position:relative; z-index:1; width:100%; aspect-ratio:4/5; object-fit:cover; object-position:50% 0%;
+  display:block; filter:drop-shadow(0 24px 40px rgba(0,0,0,.55));
   transition:transform .24s ease, opacity .24s ease, filter .24s ease; cursor:pointer;
 }
 .portrait-img[title]:not([title=""]):hover{ transform:scale(1.015); }
