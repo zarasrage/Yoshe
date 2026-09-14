@@ -726,11 +726,26 @@ footer.site-footer{
 .portrait-img.portrait-flip-out{
   transform:scale(.82) rotateY(14deg); opacity:0; filter:drop-shadow(0 24px 40px rgba(0,0,0,.55)) blur(10px) brightness(1.6);
 }
-.portrait-img.portrait-flip-in{ animation:portraitWarpIn .42s cubic-bezier(.2,.8,.2,1); }
+/* Two separate animations, not one @keyframes with a 0/60/100 stop for everything: a
+   middle stop forces the SAME easing curve to restart at 60% - each of the two segments
+   plays its own fast-then-slow shape, so gluing them back to back reads as fast, then a
+   held plateau, then a sudden final drop (measured: brightness fell 1.6->1.21 in the
+   first 66ms, barely moved 1.21->1.15 over the next ~180ms, then dropped 1.15->1.0 in a
+   last quick 70ms - a visible "stays white, then vanishes" instead of one fade). Keeping
+   the glow (blur+brightness) on its own animation with just 0%/100% gives it a single
+   continuous curve with no restart, while the pop (scale+rotate+opacity) keeps its own
+   snappier shape. */
+.portrait-img.portrait-flip-in{
+  animation: portraitWarpIn .42s cubic-bezier(.2,.8,.2,1),
+             portraitGlowIn .42s ease-out;
+}
 @keyframes portraitWarpIn{
-  0%{ transform:scale(.82) rotateY(-14deg); opacity:0; filter:drop-shadow(0 24px 40px rgba(0,0,0,.55)) blur(10px) brightness(1.6); }
-  60%{ filter:drop-shadow(0 24px 40px rgba(0,0,0,.55)) blur(0px) brightness(1.15); }
-  100%{ transform:scale(1) rotateY(0deg); opacity:1; filter:drop-shadow(0 24px 40px rgba(0,0,0,.55)) blur(0) brightness(1); }
+  0%{ transform:scale(.82) rotateY(-14deg); opacity:0; }
+  100%{ transform:scale(1) rotateY(0deg); opacity:1; }
+}
+@keyframes portraitGlowIn{
+  0%{ filter:drop-shadow(0 24px 40px rgba(0,0,0,.55)) blur(10px) brightness(1.6); }
+  100%{ filter:drop-shadow(0 24px 40px rgba(0,0,0,.55)) blur(0) brightness(1); }
 }
 .photo-dots{display:flex; gap:7px; justify-content:center; margin-top:16px;}
 .photo-dot{width:7px; height:7px; border-radius:50%; background:var(--line); transition:.25s;}
