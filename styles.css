@@ -689,8 +689,16 @@ footer.site-footer{
    because removing the animation only *revealed* the hover value rather than changing a
    declared one. Out here the scale is continuous and the img's transform is the
    animation's alone. */
-.portrait-frame{position:relative; perspective:900px; transition:transform .24s ease;}
-.portrait-frame.is-cyclable:hover{transform:scale(1.015);}
+.portrait-frame{position:relative; perspective:900px;}
+/* Gated on a real pointer. Tapping on a touch screen applies an EMULATED :hover, and iOS
+   drops and restores it around the DOM mutation cyclePhoto does at animationend - which
+   rendered as the photo shrinking 1.5% and growing back over 240ms right at the end of
+   every swap (measured off a phone recording: 222px -> 218px -> 222px). A hover lift has
+   no meaning without a pointer anyway, so it simply should not exist there. */
+@media (hover:hover) and (pointer:fine){
+  .portrait-frame{transition:transform .24s ease;}
+  .portrait-frame.is-cyclable:hover{transform:scale(1.015);}
+}
 .portrait-glow{
   position:absolute; inset:-56px; z-index:0; filter:blur(38px); opacity:.4; border-radius:50%;
   background:radial-gradient(circle, var(--pcolor), transparent 70%);
