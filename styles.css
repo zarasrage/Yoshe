@@ -672,20 +672,23 @@ footer.site-footer{
   flex-wrap:wrap; padding:84px 28px 20px;
 }
 .profile-hero-split .info-side{flex:1 1 320px; min-width:280px;}
-.profile-hero-split .portrait-side{flex:0 0 360px; position:relative; order:2;}
+/* auto, not a fixed width - the column hugs whatever width the (fixed-height) portrait
+   ends up at, so .info-side (flex:1) takes up the rest */
+.profile-hero-split .portrait-side{flex:0 0 auto; position:relative; order:2;}
 .portrait-frame{position:relative; perspective:900px;}
 .portrait-glow{
   position:absolute; inset:-56px; z-index:0; filter:blur(38px); opacity:.4; border-radius:50%;
   background:radial-gradient(circle, var(--pcolor), transparent 70%);
 }
-/* Fixed aspect-ratio + object-fit:cover: source photos come in wildly different ratios
-   (from ~1.1 to ~1.78 tall/wide) since nobody cropped them to match before upload, and
-   width:100% with a free height made the portrait box jump size on every character and
-   every carousel click. 4/5 sits close to the ratio most existing photos already have,
-   so it crops the fewest of them; object-position keeps the top (face/torso) in frame and
-   trims from the bottom instead, since a full-body shot loses less by cropping feet than face. */
+/* Fixed height, free width: source photos come in wildly different ratios (from ~1.1 to
+   ~1.78 tall/wide) since nobody cropped them to match before upload. A fixed width with
+   free height made the portrait box jump size between characters; a fixed ratio with
+   object-fit:cover fixed that but cropped feet off the ~1.5-ratio photos. Pinning height
+   instead and letting width follow each photo's own ratio shows every photo whole - every
+   character just reads as the same "size" (same height), narrower or wider as their photo
+   actually is, rather than a name for what gets cropped away. */
 .portrait-img{
-  position:relative; z-index:1; width:100%; aspect-ratio:4/5; object-fit:cover; object-position:50% 0%;
+  position:relative; z-index:1; height:450px; width:auto; max-width:100%;
   display:block; filter:drop-shadow(0 24px 40px rgba(0,0,0,.55));
   transition:transform .24s ease, opacity .24s ease, filter .24s ease; cursor:pointer;
 }
@@ -717,7 +720,8 @@ footer.site-footer{
 .profile-hero-split .quote-block{margin-left:0; margin-right:0; max-width:none;}
 @media (max-width: 760px){
   .profile-hero-split{flex-direction:column; text-align:center; padding-top:56px;}
-  .profile-hero-split .portrait-side{order:0; flex-basis:auto; max-width:250px; margin-bottom:8px;}
+  .profile-hero-split .portrait-side{order:0; margin-bottom:8px;}
+  .portrait-img{height:280px;}
   .profile-hero-split .profile-tags, .profile-hero-split .stat-rail, .profile-hero-split .meta-row{justify-content:center;}
   .profile-hero-split .profile-bio, .profile-hero-split .info-side{text-align:center;}
   .profile-hero-split .profile-bio{text-align:left;}
