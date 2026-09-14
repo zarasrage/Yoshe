@@ -683,7 +683,14 @@ footer.site-footer{
 /* auto, not a fixed width - the column hugs whatever width the (fixed-height) portrait
    ends up at, so .info-side (flex:1) takes up the rest */
 .profile-hero-split .portrait-side{flex:0 0 auto; position:relative; order:2;}
-.portrait-frame{position:relative; perspective:900px;}
+/* The hover lift lives on the frame, not on the <img>. On the img it fought the carousel:
+   it outranked .portrait-flip-out (so the outgoing half never shrank), and at the end of
+   the warp-in the transform snapped 1 -> 1.015 in a single frame with no transition,
+   because removing the animation only *revealed* the hover value rather than changing a
+   declared one. Out here the scale is continuous and the img's transform is the
+   animation's alone. */
+.portrait-frame{position:relative; perspective:900px; transition:transform .24s ease;}
+.portrait-frame.is-cyclable:hover{transform:scale(1.015);}
 .portrait-glow{
   position:absolute; inset:-56px; z-index:0; filter:blur(38px); opacity:.4; border-radius:50%;
   background:radial-gradient(circle, var(--pcolor), transparent 70%);
@@ -700,7 +707,6 @@ footer.site-footer{
   display:block; filter:drop-shadow(0 24px 40px rgba(0,0,0,.55));
   transition:transform .24s ease, opacity .24s ease, filter .24s ease; cursor:pointer;
 }
-.portrait-img[title]:not([title=""]):hover{ transform:scale(1.015); }
 .portrait-img.portrait-flip-out{
   transform:scale(.82) rotateY(14deg); opacity:0; filter:drop-shadow(0 24px 40px rgba(0,0,0,.55)) blur(10px) brightness(1.6);
 }

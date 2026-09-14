@@ -392,19 +392,42 @@ function cyclePhoto(imgEl){
   if(!c) return;
   const photos = getPhotos(c);
   if(photos.length < 2) return;
+  if(imgEl.dataset.swapping === "1") return;
   const idx = parseInt(imgEl.dataset.idx, 10);
   const nextIdx = (idx + 1) % photos.length;
+  imgEl.dataset.swapping = "1";
+
+  /* Warm the next photo while the outgoing half plays, then - crucially - wait on the
+     <img> ELEMENT's own decode() before warping it back in. Assigning a cold src leaves
+     the old bitmap on screen until the new one downloads, so the warp-in used to animate
+     the photo you were leaving and the new one popped in afterwards. Waiting on a
+     throwaway new Image() isn't enough: that only warms the cache, it doesn't guarantee
+     this element has pixels. The element sits at opacity 0 through the wait, so a slow
+     load just holds the blank beat a little longer - it never warps the wrong photo. */
+  const warm = new Image();
+  warm.src = photos[nextIdx];
+  const flippedOut = new Promise(res=>setTimeout(res, 240));
+
   imgEl.classList.add("portrait-flip-out");
-  setTimeout(()=>{
+  flippedOut.then(()=>{
     imgEl.src = photos[nextIdx];
     imgEl.dataset.idx = nextIdx;
+    return imgEl.decode ? imgEl.decode().catch(()=>{}) : Promise.resolve();
+  }).then(()=>{
     imgEl.classList.remove("portrait-flip-out");
     imgEl.classList.add("portrait-flip-in");
-    setTimeout(()=>imgEl.classList.remove("portrait-flip-in"), 420);
+    /* animationend, not a 420ms timer: the animation starts on the next style flush rather
+       than the instant the class lands, so a timer cut it a frame or two short - and the
+       leftover delta then got *transitioned* back to the base style over another 240ms
+       (see .portrait-img's transition), which is what made the landing feel jolty. */
+    imgEl.addEventListener("animationend", ()=>{
+      imgEl.classList.remove("portrait-flip-in");
+      imgEl.dataset.swapping = "";
+    }, {once:true});
     const frame = imgEl.closest(".portrait-frame");
     const dots = frame ? frame.querySelectorAll(".photo-dot") : [];
     dots.forEach((d,i)=>d.classList.toggle("active", i===nextIdx));
-  }, 240);
+  });
 }
 function renderContent(content){
   return content.map(seg=>{
@@ -833,7 +856,7 @@ function viewCharacter(id){
       <div class="hero-wash"></div>
       <div class="info-side">${infoContent}</div>
       <div class="portrait-side">
-        <div class="portrait-frame">
+        <div class="portrait-frame${photos.length>1?' is-cyclable':''}">
           <div class="portrait-glow"></div>
           <div class="frame-corner tl"></div>
           <div class="frame-corner tr"></div>
@@ -867,6 +890,10 @@ function viewCharacter(id){
       `).join("")}
     </section>
   `;
+  /* Warm the rest of the carousel now, not on first click: an un-cached photo makes the
+     first swap to it hold a blank beat while it downloads (cyclePhoto waits for pixels
+     before warping in), and it only ever looked wrong the first time through each photo. */
+  photos.slice(1).forEach(src=>{ const pre = new Image(); pre.src = src; });
   setupReveals();
 }
 
