@@ -1104,11 +1104,25 @@ function flashEvent(seasonId, idx){
 }
 
 /* =========================== ROUTER =========================== */
+/* Scroll memory: keyed by the exact hash string, captured right before we leave it (see
+   the hashchange listener below). Restored only when this navigation came from a real
+   back/forward (popstate fires for that, never for a plain location.hash= click) - so
+   clicking "← Volver" out of a character card returns you to your spot in the elenco
+   grid instead of the top of the hero, while every other click (nav buttons, cast cards,
+   the logo) still lands at the top like a fresh visit. */
+let cameFromPopstate = false;
+window.addEventListener("popstate", ()=>{ cameFromPopstate = true; });
+let lastHash = location.hash;
+const scrollMemory = {};
 function render(){
   try{
+    scrollMemory[lastHash] = window.scrollY;
+    lastHash = location.hash;
+    const restoreY = cameFromPopstate ? scrollMemory[location.hash] : undefined;
+    cameFromPopstate = false;
+
     const hash = location.hash.replace(/^#\/?/,"");
     const parts = hash.split("/").filter(Boolean);
-    window.scrollTo({top:0, behavior:"instant"});
     // Armagedón is the one view with its own (red) mood; everywhere else keeps the blue sky.
     document.body.classList.toggle("mood-doom", parts[0]==="armageddon");
     if(parts[0]==="season" && parts[1]!==undefined) viewSeason(parts[1]);
@@ -1117,6 +1131,7 @@ function render(){
     else if(parts[0]==="map") viewMap();
     else if(parts[0]==="armageddon") viewArmageddon();
     else viewHome();
+    window.scrollTo({top: restoreY!==undefined ? restoreY : 0, behavior:"instant"});
     replayRouteAnimation();
   }catch(err){
     const app = document.getElementById("app");
