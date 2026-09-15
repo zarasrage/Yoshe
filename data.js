@@ -101,7 +101,29 @@ const DATA = {
     {
       id:4, code:"S4", title:"La Expansión", color:"#d9748a",
       hito:"Cuéntame cuál fue el hito que marcó el inicio de la S4.",
-      events:[]
+      events:[
+        {
+          date:"Sábado 23 y domingo 24 de agosto de 2025", title:"Un finde de piscina en Costa Cachagua",
+          place:"costa-cachagua", chars:["agustin-gonzalez","sofia-yanez","martin-valencia","heidi-meyer","maria-ignacia-demandes","cristobal-jones"],
+          content:[
+            {t:"text",v:"Ese fin de semana fueron los seis a "},
+            {t:"place",id:"costa-cachagua"},
+            {t:"text",v:": "},
+            {t:"char",id:"agustin-gonzalez"},
+            {t:"text",v:", "},
+            {t:"char",id:"sofia-yanez"},
+            {t:"text",v:", "},
+            {t:"char",id:"martin-valencia"},
+            {t:"text",v:", "},
+            {t:"char",id:"heidi-meyer"},
+            {t:"text",v:", "},
+            {t:"char",id:"maria-ignacia-demandes"},
+            {t:"text",v:" y "},
+            {t:"char",id:"cristobal-jones"},
+            {t:"text",v:". Se divirtieron, jodieron entre ellos y pasaron buena parte del tiempo en la piscina. — Cuéntame más: ¿qué otras cosas pasaron ese finde?"}
+          ]
+        }
+      ]
     },
     {
       id:5, code:"S5", title:"La Estabilidad", color:"#6b9bf2",
