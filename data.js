@@ -127,9 +127,13 @@ const DATA = {
         },
         {
           date:"9 de marzo de 2024", title:"El matrimonio de Pablito y Emi en Talca",
-          place:"matrimonio-pablito-emi", chars:["agustin-gonzalez","pablito","emi","nacho-periale","maria-ignacia-cardenas"],
+          place:"matrimonio-pablito-emi", chars:["agustin-gonzalez","sofia-yanez","pablito","emi","nacho-periale","maria-ignacia-cardenas"],
           content:[
-            {t:"text",v:"El 9 de marzo fueron a Talca al matrimonio de "},
+            {t:"text",v:"El 9 de marzo, "},
+            {t:"char",id:"agustin-gonzalez"},
+            {t:"text",v:" y "},
+            {t:"char",id:"sofia-yanez"},
+            {t:"text",v:" fueron a Talca al matrimonio de "},
             {t:"char",id:"pablito"},
             {t:"text",v:" y "},
             {t:"char",id:"emi"},
