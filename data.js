@@ -31,6 +31,11 @@ const DATA = {
     "pablito":            {name:"Pablito",                 role:"— rol pendiente —", tier:"secundario", color:"#d9748a", bio:"Cuéntame más sobre Pablito: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
     "emi":                {name:"Emi",                     role:"— rol pendiente —", tier:"secundario", color:"#f2a65a", bio:"Cuéntame más sobre Emi: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
     "nacho-periale":      {name:"Nacho Periale",           role:"— rol pendiente —", tier:"secundario", color:"#8b6bf2", bio:"Cuéntame más sobre Nacho: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
+    "maca-hermantraut":   {name:"Maca Hermantraut",        role:"— rol pendiente —", tier:"secundario", color:"#3f8c82", bio:"Cuéntame más sobre Maca: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
+    "juan-pablo-cisterna": {name:"Juan Pablo Cisterna",    role:"— rol pendiente —", tier:"secundario", color:"#6b9bf2", bio:"Cuéntame más sobre Juan Pablo (el Polilla): quién es y cómo se relaciona con el grupo.", apodo:"Polilla", frase:null, habilidad:null, destino:null, tags:[]},
+    "hernan-miranda":     {name:"Hernán Miranda",          role:"— rol pendiente —", tier:"secundario", color:"#7fae6f", bio:"Cuéntame más sobre Hernán Miranda: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
+    "jamil":              {name:"Jamil",                   role:"— rol pendiente —", tier:"secundario", color:"#e0b84f", bio:"Cuéntame más sobre Jamil: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
+    "aranza":             {name:"Aranza",                  role:"— rol pendiente —", tier:"secundario", color:"#c9853f", bio:"Cuéntame más sobre Aranza: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
   },
   places: {
 
@@ -44,6 +49,7 @@ const DATA = {
     "schot":            {name:"Congreso SCHOT",  icon:"🦴", desc:"Congreso de becados en Viña del Mar (Sociedad Chilena de Ortopedia y Traumatología). El grupo fue como becados en noviembre de 2024."},
     "matrimonio-pablito-emi": {name:"Matrimonio de Pablito y Emi", icon:"💍", desc:"Talca, 9 de marzo de 2024. Boda con harta gente conocida — cordero al palo incluido."},
     "galapagos":        {name:"Galápagos",       icon:"🐢", desc:"Viaje de Agustín y Sofía, del 2 al 8 de febrero de 2024."},
+    "bosque-luz":       {name:"Bosque Luz",      icon:"🎆", desc:"Fiesta de Año Nuevo (31 de diciembre de 2023 → 1 de enero de 2024) a la que fue un grupo grande."},
   },
   seasons: [
     {
@@ -112,6 +118,45 @@ const DATA = {
       id:4, code:"S4", title:"La Expansión", color:"#d9748a",
       hito:"Cuéntame cuál fue el hito que marcó el inicio de la S4.",
       events:[
+        {
+          date:"31 de diciembre de 2023 → 1 de enero de 2024", title:"Año Nuevo en Bosque Luz",
+          place:"bosque-luz", chars:["agustin-gonzalez","sofia-yanez","hernan-suarez","maca-hermantraut","maria-ignacia-cardenas","juan-pablo-cisterna","cristobal-jones","valeria-dassori","paula-jara","hernan-miranda","jamil","aranza","gaston"],
+          content:[
+            {t:"text",v:"Para el cambio de año, un grupo grande se fue a "},
+            {t:"place",id:"bosque-luz"},
+            {t:"text",v:": "},
+            {t:"char",id:"agustin-gonzalez"},
+            {t:"text",v:", "},
+            {t:"char",id:"sofia-yanez"},
+            {t:"text",v:", "},
+            {t:"char",id:"hernan-suarez"},
+            {t:"text",v:", "},
+            {t:"char",id:"maca-hermantraut"},
+            {t:"text",v:", "},
+            {t:"char",id:"maria-ignacia-cardenas"},
+            {t:"text",v:", "},
+            {t:"char",id:"juan-pablo-cisterna"},
+            {t:"text",v:" (el Polilla), "},
+            {t:"char",id:"cristobal-jones"},
+            {t:"text",v:", "},
+            {t:"char",id:"valeria-dassori"},
+            {t:"text",v:", "},
+            {t:"char",id:"paula-jara"},
+            {t:"text",v:", "},
+            {t:"char",id:"hernan-miranda"},
+            {t:"text",v:", "},
+            {t:"char",id:"jamil"},
+            {t:"text",v:", "},
+            {t:"char",id:"aranza"},
+            {t:"text",v:" y "},
+            {t:"char",id:"gaston"},
+            {t:"text",v:". Estaban todos ahí.\n\nEstuvo distorsionado esa noche. Si la memoria no falla, esa fue la noche en que "},
+            {t:"char",id:"maca-hermantraut"},
+            {t:"text",v:" se comió con "},
+            {t:"char",id:"maria-ignacia-cardenas"},
+            {t:"text",v:". Brutal."}
+          ]
+        },
         {
           date:"Del 2 al 8 de febrero de 2024", title:"Galápagos",
           place:"galapagos", chars:["agustin-gonzalez","sofia-yanez"],
