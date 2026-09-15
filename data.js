@@ -28,6 +28,9 @@ const DATA = {
     "jose-mino":          {name:"José Miño",               role:"— rol pendiente —", tier:"secundario", color:"#7fae6f", bio:"Cuéntame más sobre José: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
     "josefina-albert":    {name:"Josefina Albert",         role:"— rol pendiente —", tier:"secundario", color:"#e0b84f", bio:"Cuéntame más sobre Josefina: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
     "felipe-gallardo":    {name:"Felipe Gallardo",         role:"— rol pendiente —", tier:"secundario", color:"#c9853f", bio:"Becado del Instituto Traumatológico. Se agarró a combos con Martín Valencia saliendo de una disco durante el congreso SCHOT 2024, en Viña del Mar.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
+    "pablito":            {name:"Pablito",                 role:"— rol pendiente —", tier:"secundario", color:"#d9748a", bio:"Cuéntame más sobre Pablito: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
+    "emi":                {name:"Emi",                     role:"— rol pendiente —", tier:"secundario", color:"#f2a65a", bio:"Cuéntame más sobre Emi: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
+    "nacho-periale":      {name:"Nacho Periale",           role:"— rol pendiente —", tier:"secundario", color:"#8b6bf2", bio:"Cuéntame más sobre Nacho: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
   },
   places: {
 
@@ -39,6 +42,7 @@ const DATA = {
     "concepcion":       {name:"Concepción",      icon:"🌃", desc:"Cuéntame qué es este lugar y por qué es importante para el grupo — ¿es donde suelen carretear? ¿qué son 'los JIM'?"},
     "lugo":             {name:"Donde Lugo",      icon:"🏠", desc:"Cuéntame más: ¿quién es Lugo y por qué es un punto de encuentro para previar?"},
     "schot":            {name:"Congreso SCHOT",  icon:"🦴", desc:"Congreso de becados en Viña del Mar (Sociedad Chilena de Ortopedia y Traumatología). El grupo fue como becados en noviembre de 2024."},
+    "matrimonio-pablito-emi": {name:"Matrimonio de Pablito y Emi", icon:"💍", desc:"Talca, 9 de marzo de 2024. Boda con harta gente conocida — cordero al palo incluido."},
   },
   seasons: [
     {
@@ -107,6 +111,21 @@ const DATA = {
       id:4, code:"S4", title:"La Expansión", color:"#d9748a",
       hito:"Cuéntame cuál fue el hito que marcó el inicio de la S4.",
       events:[
+        {
+          date:"9 de marzo de 2024", title:"El matrimonio de Pablito y Emi en Talca",
+          place:"matrimonio-pablito-emi", chars:["agustin-gonzalez","pablito","emi","nacho-periale","maria-ignacia-cardenas"],
+          content:[
+            {t:"text",v:"El 9 de marzo fueron a Talca al matrimonio de "},
+            {t:"char",id:"pablito"},
+            {t:"text",v:" y "},
+            {t:"char",id:"emi"},
+            {t:"text",v:". Lamentablemente fue en Talca, pero había mucha gente conocida — entre ellos "},
+            {t:"char",id:"nacho-periale"},
+            {t:"text",v:" y "},
+            {t:"char",id:"maria-ignacia-cardenas"},
+            {t:"text",v:".\n\nEstuvo bueno: bailaron y jodieron harto. Lo que nadie olvida fueron los corderos al palo — dos, que desmenuzaron ahí mismo — que estaban increíbles."}
+          ]
+        },
         {
           date:"21 al 23 de noviembre de 2024", title:"El congreso SCHOT en Viña del Mar",
           place:"schot", chars:["agustin-gonzalez","martin-valencia","hugo-demandes","marc-beauleau","jose-mino","josefina-albert","felipe-gallardo"],
