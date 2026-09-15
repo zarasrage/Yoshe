@@ -43,6 +43,7 @@ const DATA = {
     "lugo":             {name:"Donde Lugo",      icon:"🏠", desc:"Cuéntame más: ¿quién es Lugo y por qué es un punto de encuentro para previar?"},
     "schot":            {name:"Congreso SCHOT",  icon:"🦴", desc:"Congreso de becados en Viña del Mar (Sociedad Chilena de Ortopedia y Traumatología). El grupo fue como becados en noviembre de 2024."},
     "matrimonio-pablito-emi": {name:"Matrimonio de Pablito y Emi", icon:"💍", desc:"Talca, 9 de marzo de 2024. Boda con harta gente conocida — cordero al palo incluido."},
+    "galapagos":        {name:"Galápagos",       icon:"🐢", desc:"Viaje de Agustín y Sofía, del 2 al 8 de febrero de 2024."},
   },
   seasons: [
     {
@@ -111,6 +112,19 @@ const DATA = {
       id:4, code:"S4", title:"La Expansión", color:"#d9748a",
       hito:"Cuéntame cuál fue el hito que marcó el inicio de la S4.",
       events:[
+        {
+          date:"Del 2 al 8 de febrero de 2024", title:"Galápagos",
+          place:"galapagos", chars:["agustin-gonzalez","sofia-yanez"],
+          content:[
+            {t:"text",v:"Del 2 al 8 de febrero, "},
+            {t:"char",id:"agustin-gonzalez"},
+            {t:"text",v:" y "},
+            {t:"char",id:"sofia-yanez"},
+            {t:"text",v:" se fueron a "},
+            {t:"place",id:"galapagos"},
+            {t:"text",v:". Fue un viaje increíble. — Cuéntame más: ¿qué hicieron allá, algún momento que se les quedó grabado?"}
+          ]
+        },
         {
           date:"9 de marzo de 2024", title:"El matrimonio de Pablito y Emi en Talca",
           place:"matrimonio-pablito-emi", chars:["agustin-gonzalez","pablito","emi","nacho-periale","maria-ignacia-cardenas"],
