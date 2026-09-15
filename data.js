@@ -74,49 +74,6 @@ const DATA = {
     {
       id:1, code:"S1", title:"Los Inicios", color:"#f2a65a",
       hito:"Cuéntame cuál fue el hito que marcó el inicio de la S1.",
-      events:[]
-    },
-    {
-      id:2, code:"S2", title:"El Grupo", color:"#3f8c82",
-      hito:"Cuéntame cuál fue el hito que marcó el inicio de la S2.",
-      events:[]
-    },
-    {
-      id:3, code:"S3", title:"Caos", color:"#c9853f",
-      hito:"Cuéntame cuál fue el hito que marcó el inicio de la S3.",
-      events:[
-        {
-          date:"— fecha pendiente —", title:"El día en que Paula puso los límites bien claros",
-          place:"lugo", chars:["sofia-yanez","paula-jara","gerardo-cortes"],
-          content:[
-            {t:"text",v:"Cuenta "},
-            {t:"char",id:"sofia-yanez"},
-            {t:"text",v:" que aquella noche empezó como tantas otras: previando en "},
-            {t:"place",id:"lugo"},
-            {t:"text",v:", sin que nadie supiera todavía hacia qué destino los llevaría después. Ahí estaban ella misma, "},
-            {t:"char",id:"paula-jara"},
-            {t:"text",v:" y "},
-            {t:"char",id:"gerardo-cortes"},
-            {t:"text",v:", reunidos antes de salir a lo que fuera que esa noche tenía preparado.\n\nEn medio de la previa, "},
-            {t:"char",id:"sofia-yanez"},
-            {t:"text",v:" le tomó el brazo a "},
-            {t:"char",id:"paula-jara"},
-            {t:"text",v:" y le dijo, casi como un piropo entre amigas: \"Pau, qué suave eres.\" \"Sí, soy suavecita\", respondió ella, sin sospechar lo que vendría.\n\nFue entonces cuando "},
-            {t:"char",id:"gerardo-cortes"},
-            {t:"text",v:", queriendo comprobar la teoría con sus propias manos, dijo \"a ver\" y le pasó la mano por la pierna, desde la rodilla hacia arriba — ella llevaba falda, y él no tenía ningún derecho a hacerlo.\n\n"},
-            {t:"char",id:"paula-jara"},
-            {t:"text",v:" no se quedó callada ni un segundo: se puso de pie de un salto y le gritó en la cara: \"¡Weón, ¿quién te dio derecho?! ¿Quién te dio derecho?!\"\n\nUn grito que, según cuenta "},
-            {t:"char",id:"sofia-yanez"},
-            {t:"text",v:", quedó grabado como uno de los momentos más contundentes del grupo — el día en que nadie tuvo dudas de que "},
-            {t:"char",id:"paula-jara"},
-            {t:"text",v:" pone los límites bien claros."}
-          ]
-        }
-      ]
-    },
-    {
-      id:4, code:"S4", title:"La Expansión", color:"#d9748a",
-      hito:"Cuéntame cuál fue el hito que marcó el inicio de la S4.",
       events:[
         {
           date:"31 de diciembre de 2023 → 1 de enero de 2024", title:"Año Nuevo en Bosque Luz",
@@ -189,6 +146,12 @@ const DATA = {
             {t:"text",v:".\n\nEstuvo bueno: bailaron y jodieron harto. Lo que nadie olvida fueron los corderos al palo — dos, que desmenuzaron ahí mismo — que estaban increíbles."}
           ]
         },
+      ]
+    },
+    {
+      id:2, code:"S2", title:"El Grupo", color:"#3f8c82",
+      hito:"Cuéntame cuál fue el hito que marcó el inicio de la S2.",
+      events:[
         {
           date:"21 al 23 de noviembre de 2024", title:"El congreso SCHOT en Viña del Mar",
           place:"schot", chars:["agustin-gonzalez","martin-valencia","hugo-demandes","marc-beauleau","jose-mino","josefina-albert","felipe-gallardo"],
@@ -218,6 +181,45 @@ const DATA = {
             {t:"text",v:", un becado del Instituto Traumatológico, saliendo de una disco en la noche. Rarísimo — pero entre eso y todo lo demás, el congreso terminó siendo una experiencia bien distinta a lo normal."}
           ]
         },
+      ]
+    },
+    {
+      id:3, code:"S3", title:"Caos", color:"#c9853f",
+      hito:"Cuéntame cuál fue el hito que marcó el inicio de la S3.",
+      events:[
+        {
+          date:"— fecha pendiente —", title:"El día en que Paula puso los límites bien claros",
+          place:"lugo", chars:["sofia-yanez","paula-jara","gerardo-cortes"],
+          content:[
+            {t:"text",v:"Cuenta "},
+            {t:"char",id:"sofia-yanez"},
+            {t:"text",v:" que aquella noche empezó como tantas otras: previando en "},
+            {t:"place",id:"lugo"},
+            {t:"text",v:", sin que nadie supiera todavía hacia qué destino los llevaría después. Ahí estaban ella misma, "},
+            {t:"char",id:"paula-jara"},
+            {t:"text",v:" y "},
+            {t:"char",id:"gerardo-cortes"},
+            {t:"text",v:", reunidos antes de salir a lo que fuera que esa noche tenía preparado.\n\nEn medio de la previa, "},
+            {t:"char",id:"sofia-yanez"},
+            {t:"text",v:" le tomó el brazo a "},
+            {t:"char",id:"paula-jara"},
+            {t:"text",v:" y le dijo, casi como un piropo entre amigas: \"Pau, qué suave eres.\" \"Sí, soy suavecita\", respondió ella, sin sospechar lo que vendría.\n\nFue entonces cuando "},
+            {t:"char",id:"gerardo-cortes"},
+            {t:"text",v:", queriendo comprobar la teoría con sus propias manos, dijo \"a ver\" y le pasó la mano por la pierna, desde la rodilla hacia arriba — ella llevaba falda, y él no tenía ningún derecho a hacerlo.\n\n"},
+            {t:"char",id:"paula-jara"},
+            {t:"text",v:" no se quedó callada ni un segundo: se puso de pie de un salto y le gritó en la cara: \"¡Weón, ¿quién te dio derecho?! ¿Quién te dio derecho?!\"\n\nUn grito que, según cuenta "},
+            {t:"char",id:"sofia-yanez"},
+            {t:"text",v:", quedó grabado como uno de los momentos más contundentes del grupo — el día en que nadie tuvo dudas de que "},
+            {t:"char",id:"paula-jara"},
+            {t:"text",v:" pone los límites bien claros."}
+          ]
+        }
+      ]
+    },
+    {
+      id:4, code:"S4", title:"La Expansión", color:"#d9748a",
+      hito:"Cuéntame cuál fue el hito que marcó el inicio de la S4.",
+      events:[
         {
           date:"Sábado 23 y domingo 24 de agosto de 2025", title:"Un finde de piscina en Costa Cachagua",
           place:"costa-cachagua", chars:["agustin-gonzalez","sofia-yanez","martin-valencia","heidi-meyer","maria-ignacia-demandes","cristobal-jones"],
