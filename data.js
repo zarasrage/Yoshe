@@ -24,6 +24,10 @@ const DATA = {
     "brenda":             {name:"Brenda",                  role:"— rol pendiente —", tier:"secundario", color:"#d9748a", bio:"Cuéntame más sobre Brenda: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
     "gian":               {name:"Gian",                    role:"— rol pendiente —", tier:"secundario", color:"#8b6bf2", bio:"Cuéntame más sobre Gian: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
     "joe-lombardo":       {name:"Joe Lombardo",            role:"— rol pendiente —", tier:"secundario", color:"#3f8c82", bio:"Cuéntame más sobre Joe Lombardo: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
+    "marc-beauleau":      {name:"Marc Beauleau",           role:"— rol pendiente —", tier:"secundario", color:"#6b9bf2", bio:"Cuéntame más sobre Marc: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
+    "jose-mino":          {name:"José Miño",               role:"— rol pendiente —", tier:"secundario", color:"#7fae6f", bio:"Cuéntame más sobre José: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
+    "josefina-albert":    {name:"Josefina Albert",         role:"— rol pendiente —", tier:"secundario", color:"#e0b84f", bio:"Cuéntame más sobre Josefina: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
+    "felipe-gallardo":    {name:"Felipe Gallardo",         role:"— rol pendiente —", tier:"secundario", color:"#c9853f", bio:"Becado del Instituto Traumatológico. Se agarró a combos con Martín Valencia saliendo de una disco durante el congreso SCHOT 2024, en Viña del Mar.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
   },
   places: {
 
@@ -34,6 +38,7 @@ const DATA = {
     "warren-smith":     {name:"Warren Smith",    icon:"🏠", desc:"Cuéntame qué es este lugar y por qué es importante para el grupo."},
     "concepcion":       {name:"Concepción",      icon:"🌃", desc:"Cuéntame qué es este lugar y por qué es importante para el grupo — ¿es donde suelen carretear? ¿qué son 'los JIM'?"},
     "lugo":             {name:"Donde Lugo",      icon:"🏠", desc:"Cuéntame más: ¿quién es Lugo y por qué es un punto de encuentro para previar?"},
+    "schot":            {name:"Congreso SCHOT",  icon:"🦴", desc:"Congreso de becados en Viña del Mar (Sociedad Chilena de Ortopedia y Traumatología). El grupo fue como becados en noviembre de 2024."},
   },
   seasons: [
     {
@@ -102,6 +107,35 @@ const DATA = {
       id:4, code:"S4", title:"La Expansión", color:"#d9748a",
       hito:"Cuéntame cuál fue el hito que marcó el inicio de la S4.",
       events:[
+        {
+          date:"21 al 23 de noviembre de 2024", title:"El congreso SCHOT en Viña del Mar",
+          place:"schot", chars:["agustin-gonzalez","martin-valencia","hugo-demandes","marc-beauleau","jose-mino","josefina-albert","felipe-gallardo"],
+          content:[
+            {t:"text",v:"Como becados, "},
+            {t:"char",id:"agustin-gonzalez"},
+            {t:"text",v:" y "},
+            {t:"char",id:"martin-valencia"},
+            {t:"text",v:" se fueron post-turno a "},
+            {t:"place",id:"schot"},
+            {t:"text",v:". Ahí estaban también "},
+            {t:"char",id:"marc-beauleau"},
+            {t:"text",v:", "},
+            {t:"char",id:"jose-mino"},
+            {t:"text",v:" y "},
+            {t:"char",id:"josefina-albert"},
+            {t:"text",v:", entre otros becados — y, de sorpresa, "},
+            {t:"char",id:"hugo-demandes"},
+            {t:"text",v:", con quien "},
+            {t:"char",id:"agustin-gonzalez"},
+            {t:"text",v:" se encontró ahí.\n\nPasaron hartas cosas. A "},
+            {t:"char",id:"agustin-gonzalez"},
+            {t:"text",v:" se le olvidó escribirle a los pacientes que había pasado a visita, así que quedó la cagada — lo retaron, y el equipo de rodillas se enojó bastante.\n\nLo más surrealista fue que "},
+            {t:"char",id:"martin-valencia"},
+            {t:"text",v:" se agarró a combos con "},
+            {t:"char",id:"felipe-gallardo"},
+            {t:"text",v:", un becado del Instituto Traumatológico, saliendo de una disco en la noche. Rarísimo — pero entre eso y todo lo demás, el congreso terminó siendo una experiencia bien distinta a lo normal."}
+          ]
+        },
         {
           date:"Sábado 23 y domingo 24 de agosto de 2025", title:"Un finde de piscina en Costa Cachagua",
           place:"costa-cachagua", chars:["agustin-gonzalez","sofia-yanez","martin-valencia","heidi-meyer","maria-ignacia-demandes","cristobal-jones"],
