@@ -36,6 +36,9 @@ const DATA = {
     "hernan-miranda":     {name:"Hernán Miranda",          role:"— rol pendiente —", tier:"secundario", color:"#7fae6f", bio:"Cuéntame más sobre Hernán Miranda: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
     "jamil":              {name:"Jamil",                   role:"— rol pendiente —", tier:"secundario", color:"#e0b84f", bio:"Cuéntame más sobre Jamil: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
     "aranza":             {name:"Aranza",                  role:"— rol pendiente —", tier:"secundario", color:"#c9853f", bio:"Cuéntame más sobre Aranza: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
+    "connie":             {name:"Connie",                  role:"— rol pendiente —", tier:"secundario", color:"#d9748a", bio:"Cuéntame más sobre Connie: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
+    "daniela":            {name:"Daniela",                 role:"— rol pendiente —", tier:"secundario", color:"#f2a65a", bio:"Amiga de Connie. Cristóbal Jones la conoció en un carrete en casa de Heidi — tenía pololo y él no lo sabía.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
+    "blanca":             {name:"Blanca",                  role:"— rol pendiente —", tier:"secundario", color:"#8b6bf2", bio:"Cuéntame más sobre Blanca: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
   },
   places: {
 
@@ -50,6 +53,7 @@ const DATA = {
     "matrimonio-pablito-emi": {name:"Matrimonio de Pablito y Emi", icon:"💍", desc:"Talca, 9 de marzo de 2024. Boda con harta gente conocida — cordero al palo incluido."},
     "galapagos":        {name:"Galápagos",       icon:"🐢", desc:"Viaje de Agustín y Sofía, del 2 al 8 de febrero de 2024."},
     "bosque-luz":       {name:"Bosque Luz",      icon:"🎆", desc:"Fiesta de Año Nuevo (31 de diciembre de 2023 → 1 de enero de 2024) a la que fue un grupo grande."},
+    "casa-heidi":       {name:"Casa de Heidi",   icon:"🏠", desc:"La casa de Heidi Meyer, lejísimos, arriba en el monte."},
   },
   seasons: [
     {
@@ -334,6 +338,37 @@ const DATA = {
             {t:"text",v:" llevaban ahorrando desde marzo solo para esa fiesta.\n\nLa noche terminó como pocas: "},
             {t:"char",id:"brenda"},
             {t:"text",v:" se hizo mierda, tomó demasiado, y terminó siendo echada de Vrava. Motivo de risa asegurada para el grupo. Después de eso, se fueron."}
+          ]
+        },
+        {
+          date:"Sábado 26 de septiembre de 2026", title:"Carrete en casa de Heidi",
+          place:"casa-heidi", chars:["agustin-gonzalez","sofia-yanez","cristobal-jones","gerardo-cortes","maria-ignacia-demandes","heidi-meyer","connie","daniela"],
+          content:[
+            {t:"text",v:"Fueron a la casa de "},
+            {t:"char",id:"heidi-meyer"},
+            {t:"text",v:", que vive lejísimos, arriba en el monte. Fueron "},
+            {t:"char",id:"agustin-gonzalez"},
+            {t:"text",v:", "},
+            {t:"char",id:"sofia-yanez"},
+            {t:"text",v:", "},
+            {t:"char",id:"cristobal-jones"},
+            {t:"text",v:", "},
+            {t:"char",id:"gerardo-cortes"},
+            {t:"text",v:", "},
+            {t:"char",id:"maria-ignacia-demandes"},
+            {t:"text",v:" (la ñaña) y "},
+            {t:"char",id:"connie"},
+            {t:"text",v:".\n\nEn el carrete, gracias a "},
+            {t:"char",id:"connie"},
+            {t:"text",v:", "},
+            {t:"char",id:"cristobal-jones"},
+            {t:"text",v:" conoció a "},
+            {t:"char",id:"daniela"},
+            {t:"text",v:", una amiga con el perfil de siempre le gusta a él. Como siempre, tenía pololo — pero él no lo sabía, porque ella no se lo dijo.\n\nMismo patrón que con "},
+            {t:"char",id:"blanca"},
+            {t:"text",v:": "},
+            {t:"char",id:"cristobal-jones"},
+            {t:"text",v:" terminó con el corazón destruido. Ella, después, se fue a juntar al Teatro C con el weón con el que estaba saliendo. Jones quedó triste y desamparado."}
           ]
         }
       ]
