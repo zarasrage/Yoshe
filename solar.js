@@ -35,7 +35,7 @@
    cuadros medido en vivo no da. En el nivel bajo, si ni así da, onFail("slow").
 
    Batería: en reposo (sin arrastre, inercia ni vuelo), en pantallas táctiles se dibuja a ~30fps;
-   el bucle se detiene del todo fuera de pantalla, con la pestaña oculta o con el foco quieto.
+   el bucle se detiene del todo fuera de pantalla o con la pestaña oculta (en el foco sigue animado).
 
    Carga: en la home, three.js no se pide hasta que la página ya pintó y está ociosa. Desde las
    otras vistas, app.js lo precarga con preloadSolar() (<link rel="modulepreload"
@@ -1678,12 +1678,10 @@
         if(opts.onReady) setTimeout(()=>{ if(!dead) opts.onReady(); }, 0);
       }
 
-      // el bucle se duerme hasta la próxima interacción: con reduced-motion apenas se asienta,
-      // y en el foco cuando ya llegó la cámara y lleva 1.5s sin que se toque nada (el panel
-      // está quieto; volver a tocar, mover el mouse sobre un objeto o salir lo despierta)
-      const focusQuiet = focus && !tween && now - lastInteract > 1500;
-      const sleepy = reduced || focusQuiet;
-      if((!sleepy || busy() || dirty) && visible && inView) raf = requestAnimationFrame(frame);
+      // con reduced-motion el bucle se duerme apenas se asienta, hasta la próxima interacción.
+      // Si no, sigue siempre (también en el foco: el planeta gira, el disco y los pulsos siguen;
+      // en táctiles en reposo va a ~30fps, ver idleThrottle)
+      if((!reduced || busy() || dirty) && visible && inView) raf = requestAnimationFrame(frame);
     }
 
     resize();
