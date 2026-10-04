@@ -147,16 +147,21 @@ nav.seasons-strip button.active{
 
 /* ===== HOME / PORTAL ===== */
 /* 100svh (the SMALL viewport: browser bar shown), not vh (which on iOS is the big one and puts
-   the scroll cue under the bar) and not dvh (which changes while the bar collapses during the
+   the bottom tab under the bar) and not dvh (which changes while the bar collapses during the
    scroll: the hero would grow and shrink, and the 3D canvas would resize every frame of it).
    The plain vh line is the fallback for browsers without svh. */
-/* the hero fills the viewport BELOW the sticky nav (--nav-h): copy on top, scroll cue at the
-   bottom, and .home-sky (the 2D constellation + the 3D scene) growing into everything between */
+/* The hero is the "galaxy screen": exactly the viewport BELOW the sticky nav (--nav-h, measured
+   by app.js), also on phones - copy on top, the "Personajes y lugares" tab at the bottom, and
+   .home-sky (the 2D constellation + the 3D scene) taking everything between. While the home is
+   in galaxy mode (html.galaxy-lock) the page doesn't scroll: wheel/pinch zoom the scene and the
+   tab is the way down (see setHomeMode in app.js). */
 .hero{
-  --nav-h:64px;
-  min-height:calc(100vh - var(--nav-h)); min-height:calc(100svh - var(--nav-h)); display:flex; flex-direction:column; align-items:center; justify-content:center;
-  text-align:center; padding:24px 20px 26px; position:relative;
+  height:calc(100vh - var(--nav-h, 64px)); height:calc(100svh - var(--nav-h, 64px));
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  text-align:center; padding:24px 20px 10px; position:relative;
 }
+html.galaxy-lock, html.galaxy-lock body{overflow:hidden; overscroll-behavior:none;}
+html.galaxy-lock .solar-canvas{touch-action:none;}
 /* Readability pocket behind the headline: the photo behind it is busy, this keeps a
    consistent ground under the copy without dimming the sky anywhere else.
    It hangs off .hero-copy (not .hero) so its height is derived from the actual text box.
@@ -199,7 +204,7 @@ nav.seasons-strip button.active{
 .hero.intro-play .eyebrow{animation:heroFadeUp .9s cubic-bezier(.16,1,.3,1) both;}
 .hero.intro-play h1{animation:heroTitleIn 1.15s cubic-bezier(.16,1,.3,1) .15s both;}
 .hero.intro-play p.tag{animation:heroFadeUp .9s cubic-bezier(.16,1,.3,1) .55s both;}
-.hero.intro-play .scroll-cue{animation:heroFadeUp .9s ease .95s both;}
+.hero.intro-play .explore-tab{animation:heroFadeUp .9s ease .95s both;}
 .hero.intro-play .star-node{animation:starIgnite .7s cubic-bezier(.2,1,.3,1) var(--idelay,0s) both;}
 @keyframes heroFadeUp{from{opacity:0; transform:translateY(14px);} to{opacity:1; transform:translateY(0);}}
 @keyframes heroTitleIn{from{opacity:0; transform:translateY(22px) scale(.96); filter:blur(6px);} to{opacity:1; transform:translateY(0) scale(1); filter:blur(0);}}
@@ -208,29 +213,27 @@ nav.seasons-strip button.active{
 /* .home-sky: the box shared by the 2D constellation (instant first paint, and the fallback)
    and the 3D solar system (solar.js) that fades in over it once its first frame is drawn
    (.hero.solar-on, set by mountHomeSolar). It spans the full width (negative margins eat the
-   hero's side padding) and grows into the height the copy and the cue leave free, never less
-   than the 2D box needs - so swapping 2D for 3D never shifts the layout. */
+   hero's side padding) and takes all the height the copy and the tab leave free. It's a size
+   container, so the 2D constellation sizes itself to fit inside it (cqw/cqh) - swapping 2D for
+   3D never shifts the layout. */
 .home-sky{
-  position:relative; z-index:2; align-self:stretch; margin:22px -20px 2px;
-  flex:1 1 auto; min-height:calc(min(880px,90vw,80vh) * .5125); max-height:820px;
+  position:relative; z-index:2; align-self:stretch; margin:18px -20px 4px;
+  flex:1 1 0; min-height:0; max-height:820px; container-type:size;
   display:flex; align-items:center; justify-content:center;
 }
-/* the 80vh term caps the constellation by viewport HEIGHT as well as width: at 16/8.2 the
-   box is ~1.95x wider than tall, so 80vh of width lands it at ~41vh tall, which is what keeps
-   the whole hero (copy + constellation + scroll cue) inside a short 1280x720 laptop screen */
-.constellation-wrap{position:relative; width:min(880px,90vw,80vh); aspect-ratio:16/8.2; isolation:isolate;
+/* 16:8.2 box, as big as fits: 195cqh of width = the full height of .home-sky */
+.constellation-wrap{position:relative; width:min(880px, 100cqw - 40px, 195cqh); aspect-ratio:16/8.2; isolation:isolate;
   transition:opacity .7s var(--ease), visibility 0s;}
 .hero.solar-on .constellation-wrap{opacity:0; visibility:hidden; pointer-events:none;
   transition:opacity .9s var(--ease), visibility 0s linear .9s;}
 /* short laptop screens (1280x720, 1366x768): trim the copy so the hero still lands the
-   scroll cue above the fold instead of hiding the bottom of the constellation */
+   tab above the fold instead of squeezing the galaxy */
 @media (min-width:601px) and (max-height:800px){
   .hero{padding-top:14px; padding-bottom:16px;}
   .hero h1{font-size:clamp(2.4rem,5.6vw,3.9rem);}
   .hero .eyebrow{margin-bottom:14px; font-size:.66rem;}
   .hero p.tag{margin-top:14px; font-size:.9rem;}
   .home-sky{margin-top:12px;}
-  .scroll-cue{margin-top:14px;}
 }
 /* .home-sky carries the scroll-recede transform (the shared rAF loop at the end of app.js) */
 /* the constellation sits on top of a busy photograph, so it needs its own pocket of calm:
@@ -313,9 +316,14 @@ nav.seasons-strip button.active{
 .star-node.armageddon-node:hover{opacity:1;}
 .star-node.armageddon-node:hover .star-dot .core{background:rgba(255,150,150,.9); box-shadow:0 0 18px rgba(255,80,80,.8);}
 @media (max-width:600px){
-  .hero{padding:44px 16px 16px; min-height:auto;}
-  .home-sky{flex:none; margin:40px -16px 4px; height:128vw; min-height:0;}
-  .constellation-wrap{width:96vw; aspect-ratio:3/4;}
+  /* phones: compact copy (title + eyebrow; the tagline's "elige un planeta" lives in the hint
+     at the bottom of the galaxy) so the galaxy gets most of the screen */
+  .hero{padding:14px 16px 6px;}
+  .hero .eyebrow{margin-bottom:8px; font-size:.6rem; letter-spacing:.26em;}
+  .hero h1{font-size:clamp(2.4rem,11vw,3.2rem);}
+  .hero p.tag{display:none;}
+  .home-sky{margin:6px -16px 2px;}
+  .constellation-wrap{width:min(96cqw, 75cqh); aspect-ratio:3/4;}
   .star-node .star-dot{width:23px; height:23px;}
   .star-node{padding:8px; margin:-8px;} /* larger invisible tap area */
   .star-node .star-code{font-size:.8rem; margin-top:8px;}
@@ -334,7 +342,9 @@ nav.seasons-strip button.active{
 .hero.solar-on .solar-stage{opacity:1; visibility:visible; pointer-events:auto; transition:opacity 1.1s var(--ease), visibility 0s;}
 .solar-root{position:absolute; inset:0; isolation:isolate; container-type:size;}
 /* the box edges must never read as a hard cut through orbits or bloom haze: feather top/bottom */
-.solar-canvas{display:block; width:100%; height:100%; -webkit-tap-highlight-color:transparent; user-select:none;
+/* touch: by default the vertical swipe belongs to the page scroll; in galaxy mode (above,
+   html.galaxy-lock) every gesture belongs to the scene */
+.solar-canvas{display:block; width:100%; height:100%; -webkit-tap-highlight-color:transparent; user-select:none; touch-action:pan-y;
   -webkit-mask-image:linear-gradient(to bottom, transparent, #000 9%, #000 91%, transparent);
   mask-image:linear-gradient(to bottom, transparent, #000 9%, #000 91%, transparent);}
 .solar-labels{position:absolute; inset:0; z-index:1; pointer-events:none; overflow:hidden;}
@@ -364,6 +374,8 @@ nav.seasons-strip button.active{
 .hero.solar-on .solar-hint{opacity:.8;}
 .hero.solar-on .home-sky:has(.solar-root.is-focus) .solar-hint{opacity:0;}
 .hero .tag-3d, .hero.solar-on .tag-2d{display:none;}
+.solar-hint .hint-touch{display:none;}
+@media (hover:none), (pointer:coarse){ .solar-hint .hint-touch{display:inline;} .solar-hint .hint-desk{display:none;} }
 .hero.solar-on .tag-3d{display:inline;}
 
 /* ---- focus: the season (or Armagedón) panel ---- */
@@ -432,7 +444,7 @@ nav.seasons-strip button.active{
 .solar-root.is-portrait .solar-p-enter{padding:11px 16px;}
 @media (max-width:600px){
   .solar-title{font-size:.95rem;} .solar-code{font-size:.56rem;}
-  .solar-hint .long{display:none;}
+  .solar-hint{font-size:.58rem;}
 }
 
 /* ===== ARMAGEDDON ===== */
@@ -489,13 +501,31 @@ body.mood-doom .section-head .eyebrow{color:#ff6a6a; text-shadow:0 0 16px rgba(2
 body.mood-doom .section-head::after{background:linear-gradient(to right, #ff5252, rgba(255,82,82,.12) 45%, transparent);}
 body.mood-doom .back-btn:hover{border-color:rgba(255,110,110,.6); color:#ff9a9a; background:rgba(60,10,14,.7);}
 
-.scroll-cue{
-  margin-top:22px; color:var(--ink-faint); font-size:.68rem; font-family:'JetBrains Mono',monospace;
-  letter-spacing:.2em; text-transform:uppercase;
-  display:flex; flex-direction:column; align-items:center; gap:10px; opacity:.75;
-  text-shadow:0 1px 10px rgba(1,6,15,1);
+/* the tab at the bottom of the galaxy screen: slides the page down to the cast and unlocks
+   the scroll (goExplore in app.js) */
+.explore-tab{
+  position:relative; z-index:3; flex:none; margin-top:4px; cursor:pointer;
+  display:flex; flex-direction:column; align-items:center; gap:7px;
+  padding:9px 22px 10px; border-radius:16px 16px 0 0; border:1px solid var(--line); border-bottom:none;
+  background:linear-gradient(to bottom, rgba(4,16,36,.72), rgba(4,16,36,.25));
+  color:var(--ink-dim); font:500 .68rem/1 'JetBrains Mono',monospace; letter-spacing:.2em; text-transform:uppercase;
+  text-shadow:0 1px 10px rgba(1,6,15,1); transition:color .25s, border-color .25s, background .25s;
 }
-.scroll-cue .chevron{width:9px;height:9px;border-right:1.5px solid var(--amber); border-bottom:1.5px solid var(--amber); transform:rotate(45deg); animation:bob 1.9s infinite;}
+.explore-tab:hover, .explore-tab:focus-visible{color:var(--ink); border-color:rgba(104,216,255,.45); outline:none;
+  background:linear-gradient(to bottom, rgba(8,30,62,.85), rgba(4,16,36,.3));}
+/* floating way back up to the galaxy, once you're down in the cast (outside #app: #app carries
+   a transform, which would break position:fixed inside it) */
+.galaxy-return{
+  position:fixed; right:18px; bottom:18px; z-index:45; display:flex; align-items:center; gap:8px;
+  padding:10px 16px; border-radius:999px; border:1px solid rgba(104,216,255,.4); cursor:pointer;
+  background:rgba(4,16,36,.86); color:var(--amber); font:500 .7rem/1 'JetBrains Mono',monospace;
+  letter-spacing:.14em; text-transform:uppercase; box-shadow:0 8px 28px rgba(0,0,0,.45);
+  opacity:0; transform:translateY(12px); pointer-events:none; transition:opacity .35s var(--ease), transform .35s var(--ease);
+}
+html.galaxy-return-on .galaxy-return{opacity:1; transform:none; pointer-events:auto;}
+.galaxy-return:hover, .galaxy-return:focus-visible{border-color:var(--amber); outline:none;}
+body.edit-on .galaxy-return{bottom:72px;}
+.explore-tab .chevron{width:9px;height:9px;border-right:1.5px solid var(--amber); border-bottom:1.5px solid var(--amber); transform:rotate(45deg); animation:bob 1.9s infinite;}
 @keyframes bob{0%,100%{transform:rotate(45deg) translate(0,0); opacity:.5;}50%{transform:rotate(45deg) translate(5px,5px); opacity:1;}}
 
 /* ===== SHARED: sections, cards, reveals ===== */

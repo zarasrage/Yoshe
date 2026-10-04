@@ -628,12 +628,12 @@ function viewHome(){
     <div class="home-sky">
       <div class="constellation-wrap">${constellationHtml()}</div>
       <div class="solar-stage" id="solarStage"></div>
-      <div class="solar-hint" aria-hidden="true">arrastra<span class="long"> para girar</span> · toca un planeta o el Hoyo</div>
+      <div class="solar-hint" aria-hidden="true"><span class="hint-desk">arrastra para girar · rueda para acercar · clic en un planeta o el Hoyo</span><span class="hint-touch">gira con el dedo · pellizca · toca un planeta</span></div>
     </div>
-    <div class="scroll-cue">Explora el elenco y los lugares<div class="chevron"></div></div>
+    <button type="button" class="explore-tab" onclick="goExplore()">Personajes y lugares<span class="chevron" aria-hidden="true"></span></button>
   </section>
 
-  <section class="section-wrap">
+  <section class="section-wrap" id="elenco">
     <div class="section-head">
       <div class="eyebrow">Elenco · principales</div>
       <h2>Los personajes</h2>
@@ -666,6 +666,91 @@ function viewHome(){
   // la entrada del 3D (cámara desde lejos) va con la del hero: una vez por sesión
   mountHomeSolar({ intro: playIntro, restoreView: routeFromHistory });
 }
+
+// ---- la home en dos modos: "galaxy" y "explore" ----
+// galaxy: el hero es una pantalla fija; la página NO scrollea (html.galaxy-lock). La rueda y
+//   el pellizco hacen zoom en la galaxia y el dedo la gira en cualquier dirección (solar.js,
+//   vía ownsGestures). Para bajar al elenco está la pestaña "Personajes y lugares" (o
+//   AvPág / flecha abajo / espacio); con la 2D de respaldo, la rueda hacia abajo también baja.
+// explore: scroll normal. Volver arriba del todo re-bloquea la galaxia; el botón flotante
+//   "↑ Galaxia" sube hasta ahí.
+// Fuera de la home, homeMode es null y no se bloquea nada.
+let homeMode = null, homeModeSince = 0, galaxyGrace = 0, wheel2d = 0;
+const overlayOpen = ()=> !!document.querySelector(".modal-overlay.active, .search-overlay.active");
+// los gestos son de la escena: en modo galaxia, sin un modal/buscador encima, y no justo
+// después de re-bloquear (la inercia de la rueda que subió la página no debe hacer zoom)
+function galaxyOwnsGestures(){ return homeMode === "galaxy" && !overlayOpen() && performance.now() > galaxyGrace; }
+function setHomeMode(mode){
+  homeMode = mode;
+  homeModeSince = performance.now();
+  wheel2d = 0;
+  const html = document.documentElement;
+  html.classList.toggle("galaxy-lock", mode === "galaxy");
+  // los listeners no-pasivos (que pueden cancelar el scroll) existen solo en modo galaxia: en
+  // el resto del sitio el navegador scrollea sin esperar a ningún JS
+  const lock = mode === "galaxy";
+  if(lock !== galaxyListening){
+    const f = lock ? "addEventListener" : "removeEventListener";
+    window[f]("wheel", onGalaxyWheel, { passive:false });
+    window[f]("touchmove", onGalaxyTouchMove, { passive:false });
+    galaxyListening = lock;
+  }
+  if(mode === "galaxy") galaxyGrace = performance.now() + 450;
+  if(mode !== "explore") html.classList.remove("galaxy-return-on");
+}
+const smoothScroll = ()=> window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+function goExplore(){
+  if(!document.querySelector(".hero .home-sky")) return;
+  setHomeMode("explore");
+  const target = document.getElementById("elenco");
+  const nav = document.querySelector("header.topnav");
+  const top = target ? target.getBoundingClientRect().top + window.scrollY + 40 - (nav ? nav.offsetHeight : 0) : window.innerHeight;
+  window.scrollTo({ top, behavior:smoothScroll() });
+}
+// sube a la galaxia; al llegar arriba del todo el listener de scroll la re-bloquea
+function goGalaxy(){ window.scrollTo({ top:0, behavior:smoothScroll() }); }
+// los elementos con scroll propio que siguen funcionando con la galaxia bloqueada
+const OWN_SCROLL = ".solar-panel, .modal-overlay, .search-overlay";
+const inOwnScroll = t=> !!(t && t.closest && t.closest(OWN_SCROLL));
+window.addEventListener("scroll", ()=>{
+  if(!homeMode) return;
+  const y = window.scrollY;
+  // algo movió la página estando bloqueada (foco del teclado, buscar en la página): se
+  // respeta y pasa a modo elenco en vez de pelear con eso
+  if(homeMode === "galaxy"){ if(y > 4) setHomeMode("explore"); return; }
+  if(y <= 1 && performance.now() - homeModeSince > 700) setHomeMode("galaxy");
+}, { passive:true });
+let galaxyListening = false;
+function onGalaxyWheel(e){
+  if(homeMode !== "galaxy" || inOwnScroll(e.target)) return;
+  e.preventDefault();
+  const hero = document.querySelector(".hero");
+  if(hero && hero.classList.contains("solar-on")){
+    if(galaxyOwnsGestures() && typeof solarWheel === "function") solarWheel(e);   // zoom
+    return;
+  }
+  // 2D de respaldo: no hay zoom, así que la rueda hacia abajo baja al elenco
+  wheel2d = Math.max(0, wheel2d + e.deltaY);
+  if(wheel2d > 160) goExplore();
+}
+function onGalaxyTouchMove(e){
+  if(homeMode === "galaxy" && !inOwnScroll(e.target)) e.preventDefault();
+}
+document.addEventListener("keydown", e=>{
+  if(homeMode !== "galaxy" || e.defaultPrevented || overlayOpen()) return;
+  const t = e.target;
+  if(t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+  const space = e.key === " " && !(t && t.closest && t.closest("button, a"));
+  if(space || e.key === "PageDown" || e.key === "ArrowDown" || e.key === "End"){ e.preventDefault(); goExplore(); }
+});
+// --nav-h: el alto real del nav (sin condensar), para que el hero mida justo una pantalla
+(function(){
+  const nav = document.querySelector("header.topnav");
+  if(!nav) return;
+  const set = ()=>{ if(!nav.classList.contains("condensed")) document.documentElement.style.setProperty("--nav-h", nav.offsetHeight + "px"); };
+  set();
+  if(window.ResizeObserver) new ResizeObserver(set).observe(nav);
+})();
 
 // ---- sistema solar 3D: montaje sobre la 2D ----
 // ?3d=0 apaga el 3D (para ver el respaldo); ?3d=1 lo fuerza aunque el equipo parezca débil
@@ -731,6 +816,7 @@ function mountHomeSolar(o){
         if(window.console) console.warn("sistema 3D desactivado:", reason);
       },
       keysBlocked: ()=> !!document.querySelector(".modal-overlay.active, .search-overlay.active"),
+      ownsGestures: galaxyOwnsGestures,
     }).catch(err=>{
       // import() que falla (offline, file://), WebGL que no arranca: queda la 2D
       back2d();
@@ -1221,6 +1307,7 @@ function render(){
     // it may have set. viewHome() mounts a fresh one.
     unmountHomeSolar();
     viewCleanups.splice(0).forEach(fn=>{ try{ fn(); }catch(e){} });
+    setHomeMode(null);
     setStarDensityFor("high");
 
     const hash = location.hash.replace(/^#\/?/,"");
@@ -1235,6 +1322,8 @@ function render(){
     else if(parts[0]==="armageddon") viewArmageddon();
     else viewHome();
     window.scrollTo({top: restoreY!==undefined ? restoreY : 0, behavior:"instant"});
+    // la home parte en modo galaxia, salvo al volver con "atrás" a una posición más abajo
+    if(document.querySelector(".hero .home-sky")) setHomeMode(window.scrollY > 4 ? "explore" : "galaxy");
     replayRouteAnimation();
   }catch(err){
     const app = document.getElementById("app");
@@ -1511,6 +1600,7 @@ try{
   function tick(){
     const sy = window.scrollY || 0;
 
+    document.documentElement.classList.toggle("galaxy-return-on", homeMode === "explore" && sy > window.innerHeight*0.6);
     const nav = document.querySelector("header.topnav");
     if(nav){
       const should = sy > 40;

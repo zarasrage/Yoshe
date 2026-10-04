@@ -20,6 +20,10 @@
      restoreView      true: retomar el ángulo guardado en sessionStorage (volver con "atrás")
      intro            false: sin la entrada (cámara desde lejos, planetas en orden)
      keysBlocked()    true mientras otra capa (modal, buscador) es dueña del teclado
+     ownsGestures()   true mientras la escena es dueña de los gestos (la home en "modo galaxia",
+                      con el scroll de la página bloqueado): la rueda y el pellizco hacen zoom y
+                      el dedo gira en cualquier dirección. false: la rueda y el swipe vertical
+                      son del scroll, como una página normal
      force            no apagarse por lento (pruebas con ?3d=1); igual puede bajar de nivel
      quality          "high" | "medium" | "low": nivel inicial (por defecto, según el equipo)
      onQuality(q)     se llama con el nivel al montar y cada vez que baja
@@ -69,6 +73,9 @@
   }
 
   let current = null;   // { token, dispose } del montaje vivo
+  let wheelHook = null; // zoom con la rueda del montaje vivo (ver solarWheel)
+  // app.js le pasa la rueda mientras la home está en modo galaxia; true = la escena la usó
+  function solarWheel(e){ return wheelHook ? wheelHook(e) : false; }
 
   let capable = null;
   function solarCapable(force){
@@ -668,7 +675,8 @@
     root.className = "solar-root";
     const canvas = document.createElement("canvas");
     canvas.className = "solar-canvas";
-    canvas.style.touchAction = "pan-y";   // el gesto vertical es del scroll; el horizontal, nuestro
+    // touch-action va en el CSS: pan-y por defecto (el swipe vertical es del scroll) y none
+    // mientras la home está en modo galaxia (los gestos son de la escena)
     const labelsLayer = document.createElement("div");
     labelsLayer.className = "solar-labels";
     root.appendChild(canvas); root.appendChild(labelsLayer);
@@ -706,8 +714,18 @@
     // orientación: yaw libre, pitch acotado (nunca queda de cabeza). Vista inicial desde
     // arriba; en vertical más inclinada, para llenar el alto disponible
     const portraitAtMount = container.clientWidth < container.clientHeight*0.8;
-    let yaw = 0, pitch = portraitAtMount ? 1.18 : 0.46;
-    const PITCH_MIN = -0.12, PITCH_MAX = 1.3;
+    // vista inicial: más cenital mientras más angosta la caja (las órbitas se ven más redondas
+    // y llenan el alto); en una franja ancha, rasante
+    const narrowAtMount = container.clientWidth < 640;
+    let yaw = 0, pitch = portraitAtMount ? 1.18 : narrowAtMount ? 0.9 : 0.46;
+    // giro libre en los dos ejes (la escena puede darse vuelta entera); el pitch se guarda
+    // envuelto en (-PI, PI]
+    const TAU = Math.PI*2;
+    const wrapAngle = a=> a - TAU*Math.floor((a + Math.PI)/TAU);
+    // zoom de la vista general: multiplica la distancia de la cámara (menos = más cerca)
+    const ZOOM_MIN = 0.4, ZOOM_MAX = 1.45;
+    let zoom = 1, zoomTarget = 1;
+    const clampZoom = z=> Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
     stage.add(world);
 
     const glowTex = glowTexture(THREE); textures.push(glowTex);
@@ -935,14 +953,17 @@
       if(composer){ composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(W, H); }
       camera.aspect = W/H;
       portrait = camera.aspect < 0.8;
-      root.classList.toggle("is-portrait", portrait);
+      // la hoja inferior del foco (objeto arriba, panel abajo): en vertical, y también en cajas
+      // angostas aunque no sean verticales (un teléfono con la galaxia a pantalla completa)
+      sheet = portrait || W < 640;
+      root.classList.toggle("is-portrait", sheet);
       // alejar la cámara lo justo para que el sistema completo quepa a lo ancho y a lo alto;
       // en vertical se acepta que las órbitas exteriores rocen el borde, si no queda diminuto
       const extent = ORBIT_R[0] + 0.8;
       const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov/2));
       // en la home la caja es una franja ancha y baja: ahí manda el alto, y la vista desde
       // arriba (pitch ~0.46) ocupa bastante menos que el radio entero, así que se aprieta más
-      const dV = (extent*(portrait ? 0.82 : 0.7))/tanV, dH = extent*(portrait ? 0.9 : 1)/(tanV*camera.aspect);
+      const dV = (extent*(camera.aspect < 1.25 ? 0.82 : 0.7))/tanV, dH = extent*(portrait ? 0.9 : 1)/(tanV*camera.aspect);
       baseZ = Math.max(dV, dH) + 1.5;
       camera.updateProjectionMatrix();
       measureLabels();
@@ -1112,15 +1133,15 @@
     const VIEW_KEY = "ychSolarView";
     function saveView(){
       try{
-        const TAU = Math.PI*2;
-        sessionStorage.setItem(VIEW_KEY, JSON.stringify({ yaw: ((yaw % TAU) + TAU) % TAU, pitch, t: Date.now() }));
+        sessionStorage.setItem(VIEW_KEY, JSON.stringify({ yaw: ((yaw % TAU) + TAU) % TAU, pitch, zoom:zoomTarget, t: Date.now() }));
       }catch(e){ /* sin storage (vista previa, modo privado estricto): no se recuerda, y listo */ }
     }
     let restored = false;
     if(opts.restoreView) try{
       const v = JSON.parse(sessionStorage.getItem(VIEW_KEY) || "null");
       if(v && isFinite(v.yaw) && isFinite(v.pitch) && Date.now() - (v.t || 0) < 6*3600*1000){
-        yaw = v.yaw; pitch = Math.max(PITCH_MIN, Math.min(PITCH_MAX, v.pitch));
+        yaw = v.yaw; pitch = wrapAngle(v.pitch);
+        if(isFinite(v.zoom)) zoom = zoomTarget = clampZoom(v.zoom);
         restored = true;
       }
     }catch(e){ /* storage bloqueado o JSON roto: vista por defecto */ }
@@ -1133,10 +1154,10 @@
     const cam = { pos:new THREE.Vector3(0, 0, 20), target:new THREE.Vector3(), k:0 };
     const dest = { pos:new THREE.Vector3(), target:new THREE.Vector3(), k:0 };
     const easeInOutCubic = x=> x < 0.5 ? 4*x*x*x : 1 - Math.pow(-2*x + 2, 3)/2;
-    let portrait = portraitAtMount;
+    let portrait = portraitAtMount, sheet = portraitAtMount;
 
     function overviewDest(camE){
-      dest.pos.set(0, 2.5*(1 - camE), baseZ*(1 + 2.4*(1 - camE)));
+      dest.pos.set(0, 2.5*(1 - camE), baseZ*zoom*(1 + 2.4*(1 - camE)));
       // el lado cercano de las órbitas baja más de lo que el lejano sube: mirar un poco más
       // abajo del Hoyo deja el conjunto centrado en la caja
       dest.target.set(0, portrait ? -0.45 : -0.55, 0);
@@ -1152,14 +1173,14 @@
       const rEff = it.r * (it.ringed ? 2.35 : 1.2), frac = 0.36;
       // en horizontal el objeto vive en la mitad izquierda; en vertical, en el tercio de arriba
       // (la hoja del panel ocupa el resto)
-      const usableW = portrait ? 1 : 0.55, usableH = portrait ? 0.36 : 1;
+      const usableW = sheet ? 1 : 0.55, usableH = sheet ? 0.36 : 1;
       const D = Math.max(rEff/(frac*tanV*usableH*1.6), rEff/(frac*tanV*camera.aspect*usableW*1.2));
       dest.pos.copy(center).addScaledVector(focus.dir, D);
     }
     function holeFocusDist(){
       const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov/2));
       const rEff = DISC_OUT*1.05, frac = 0.7;
-      const usableW = portrait ? 1 : 0.55, usableH = portrait ? 0.36 : 1;
+      const usableW = sheet ? 1 : 0.55, usableH = sheet ? 0.36 : 1;
       return Math.max(rEff/(frac*tanV*usableH), rEff/(frac*tanV*camera.aspect*usableW));
     }
     function startTween(){
@@ -1170,7 +1191,7 @@
     function applyViewOffset(k){
       if(k < 0.001){ if(camera.view && camera.view.enabled) camera.clearViewOffset(); return; }
       // correr el encuadre: el objeto queda a un lado y el panel ocupa el otro
-      if(portrait) camera.setViewOffset(W, H, 0, H*0.31*k, W, H);
+      if(sheet) camera.setViewOffset(W, H, 0, H*0.31*k, W, H);
       else camera.setViewOffset(W, H, W*0.2*k, 0, W, H);
     }
 
@@ -1274,8 +1295,9 @@
     let lastInteract = -1e9;
     let hovered = null;
 
+    const owns = ()=> !!(opts.ownsGestures && opts.ownsGestures());
     function radPerPx(){ return Math.PI / Math.max(360, W) * 1.15; }
-    function setPitch(v){ pitch = Math.max(PITCH_MIN, Math.min(PITCH_MAX, v)); }
+    function setPitch(v){ pitch = wrapAngle(v); }
 
     function pick(clientX, clientY, isTouch){
       const rect = canvas.getBoundingClientRect();
@@ -1309,9 +1331,29 @@
       wake();
     }
 
+    // dedos sobre el canvas, para el pellizco (zoom con dos dedos)
+    const touches = new Map();
+    let pinch = null, noPickUntil = 0;
+    const touchDist = ()=>{ const [a, b] = [...touches.values()]; return Math.hypot(a.x - b.x, a.y - b.y) || 1; };
+    function dropTouch(e){
+      if(!touches.delete(e.pointerId)) return;
+      if(pinch && touches.size < 2){ pinch = null; noPickUntil = performance.now() + 350; }
+    }
+
     on(canvas, "pointerdown", e=>{
       if(e.button !== undefined && e.button !== 0) return;
       const now = performance.now();
+      if(e.pointerType === "touch"){
+        touches.set(e.pointerId, { x:e.clientX, y:e.clientY });
+        if(touches.size === 2 && owns() && !focus){
+          // segundo dedo: deja de ser un giro, pasa a ser un pellizco
+          pinch = { d0:touchDist(), z0:zoomTarget };
+          drag = null; velYaw = velPitch = 0;
+          lastInteract = now; wake();
+          return;
+        }
+        if(touches.size > 2 || pinch) return;
+      }
       drag = { id:e.pointerId, type:e.pointerType, x0:e.clientX, y0:e.clientY, x:e.clientX, y:e.clientY, t:now, moved:false };
       if(e.pointerType !== "touch"){ try{ canvas.setPointerCapture(e.pointerId); }catch(err){} }
       velYaw = velPitch = 0;   // agarrar frena el giro en seco
@@ -1319,6 +1361,11 @@
       wake();
     });
     on(canvas, "pointermove", e=>{
+      if(touches.has(e.pointerId)) touches.set(e.pointerId, { x:e.clientX, y:e.clientY });
+      if(pinch){
+        if(touches.size >= 2){ zoomTarget = clampZoom(pinch.z0 * pinch.d0/touchDist()); lastInteract = performance.now(); wake(); }
+        return;
+      }
       if(!drag || e.pointerId !== drag.id){
         if(e.pointerType === "mouse") setHover(pick(e.clientX, e.clientY, false));
         return;
@@ -1333,8 +1380,9 @@
       }
       if(!drag.moved || focus){ lastInteract = now; return; }   // en foco la escena no rota
       const dx = e.clientX - drag.x;
-      // en touch solo el gesto horizontal rota; el vertical es del scroll de la página
-      const dy = drag.type === "touch" ? 0 : e.clientY - drag.y;
+      // en touch, fuera del modo galaxia solo el gesto horizontal rota (el vertical es del
+      // scroll de la página); en modo galaxia el dedo gira en cualquier dirección
+      const dy = drag.type === "touch" && !owns() ? 0 : e.clientY - drag.y;
       const dt = Math.max(8, now - drag.t)/1000;
       const k = radPerPx();
       yaw += dx*k;
@@ -1354,7 +1402,7 @@
       const type = drag.type;
       drag = null;
       lastInteract = now;
-      if(!wasDrag && !cancelled){
+      if(!wasDrag && !cancelled && now > noPickUntil){
         velYaw = velPitch = 0;
         const it = pick(e.clientX, e.clientY, type === "touch");
         if(it) openFocus(it, false);
@@ -1367,8 +1415,23 @@
       cursor();
       wake();
     }
-    on(canvas, "pointerup", e=>endDrag(e, false));
-    on(canvas, "pointercancel", e=>endDrag(e, true));
+    on(canvas, "pointerup", e=>{ endDrag(e, false); dropTouch(e); });
+    on(canvas, "pointercancel", e=>{ endDrag(e, true); dropTouch(e); });
+
+    // rueda (y el pellizco del trackpad, que llega como rueda con ctrlKey): zoom. No escucha la
+    // rueda por su cuenta: app.js tiene el único listener (solo en modo galaxia, en toda la
+    // pantalla) y llama a solarWheel(e), que termina acá
+    const onWheelZoom = e=>{
+      if(focus) return true;          // en el foco no hay zoom, pero la rueda igual es nuestra
+      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? H : 1;
+      const d = Math.max(-200, Math.min(200, e.deltaY*unit));
+      zoomTarget = clampZoom(zoomTarget * Math.exp(d*(e.ctrlKey ? 0.01 : 0.0011)));
+      lastInteract = performance.now();
+      wake();
+      return true;
+    };
+    wheelHook = onWheelZoom;
+    cleanups.push(()=>{ if(wheelHook === onWheelZoom) wheelHook = null; });
     on(canvas, "pointerleave", e=>{ if(e.pointerType === "mouse" && !drag) setHover(null); });
     cursor();
 
@@ -1468,7 +1531,7 @@
     }
 
     function busy(){
-      return drag || velYaw || velPitch || tween || introT < INTRO || Math.abs(doomTarget() - doomK) > 0.001 ||
+      return drag || pinch || velYaw || velPitch || tween || Math.abs(zoomTarget - zoom) > 0.0005 || introT < INTRO || Math.abs(doomTarget() - doomK) > 0.001 ||
         items.some(it=> Math.abs(((it.hover || (focus && focus.item === it))?1:0) - it.hoverK) > 0.01);
     }
     function doomTarget(){ return focus && focus.item.kind === "hole" ? 1 : 0; }
@@ -1515,9 +1578,7 @@
       if(!drag && !focus){
         if(velYaw || velPitch){
           yaw += velYaw*dt;
-          const before = pitch;
           setPitch(pitch + velPitch*dt);
-          if(pitch !== before + velPitch*dt) velPitch = 0;   // tocó el tope: ahí se queda
           // fricción exponencial + un roce constante chico, para que no se arrastre eterno
           const decay = Math.exp(-dt*3.2);
           velYaw = Math.sign(velYaw)*Math.max(0, Math.abs(velYaw)*decay - 0.06*dt);
@@ -1531,6 +1592,7 @@
         }
       }
       world.rotation.set(pitch, yaw + introYaw, 0);
+      zoom += (zoomTarget - zoom) * (dt ? 1 - Math.exp(-dt*9) : 1);
 
       // --- humor ---
       const kM = dt ? 1 - Math.exp(-dt*3) : 1;
@@ -1656,6 +1718,7 @@
 
   window.solarCapable = solarCapable;
   window.preloadSolar = preloadSolar;
+  window.solarWheel = solarWheel;
   window.mountSolar = mountSolar;
   window.unmountSolar = unmountSolar;
 })();
