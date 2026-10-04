@@ -1,5 +1,18 @@
-/* ===== SISTEMA SOLAR 3D (prototipo, fase F1: arte) =====
+/* ===== SISTEMA SOLAR 3D (prototipo; F0 mecánica, F1 arte, F2 interacción) =====
    mountSolar(container, opts) / unmountSolar()
+
+   opts (todos opcionales):
+     seasons          arreglo de temporadas (por defecto DATA.seasons)
+     hrefFor(id)      URL de una temporada (por defecto "#/season/<id>")
+     armageddonHref   URL del Armagedón (por defecto "#/armageddon")
+     onMood(doom)     se llama al entrar/salir del foco del Hoyo; por defecto pone/saca
+                      body.mood-doom, igual que hace el router de app.js en #/armageddon
+     bloom            forzar (true) o apagar (false) el bloom de desktop
+
+   Interacción: arrastrar rota (yaw libre, pitch acotado), con inercia; clic/toque/Enter en
+   un planeta o en el Hoyo abre el "foco": la cámara vuela hasta el objetivo y un panel
+   muestra la temporada (o el Armagedón). Esc, clic en el vacío o "←" vuelven. El ángulo se
+   guarda en sessionStorage para volver igual con "atrás".
 
    Escena: el Hoyo (agujero negro = Armagedón) al centro, con disco de acreción, anillo de
    fotones y la imagen "lenteada" del disco que se curva por encima y por debajo de la sombra;
@@ -534,9 +547,11 @@
     const stage = new THREE.Group();
     scene.add(stage);
     const world = new THREE.Group();
-    const portrait = container.clientWidth < container.clientHeight*0.8;
-    // vista inicial desde arriba; en vertical más inclinada, para llenar el alto disponible
-    world.rotation.x = portrait ? 0.74 : 0.46;
+    // orientación: yaw libre, pitch acotado (nunca queda de cabeza). Vista inicial desde
+    // arriba; en vertical más inclinada, para llenar el alto disponible
+    const portraitAtMount = container.clientWidth < container.clientHeight*0.8;
+    let yaw = 0, pitch = portraitAtMount ? 0.74 : 0.46;
+    const PITCH_MIN = -0.12, PITCH_MAX = 1.3;
     stage.add(world);
 
     const glowTex = glowTexture(THREE); textures.push(glowTex);
@@ -671,11 +686,11 @@
       label.innerHTML = `<span class="solar-code"></span><span class="solar-title"></span>`;
       label.firstChild.textContent = s.code || `S${s.id}`;
       label.lastChild.textContent = s.title || "";
+      const nEv = (s.events || []).length;
+      label.setAttribute("aria-label", `${s.code || "S"+s.id}, ${s.title || "temporada"}: ${nEv} ${nEv === 1 ? "historia" : "historias"}. Enter para ver la temporada en detalle.`);
       labelsLayer.appendChild(label);
-      on(label, "mouseenter", ()=>setHover(planets[i]));
-      on(label, "mouseleave", ()=>setHover(null));
 
-      planets.push({ season:s, group, sphere, r, label, planetU, atmoU, ringU, trailU, glow,
+      planets.push({ kind:"planet", index:i, season:s, group, sphere, r, ringed:!!look.ring, label, planetU, atmoU, ringU, trailU, glow,
         world:new THREE.Vector3(), hover:false, hoverK:0, appear:0, lw:0, lh:0, cw:0 });
     });
 
@@ -750,6 +765,8 @@
       renderer.setSize(W, H, false);
       if(composer){ composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(W, H); }
       camera.aspect = W/H;
+      portrait = camera.aspect < 0.8;
+      root.classList.toggle("is-portrait", portrait);
       // alejar la cámara lo justo para que el sistema completo quepa a lo ancho y a lo alto;
       // en vertical se acepta que las órbitas exteriores rocen el borde, si no queda diminuto
       const extent = ORBIT_R[0] + 0.8;
@@ -766,6 +783,7 @@
         p.lw = p.label.offsetWidth; p.lh = p.label.offsetHeight;
         p.cw = p.label.firstChild.offsetWidth + 16;
       });
+      holeItem.lw = holeItem.label.offsetWidth; holeItem.lh = holeItem.label.offsetHeight;
     }
     const ro = new ResizeObserver(resize);
     ro.observe(container);
@@ -775,102 +793,416 @@
       document.fonts.ready.then(()=>{ if(alive) measureLabels(); });
     }
 
-    // ---- interacción ----
+    // ---- el Hoyo como objetivo (clic, Tab, foco) ----
+    const holeItem = { kind:"hole", r:HOLE_R, world:new THREE.Vector3(), hover:false, hoverK:0, appear:0, label:null };
+    const armHref = opts.armageddonHref || "#/armageddon";
+    {
+      const hl = document.createElement("a");
+      hl.className = "solar-label solar-label-hole";
+      hl.href = armHref;
+      hl.style.setProperty("--pcolor", "#ff6a6a");
+      hl.style.opacity = "0";
+      hl.innerHTML = `<span class="solar-code">el hoyo</span><span class="solar-title">Armagedón</span>`;
+      hl.setAttribute("aria-label", "El Hoyo: el Armagedón. Enter para verlo en detalle.");
+      labelsLayer.appendChild(hl);   // después de S0..S5: el Tab llega al Hoyo al final
+      holeItem.label = hl;
+    }
+    const items = planets.concat([holeItem]);
+
+    // ---- panel del foco ----
+    const panelId = "solarPanel" + Math.random().toString(36).slice(2, 8);
+    const panel = document.createElement("aside");
+    panel.className = "solar-panel";
+    panel.setAttribute("role", "dialog");
+    panel.setAttribute("aria-modal", "false");
+    panel.setAttribute("aria-labelledby", panelId + "-t");
+    panel.inert = true;
+    panel.innerHTML = `
+      <button type="button" class="solar-back" aria-label="Volver a la vista general"><span aria-hidden="true">←</span> <span class="solar-back-txt">Vista general</span></button>
+      <div class="solar-p-code"></div>
+      <h2 class="solar-p-title" id="${panelId}-t"></h2>
+      <p class="solar-p-text"></p>
+      <div class="solar-p-stats"></div>
+      <div class="solar-p-avatars" role="list"></div>
+      <a class="solar-p-enter" href="#"></a>`;
+    root.appendChild(panel);
+    const $p = sel => panel.querySelector(sel);
+
+    function isPending(text){
+      if(!text) return true;
+      const t = String(text).trim().toLowerCase();
+      return t.startsWith("cuéntame") || t.startsWith("cuentame") || t.startsWith("—") || t.startsWith("-");
+    }
+    function charsOf(list){
+      const chars = (typeof DATA !== "undefined" && DATA.characters) || {};
+      return list.map(id=>({ id, c:chars[id] })).filter(x=>x.c);
+    }
+    function avatarSrc(c){
+      if(Array.isArray(c.photos) && c.photos.length) return c.photos[0];
+      return c.photoLarge || c.photo || null;
+    }
+    function initials(name){
+      return name.split(" ").filter(w=>w[0] && w[0]===w[0].toUpperCase()).slice(0,2).map(w=>w[0]).join("").slice(0,2) || name.slice(0,2);
+    }
+    function fillAvatars(list){
+      const box = $p(".solar-p-avatars");
+      box.textContent = "";
+      const MAX = 12;
+      list.slice(0, MAX).forEach(({ c })=>{
+        const d = document.createElement("span");
+        d.className = "solar-ava";
+        d.setAttribute("role", "listitem");
+        d.title = c.name;
+        d.style.setProperty("--acolor", c.color || "#68d8ff");
+        const src = avatarSrc(c);
+        if(src){
+          const img = document.createElement("img");
+          img.src = src; img.alt = c.name; img.loading = "lazy"; img.decoding = "async";
+          d.appendChild(img);
+        } else {
+          d.textContent = initials(c.name);
+          d.setAttribute("aria-label", c.name);
+        }
+        box.appendChild(d);
+      });
+      if(list.length > MAX){
+        const more = document.createElement("span");
+        more.className = "solar-ava solar-ava-more";
+        more.setAttribute("role", "listitem");
+        more.textContent = "+" + (list.length - MAX);
+        box.appendChild(more);
+      }
+    }
+    function fillPanel(item){
+      const stats = $p(".solar-p-stats");
+      const enter = $p(".solar-p-enter");
+      const text = $p(".solar-p-text");
+      panel.classList.toggle("is-doom", item.kind === "hole");
+      if(item.kind === "planet"){
+        const s = item.season;
+        panel.style.setProperty("--pcolor", s.color || CYAN);
+        $p(".solar-p-code").textContent = s.code || `S${s.id}`;
+        $p(".solar-p-title").textContent = s.title || "";
+        const pend = isPending(s.hito);
+        text.textContent = pend ? "— hito pendiente —" : s.hito;
+        text.classList.toggle("is-pending", pend);
+        // personajes de la temporada, los que más aparecen primero
+        const count = {};
+        const evs = s.events || [];
+        evs.forEach(e=> (e.chars || []).forEach(id=>{ count[id] = (count[id] || 0) + 1; }));
+        const ids = Object.keys(count).sort((a,b)=> count[b] - count[a]);
+        const people = charsOf(ids);
+        stats.innerHTML = `<span><b>${evs.length}</b> ${evs.length === 1 ? "historia" : "historias"}</span><span><b>${people.length}</b> ${people.length === 1 ? "personaje" : "personajes"}</span>`;
+        fillAvatars(people);
+        enter.href = hrefFor(s.id);
+        enter.innerHTML = `Entrar a la temporada <span aria-hidden="true">→</span>`;
+      } else {
+        panel.style.setProperty("--pcolor", "#ff6a6a");
+        $p(".solar-p-code").textContent = "El Hoyo";
+        $p(".solar-p-title").textContent = "Armagedón";
+        const arm = (typeof DATA !== "undefined" && DATA.armageddon) || {};
+        const pend = isPending(arm.intro);
+        text.textContent = pend ? "— la profecía está pendiente —" : arm.intro;
+        text.classList.toggle("is-pending", pend);
+        // los que el Hoyo se va a tragar: el núcleo del grupo
+        const all = (typeof DATA !== "undefined" && DATA.characters) || {};
+        const core = charsOf(Object.keys(all).filter(id=> all[id].tier === "primario"));
+        const written = core.filter(x=> x.c.destino && !isPending(x.c.destino)).length;
+        stats.innerHTML = `<span><b>${core.length}</b> en el grupo</span><span><b>${written}</b> ${written === 1 ? "destino escrito" : "destinos escritos"}</span>`;
+        fillAvatars(core);
+        enter.href = armHref;
+        enter.innerHTML = `Ir al Armagedón <span aria-hidden="true">→</span>`;
+      }
+    }
+
+    // ---- humor del Armagedón ----
+    let doomOn = false;
+    const setMood = opts.onMood || (doom=>{ try{ document.body.classList.toggle("mood-doom", doom); }catch(e){} });
+    function mood(doom){ if(doom !== doomOn){ doomOn = doom; setMood(doom); } }
+    // colores base y su versión "condenada", para teñir disco, lente, halos y la luz
+    const DOOM = {
+      hot:[discU.uHot.value.clone(), C("#fff0e2")], cyan:[discU.uCyan.value.clone(), C("#ff6a3d")],
+      violet:[discU.uViolet.value.clone(), C("#b3123a")], deep:[discU.uDeep.value.clone(), C("#3a0610")],
+      light:[lightUniforms.uLightCol.value.clone(), C("#ffb49a")],
+      haloV:[haloV.material.color.clone(), C("#7a0a1c")], haloC:[haloC.material.color.clone(), C("#ff4a2a")]
+    };
+    let doomK = 0;
+    function applyDoom(){
+      discU.uHot.value.lerpColors(DOOM.hot[0], DOOM.hot[1], doomK);
+      discU.uCyan.value.lerpColors(DOOM.cyan[0], DOOM.cyan[1], doomK);
+      discU.uViolet.value.lerpColors(DOOM.violet[0], DOOM.violet[1], doomK);
+      discU.uDeep.value.lerpColors(DOOM.deep[0], DOOM.deep[1], doomK);
+      lightUniforms.uLightCol.value.lerpColors(DOOM.light[0], DOOM.light[1], doomK);
+      haloV.material.color.lerpColors(DOOM.haloV[0], DOOM.haloV[1], doomK);
+      haloC.material.color.lerpColors(DOOM.haloC[0], DOOM.haloC[1], doomK);
+    }
+
+    // ---- memoria de la vista (para volver con "atrás" al mismo ángulo) ----
+    const VIEW_KEY = "ychSolarView";
+    function saveView(){
+      try{
+        const TAU = Math.PI*2;
+        sessionStorage.setItem(VIEW_KEY, JSON.stringify({ yaw: ((yaw % TAU) + TAU) % TAU, pitch, t: Date.now() }));
+      }catch(e){ /* sin storage (vista previa, modo privado estricto): no se recuerda, y listo */ }
+    }
+    let restored = false;
+    try{
+      const v = JSON.parse(sessionStorage.getItem(VIEW_KEY) || "null");
+      if(v && isFinite(v.yaw) && isFinite(v.pitch) && Date.now() - (v.t || 0) < 6*3600*1000){
+        yaw = v.yaw; pitch = Math.max(PITCH_MIN, Math.min(PITCH_MAX, v.pitch));
+        restored = true;
+      }
+    }catch(e){ /* storage bloqueado o JSON roto: vista por defecto */ }
+    on(window, "pagehide", saveView);
+
+    // ---- cámara: vista general <-> foco ----
+    const FOCUS_DUR = 1.05;
+    let focus = null;    // { item, dir }
+    let tween = null;    // { from:{pos,target,k}, start }
+    const cam = { pos:new THREE.Vector3(0, 0, 20), target:new THREE.Vector3(), k:0 };
+    const dest = { pos:new THREE.Vector3(), target:new THREE.Vector3(), k:0 };
+    const easeInOutCubic = x=> x < 0.5 ? 4*x*x*x : 1 - Math.pow(-2*x + 2, 3)/2;
+    let portrait = portraitAtMount;
+
+    function overviewDest(camE){
+      dest.pos.set(0, 2.5*(1 - camE), baseZ*(1 + 2.4*(1 - camE)));
+      dest.target.set(0, 0, 0);
+      dest.k = 0;
+    }
+    function focusDest(){
+      const it = focus.item;
+      const center = it.world;
+      const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov/2));
+      dest.target.copy(center);
+      dest.k = 1;
+      if(it.kind === "hole"){ dest.pos.copy(center).addScaledVector(focus.dir, holeFocusDist()); return; }
+      const rEff = it.r * (it.ringed ? 2.35 : 1.2), frac = 0.36;
+      // en horizontal el objeto vive en la mitad izquierda; en vertical, en la mitad de arriba
+      const usableW = portrait ? 1 : 0.55, usableH = portrait ? 0.5 : 1;
+      const D = Math.max(rEff/(frac*tanV*usableH*1.6), rEff/(frac*tanV*camera.aspect*usableW*1.2));
+      dest.pos.copy(center).addScaledVector(focus.dir, D);
+    }
+    function holeFocusDist(){
+      const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov/2));
+      const rEff = DISC_OUT*1.05, frac = 0.7;
+      const usableW = portrait ? 1 : 0.55, usableH = portrait ? 0.5 : 1;
+      return Math.max(rEff/(frac*tanV*usableH), rEff/(frac*tanV*camera.aspect*usableW));
+    }
+    function startTween(){
+      if(reduced){ tween = null; return; }   // con reduced-motion la cámara salta
+      // reloj real, no dt: si un cuadro tarda, el vuelo no se alarga
+      tween = { from:{ pos:cam.pos.clone(), target:cam.target.clone(), k:cam.k }, start:performance.now() };
+    }
+    function applyViewOffset(k){
+      if(k < 0.001){ if(camera.view && camera.view.enabled) camera.clearViewOffset(); return; }
+      // correr el encuadre: el objeto queda a un lado y el panel ocupa el otro
+      if(portrait) camera.setViewOffset(W, H, 0, H*0.21*k, W, H);
+      else camera.setViewOffset(W, H, W*0.2*k, 0, W, H);
+    }
+
+    const vA = new THREE.Vector3(), vB = new THREE.Vector3(), vN = new THREE.Vector3();
+    let focusOrigin = null;   // a qué elemento devolver el foco del teclado al salir
+    function openFocus(item, fromKeyboard){
+      if(!item || (focus && focus.item === item)) return;
+      // dirección desde la que la cámara mira al objetivo
+      const dir = new THREE.Vector3();
+      if(item.kind === "planet"){
+        // entre la cámara actual y el Hoyo, un poco desde arriba: se ve la cara iluminada
+        // y el Hoyo queda de fondo
+        vA.copy(camera.position).sub(item.world).normalize();
+        vB.copy(holeItem.world).sub(item.world).normalize();
+        dir.copy(vA).addScaledVector(vB, 0.9).add(vN.set(0, 0.35, 0));
+        if(dir.lengthSq() < 1e-4) dir.copy(vA);
+        dir.normalize();
+      } else {
+        // al Hoyo, casi de canto respecto del disco: así se ve como Gargantúa. Las órbitas
+        // de afuera rodean al Hoyo, así que se busca el azimut (cerca del actual) donde ningún
+        // planeta quede entre la cámara y el disco
+        vN.set(0, 1, 0).applyQuaternion(world.quaternion);
+        vA.copy(camera.position).sub(item.world);
+        vA.addScaledVector(vN, -vA.dot(vN));
+        if(vA.lengthSq() < 1e-4) vA.set(0, 0, 1);
+        vA.normalize();
+        vB.crossVectors(vN, vA).normalize();               // completa la base del plano del disco
+        const elev = 0.17, D = holeFocusDist();
+        const rEff = DISC_OUT*1.05;
+        const cand = new THREE.Vector3(), seg = new THREE.Vector3(), rel = new THREE.Vector3();
+        let bestScore = Infinity;
+        for(let k=0; k<36; k++){
+          const az = (k < 18 ? k : k - 36) * (Math.PI/18);   // 0, +10°, ..., -10°
+          cand.copy(vA).multiplyScalar(Math.cos(az)).addScaledVector(vB, Math.sin(az))
+            .multiplyScalar(Math.cos(elev)).addScaledVector(vN, Math.sin(elev)).normalize();
+          seg.copy(cand).multiplyScalar(D);                 // del Hoyo a la cámara candidata
+          let score = Math.abs(az)*0.4;
+          planets.forEach(p=>{
+            rel.copy(p.world).sub(item.world);
+            const t = rel.dot(seg)/(D*D);
+            if(t <= 0.05 || t >= 1) return;                  // detrás del Hoyo o detrás de la cámara
+            const perp = rel.addScaledVector(seg, -t).length();
+            const block = (1 - t)*rEff*1.5 + p.r*(p.ringed ? 2.4 : 1.6);
+            if(perp < block) score += (block - perp)*10;
+          });
+          if(score < bestScore){ bestScore = score; dir.copy(cand); }
+        }
+      }
+      startTween();
+      focus = { item, dir };
+      velYaw = velPitch = 0;
+      fillPanel(item);
+      panel.inert = false;
+      panel.classList.add("is-open");
+      root.classList.add("is-focus");
+      mood(item.kind === "hole");
+      focusOrigin = item.label;
+      lastInteract = performance.now();
+      if(fromKeyboard){ try{ $p(".solar-p-enter").focus({ preventScroll:true }); }catch(e){} }
+      wake();
+    }
+    function closeFocus(){
+      if(!focus) return;
+      const hadKeyboardFocus = panel.contains(document.activeElement);
+      startTween();
+      focus = null;
+      panel.classList.remove("is-open");
+      panel.inert = true;
+      root.classList.remove("is-focus");
+      mood(false);
+      lastInteract = performance.now();
+      if(hadKeyboardFocus && focusOrigin){ try{ focusOrigin.focus({ preventScroll:true }); }catch(e){} }
+      wake();
+    }
+    on($p(".solar-back"), "click", closeFocus);
+    on($p(".solar-p-enter"), "click", saveView);
+    on(document, "keydown", e=>{ if(e.key === "Escape" && focus){ e.preventDefault(); closeFocus(); } });
+
+    // etiquetas: clic / Enter abren el foco (ctrl/cmd-clic sigue abriendo el link)
+    items.forEach(it=>{
+      on(it.label, "click", e=>{
+        if(e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || (e.button !== undefined && e.button !== 0)){ saveView(); return; }
+        e.preventDefault();
+        openFocus(it, e.detail === 0);
+      });
+      on(it.label, "mouseenter", ()=>setHover(it));
+      on(it.label, "mouseleave", ()=>setHover(null));
+      on(it.label, "focus", ()=>setHover(it));
+      on(it.label, "blur", ()=>setHover(null));
+    });
+
+    // ---- puntero: arrastrar rota, un toque/clic limpio selecciona ----
     const raycaster = new THREE.Raycaster();
     const ndc = new THREE.Vector2();
-    const Y_AXIS = new THREE.Vector3(0,1,0), X_AXIS = new THREE.Vector3(1,0,0);
-    const qTmp = new THREE.Quaternion();
+    const CLICK_SLOP = 5;                  // px: más que esto ya es arrastre, no selección
     let velYaw = 0, velPitch = 0;          // rad/s
     let drag = null;
     let lastInteract = -1e9;
     let hovered = null;
 
-    function rotateBy(yaw, pitch){
-      if(yaw){ qTmp.setFromAxisAngle(Y_AXIS, yaw); world.quaternion.premultiply(qTmp); }
-      if(pitch){ qTmp.setFromAxisAngle(X_AXIS, pitch); world.quaternion.premultiply(qTmp); }
-    }
     function radPerPx(){ return Math.PI / Math.max(360, W) * 1.15; }
+    function setPitch(v){ pitch = Math.max(PITCH_MIN, Math.min(PITCH_MAX, v)); }
 
-    function pick(clientX, clientY){
+    function pick(clientX, clientY, isTouch){
       const rect = canvas.getBoundingClientRect();
       ndc.set(((clientX-rect.left)/rect.width)*2-1, -((clientY-rect.top)/rect.height)*2+1);
       raycaster.setFromCamera(ndc, camera);
       const ray = raycaster.ray;
+      const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov/2));
+      // radio mínimo en pantalla: generoso para el dedo, sobre todo con planetas chicos
+      const minPx = isTouch ? 26 : 14;
       let best = null, bestD = Infinity;
-      planets.forEach(p=>{
-        if(p.appear < 0.5) return;
-        const hitR = Math.max(p.r*1.5, 0.55);   // blanco generoso, sobre todo para el dedo
-        if(ray.distanceSqToPoint(p.world) > hitR*hitR) return;
-        const d = ray.origin.distanceTo(p.world);
-        if(d < bestD){ bestD = d; best = p; }
+      items.forEach(it=>{
+        if(it.appear < 0.5) return;
+        const d = ray.origin.distanceTo(it.world);
+        const worldPerPx = 2*d*tanV/H;
+        const own = it.kind === "hole" ? HOLE_R*1.25 : it.r*it.group.scale.x*(it.ringed ? 1.9 : 1.35);
+        const hitR = Math.max(own, minPx*worldPerPx);
+        if(ray.distanceSqToPoint(it.world) > hitR*hitR) return;
+        if(d < bestD){ bestD = d; best = it; }
       });
       return best;
     }
-    function setHover(p){
-      if(p === hovered) return;
+    function cursor(){
+      canvas.style.cursor = drag && drag.moved ? "grabbing" : hovered ? "pointer" : focus ? "default" : "grab";
+    }
+    function setHover(it){
+      if(it === hovered) return;
       if(hovered){ hovered.hover = false; hovered.label.classList.remove("is-hover"); }
-      hovered = p;
-      if(p){ p.hover = true; p.label.classList.add("is-hover"); }
-      canvas.style.cursor = p ? "pointer" : (drag ? "grabbing" : "grab");
+      hovered = it;
+      if(it){ it.hover = true; it.label.classList.add("is-hover"); }
+      cursor();
       wake();
     }
 
     on(canvas, "pointerdown", e=>{
       if(e.button !== undefined && e.button !== 0) return;
-      drag = { id:e.pointerId, type:e.pointerType, x0:e.clientX, y0:e.clientY, x:e.clientX, y:e.clientY, t:performance.now(), t0:performance.now(), moved:false };
-      if(e.pointerType !== "touch"){ try{ canvas.setPointerCapture(e.pointerId); }catch(err){} canvas.style.cursor = "grabbing"; }
-      velYaw = velPitch = 0;
-      lastInteract = performance.now();
+      const now = performance.now();
+      drag = { id:e.pointerId, type:e.pointerType, x0:e.clientX, y0:e.clientY, x:e.clientX, y:e.clientY, t:now, moved:false };
+      if(e.pointerType !== "touch"){ try{ canvas.setPointerCapture(e.pointerId); }catch(err){} }
+      velYaw = velPitch = 0;   // agarrar frena el giro en seco
+      lastInteract = now;
       wake();
     });
     on(canvas, "pointermove", e=>{
       if(!drag || e.pointerId !== drag.id){
-        if(e.pointerType === "mouse") setHover(pick(e.clientX, e.clientY));
+        if(e.pointerType === "mouse") setHover(pick(e.clientX, e.clientY, false));
         return;
       }
       const now = performance.now();
+      if(!drag.moved && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) > CLICK_SLOP){
+        drag.moved = true;
+        // el tramo dentro del margen no rota: así un clic tembloroso no mueve la escena
+        drag.x = e.clientX; drag.y = e.clientY; drag.t = now;
+        if(hovered) setHover(null);
+        cursor();
+      }
+      if(!drag.moved || focus){ lastInteract = now; return; }   // en foco la escena no rota
       const dx = e.clientX - drag.x;
       // en touch solo el gesto horizontal rota; el vertical es del scroll de la página
       const dy = drag.type === "touch" ? 0 : e.clientY - drag.y;
-      const dt = Math.max(1, now - drag.t)/1000;
+      const dt = Math.max(8, now - drag.t)/1000;
       const k = radPerPx();
-      rotateBy(dx*k, dy*k);
-      velYaw = velYaw*0.6 + (dx*k/dt)*0.4;
-      velPitch = velPitch*0.6 + (dy*k/dt)*0.4;
+      yaw += dx*k;
+      setPitch(pitch + dy*k*0.8);
+      // velocidad suavizada: el último tramo del gesto manda, sin saltos por un evento suelto
+      velYaw = velYaw*0.5 + (dx*k/dt)*0.5;
+      velPitch = velPitch*0.5 + (dy*k*0.8/dt)*0.5;
       drag.x = e.clientX; drag.y = e.clientY; drag.t = now;
-      if(Math.hypot(e.clientX-drag.x0, e.clientY-drag.y0) > 6) drag.moved = true;
       lastInteract = now;
       wake();
     });
     function endDrag(e, cancelled){
       if(!drag || e.pointerId !== drag.id) return;
       const now = performance.now();
-      if(now - drag.t > 90){ velYaw = velPitch = 0; }   // se detuvo antes de soltar: sin inercia
-      const clean = !cancelled && !drag.moved && (now - drag.t0) < 600;
+      const wasDrag = drag.moved;
+      if(now - drag.t > 80){ velYaw = velPitch = 0; }   // se detuvo antes de soltar: sin inercia
+      const type = drag.type;
       drag = null;
-      canvas.style.cursor = hovered ? "pointer" : "grab";
       lastInteract = now;
-      if(clean){
-        const p = pick(e.clientX, e.clientY);
-        if(p){ location.href = p.label.href; return; }
+      if(!wasDrag && !cancelled){
+        velYaw = velPitch = 0;
+        const it = pick(e.clientX, e.clientY, type === "touch");
+        if(it) openFocus(it, false);
+        else if(focus) closeFocus();     // clic en el vacío: vuelve a la vista general
       }
-      const MAX = 6;   // tope de inercia, para que un latigazo no lo deje como trompo
+      const MAX = 5;   // tope de inercia, para que un latigazo no lo deje como trompo
       velYaw = Math.max(-MAX, Math.min(MAX, velYaw));
       velPitch = Math.max(-MAX, Math.min(MAX, velPitch));
+      if(e.pointerType === "mouse") setHover(pick(e.clientX, e.clientY, false));
+      cursor();
       wake();
     }
     on(canvas, "pointerup", e=>endDrag(e, false));
     on(canvas, "pointercancel", e=>endDrag(e, true));
     on(canvas, "pointerleave", e=>{ if(e.pointerType === "mouse" && !drag) setHover(null); });
-    canvas.style.cursor = "grab";
+    cursor();
 
     // ---- bucle ----
     let raf = null, lastT = 0, simTime = 0;
     let visible = !document.hidden, inView = true;
     let dirty = true;
-    // entrada: la cámara llega desde lejos y el sistema aparece por partes, en orden
+    // entrada: la cámara llega desde lejos y el sistema aparece por partes, en orden. Si se
+    // vuelve con "atrás" (vista recordada), se salta: ya la vio.
     const INTRO = 3.6;
-    let introT = reduced ? INTRO : 0, introStart = -1;
+    let introT = (reduced || restored) ? INTRO : 0, introStart = -1;
     const vTmp = new THREE.Vector3(), vSeg = new THREE.Vector3(), vHole = new THREE.Vector3(), vClosest = new THREE.Vector3();
     const qWorld = new THREE.Quaternion(), qCamInv = new THREE.Quaternion();
     // vigilancia de framerate (solo con bloom): si no da, se apaga
@@ -879,7 +1211,7 @@
     function wake(){ dirty = true; if(raf === null && visible && inView){ lastT = 0; raf = requestAnimationFrame(frame); } }
     function stop(){ if(raf !== null){ cancelAnimationFrame(raf); raf = null; } }
 
-    on(document, "visibilitychange", ()=>{ visible = !document.hidden; if(visible) wake(); else stop(); });
+    on(document, "visibilitychange", ()=>{ visible = !document.hidden; if(visible) wake(); else { stop(); saveView(); } });
     if("IntersectionObserver" in window){
       const io = new IntersectionObserver(entries=>{
         inView = entries[0] ? entries[0].isIntersecting : true;
@@ -889,16 +1221,38 @@
       cleanups.push(()=>io.disconnect());
     }
 
+    function hideLabel(l){ l.style.opacity = "0"; l.style.visibility = "hidden"; }
     const placed = [];
     function updateLabels(){
-      vHole.setFromMatrixPosition(world.matrixWorld);
+      vHole.copy(holeItem.world);
       const camPos = camera.position;
       const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov/2));
-      const order = planets.slice().sort((a,b)=> camPos.distanceToSquared(a.world) - camPos.distanceToSquared(b.world));
+      // en foco las etiquetas se van (el panel ya dice todo) y vuelven al salir
+      const labelK = 1 - cam.k;
+      if(labelK < 0.05){ items.forEach(it=>hideLabel(it.label)); return; }
+
       placed.length = 0;
+      // el Hoyo: discreto, bajo la sombra
+      {
+        vTmp.copy(vHole).project(camera);
+        const x = (vTmp.x*0.5+0.5)*W, y = (-vTmp.y*0.5+0.5)*H;
+        const dist = camPos.distanceTo(vHole);
+        const rpx = HOLE_R*1.25*(H/2)/(dist*tanV);
+        const op = (holeItem.hover ? 1 : 0.5) * holeItem.appear * labelK;
+        holeItem.label.style.opacity = op.toFixed(2);
+        holeItem.label.style.visibility = op > 0.02 ? "visible" : "hidden";
+        holeItem.label.style.transform = `translate(${x.toFixed(1)}px, ${(y + rpx + 4).toFixed(1)}px) translate(-50%, 0)`;
+        // entra al anti-choque: si una etiqueta de planeta le cae encima, esa queda compacta
+        if(op > 0.02){
+          const hw = (holeItem.lw || 80)/2;
+          placed.push({ x0:x - hw, x1:x + hw, y0:y + rpx + 4, y1:y + rpx + 4 + (holeItem.lh || 30) });
+        }
+      }
+
+      const order = planets.slice().sort((a,b)=> camPos.distanceToSquared(a.world) - camPos.distanceToSquared(b.world));
       order.forEach(p=>{
         vTmp.copy(p.world).project(camera);
-        if(vTmp.z > 1 || p.appear < 0.02){ p.label.style.opacity = "0"; p.label.style.visibility = "hidden"; return; }
+        if(vTmp.z > 1 || p.appear < 0.02){ hideLabel(p.label); return; }
         const x = (vTmp.x*0.5+0.5)*W, y = (-vTmp.y*0.5+0.5)*H;
         const dist = camPos.distanceTo(p.world);
         const rpx = p.r * p.group.scale.x * (H/2) / (dist*tanV);
@@ -923,7 +1277,7 @@
         p.label.classList.toggle("is-compact", compact);
         const depth = (dist - camPos.length())/ORBIT_R[0];   // ~ -1 (cerca) .. 1 (lejos)
         const op = hidden ? 0 : Math.max(0.42, Math.min(1, 0.8 - depth*0.4)) * clamp01((p.appear - 0.4)/0.6);
-        p.label.style.opacity = (p.hover ? Math.max(op, 1) : op).toFixed(2);
+        p.label.style.opacity = ((p.hover ? Math.max(op, 1) : op) * labelK).toFixed(2);
         p.label.style.visibility = hidden ? "hidden" : "visible";
         p.label.style.transform = `translate(${x.toFixed(1)}px, ${ly.toFixed(1)}px) translate(-50%, -100%)`;
         p.label.style.zIndex = String(p.hover ? 2000 : 1000 - Math.round(dist*10));
@@ -940,44 +1294,52 @@
       // recién después del primer cuadro, que es el que compila los shaders (puede tardar)
       if(introT < INTRO && introStart >= 0) introT = Math.min(INTRO, (performance.now() - introStart)/1000);
       const camE = easeOutCubic(clamp01(introT/2.6));
-      camera.position.z = baseZ * (1 + 2.4*(1 - camE));
-      camera.position.y = 2.5*(1 - camE);
-      camera.lookAt(0, 0, 0);
-      camera.updateMatrixWorld();
-      lens.quaternion.copy(camera.quaternion);
-      shadow.quaternion.copy(camera.quaternion);
-      stage.rotation.y = -1.25*(1 - camE);
+      const introYaw = -1.25*(1 - camE);
       const holeIn = clamp01((introT - 0.15)/1.0);
       discU.uReveal.value = holeIn;
       lensU.uReveal.value = clamp01((introT - 0.35)/0.9);
       haloV.material.opacity = 0.5*holeIn*spriteK();
       haloC.material.opacity = 0.32*holeIn*spriteK();
       threadU.uReveal.value = easeOutCubic(clamp01((introT - 2.15)/1.3)) * 1.001;
+      holeItem.appear = holeIn;
 
-      // --- rotación: arrastre, inercia, auto-giro ---
-      if(!drag){
+      // --- rotación: inercia que frena natural y auto-giro que vuelve de a poco ---
+      if(!drag && !focus){
         if(velYaw || velPitch){
-          rotateBy(velYaw*dt, velPitch*dt);
-          const decay = Math.exp(-dt*2.6);
-          velYaw *= decay; velPitch *= decay;
-          if(Math.abs(velYaw) < 0.002 && Math.abs(velPitch) < 0.002) velYaw = velPitch = 0;
+          yaw += velYaw*dt;
+          const before = pitch;
+          setPitch(pitch + velPitch*dt);
+          if(pitch !== before + velPitch*dt) velPitch = 0;   // tocó el tope: ahí se queda
+          // fricción exponencial + un roce constante chico, para que no se arrastre eterno
+          const decay = Math.exp(-dt*3.2);
+          velYaw = Math.sign(velYaw)*Math.max(0, Math.abs(velYaw)*decay - 0.06*dt);
+          velPitch = Math.sign(velPitch)*Math.max(0, Math.abs(velPitch)*decay - 0.06*dt);
+          if(Math.abs(velYaw) < 0.004 && Math.abs(velPitch) < 0.004) velYaw = velPitch = 0;
         }
-        if(!reduced){
-          // giro propio muy lento alrededor del eje del sistema; entra suave tras soltar
-          const idle = clamp01((now - lastInteract - 900)/2200);
-          if(idle > 0){ qTmp.setFromAxisAngle(Y_AXIS, 0.05*idle*dt); world.quaternion.multiply(qTmp); }
+        if(!reduced && !tween){
+          // quieto unos segundos: el giro propio vuelve a entrar, de a poco
+          const idle = clamp01((now - lastInteract - 2500)/3000);
+          if(idle > 0) yaw += 0.05*idle*idle*dt;
         }
       }
+      world.rotation.set(pitch, yaw + introYaw, 0);
+
+      // --- humor ---
+      const kM = dt ? 1 - Math.exp(-dt*3) : 1;
+      const doomTarget = focus && focus.item.kind === "hole" ? 1 : 0;
+      if(Math.abs(doomTarget - doomK) > 0.001 || reduced){ doomK = reduced ? doomTarget : doomK + (doomTarget - doomK)*kM; applyDoom(); }
+
       if(!reduced) simTime += dt;
       discU.uTime.value = simTime;
       lensU.uTime.value = simTime;
       threadU.uTime.value = simTime;
 
-      // --- planetas: aparición en orden, hover ---
+      // --- planetas: aparición en orden, hover / foco ---
       planets.forEach((p, i)=>{
         p.appear = clamp01((introT - 0.75 - i*0.22)/0.7);
         const k = 1 - Math.exp(-dt*12);
-        p.hoverK += ((p.hover ? 1 : 0) - p.hoverK) * (dt ? k : 1);
+        const lit = p.hover || (focus && focus.item === p);
+        p.hoverK += ((lit ? 1 : 0) - p.hoverK) * (dt ? k : 1);
         const s = Math.max(0.0001, easeOutBack(p.appear) * (1 + 0.14*p.hoverK));
         p.group.scale.setScalar(s);
         p.planetU.uHover.value = p.hoverK;
@@ -989,25 +1351,51 @@
         if(!reduced) p.sphere.rotation.y += dt*(0.1 + i*0.018);
       });
 
+      holeItem.hoverK += (((holeItem.hover || (focus && focus.item === holeItem)) ? 1 : 0) - holeItem.hoverK) * (dt ? 1 - Math.exp(-dt*12) : 1);
+
       stage.updateMatrixWorld(true);
+      holeItem.world.setFromMatrixPosition(world.matrixWorld);
+      planets.forEach(p=> p.group.getWorldPosition(p.world));
+
+      // --- cámara: vista general o foco, con vuelo suave entre ambas ---
+      if(focus) focusDest(); else overviewDest(camE);
+      if(tween){
+        const tt = clamp01((performance.now() - tween.start)/1000/FOCUS_DUR);
+        const e = easeInOutCubic(tt);
+        const span = tween.from.pos.distanceTo(dest.pos);
+        cam.pos.lerpVectors(tween.from.pos, dest.pos, e);
+        cam.pos.y += Math.sin(Math.PI*e)*span*0.08;    // un leve arco, no una línea recta
+        cam.target.lerpVectors(tween.from.target, dest.target, e);
+        cam.k = tween.from.k + (dest.k - tween.from.k)*e;
+        if(tt >= 1) tween = null;
+      } else {
+        cam.pos.copy(dest.pos); cam.target.copy(dest.target); cam.k = dest.k;
+      }
+      camera.position.copy(cam.pos);
+      camera.lookAt(cam.target);
+      applyViewOffset(cam.k);
+      camera.updateMatrixWorld();
+      lens.position.copy(holeItem.world);
+      shadow.position.copy(holeItem.world);
+      lens.quaternion.copy(camera.quaternion);
+      shadow.quaternion.copy(camera.quaternion);
+
       // luz y normal del disco, en espacio de vista
-      lightUniforms.uLightPos.value.setFromMatrixPosition(world.matrixWorld).applyMatrix4(camera.matrixWorldInverse);
+      lightUniforms.uLightPos.value.copy(holeItem.world).applyMatrix4(camera.matrixWorldInverse);
       world.getWorldQuaternion(qWorld);
       lensU.uDiscN.value.set(0, 1, 0).applyQuaternion(qWorld).applyQuaternion(qCamInv.copy(camera.quaternion).invert());
       planets.forEach(p=>{
-        p.group.getWorldPosition(p.world);
         if(p.ringU){
           p.ringU.uCenter.value.copy(p.world);
           p.ringU.uR.value = p.r * p.group.scale.x;
-          p.ringU.uLightW.value.setFromMatrixPosition(world.matrixWorld);
+          p.ringU.uLightW.value.copy(holeItem.world);
         }
       });
 
       if(composer){
         // círculo de la sombra en pantalla (uv, unidades del alto)
-        vTmp.setFromMatrixPosition(world.matrixWorld);
-        const dHole = camera.position.distanceTo(vTmp);
-        vTmp.project(camera);
+        const dHole = camera.position.distanceTo(holeItem.world);
+        vTmp.copy(holeItem.world).project(camera);
         shadowPass.uniforms.uCenter.value.set(vTmp.x*0.5 + 0.5, vTmp.y*0.5 + 0.5);
         shadowPass.uniforms.uRadius.value = (HOLE_R/Math.sqrt(Math.max(1e-3, dHole*dHole - HOLE_R*HOLE_R))) / Math.tan(THREE.MathUtils.degToRad(camera.fov/2)) / 2;
         shadowPass.uniforms.uAspect.value = camera.aspect;
@@ -1028,7 +1416,7 @@
 
       // con reduced-motion no hay nada que animar en reposo: el bucle se duerme hasta la
       // próxima interacción. Sin reduced-motion sigue (auto-giro, disco, pulsos).
-      const settling = drag || velYaw || velPitch || planets.some(p=> Math.abs((p.hover?1:0) - p.hoverK) > 0.01);
+      const settling = drag || velYaw || velPitch || tween || items.some(it=> Math.abs(((it.hover || (focus && focus.item === it))?1:0) - it.hoverK) > 0.01);
       if((!reduced || settling || dirty) && visible && inView) raf = requestAnimationFrame(frame);
     }
 
@@ -1037,6 +1425,8 @@
     // ---- desmontaje ----
     return function dispose(){
       stop();
+      saveView();
+      if(doomOn) setMood(false);
       cleanups.forEach(fn=>{ try{ fn(); }catch(e){} });
       if(composer){ composer.passes.forEach(p=>{ if(p.dispose) p.dispose(); }); composer.dispose(); composer = null; }
       const mats = new Set(), geos = new Set();

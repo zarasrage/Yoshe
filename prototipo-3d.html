@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Outfit:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
-<!-- Prototipo del sistema solar 3D (F0: mecánica, F1: arte). Página aparte a propósito: no toca index.html ni
+<!-- Prototipo del sistema solar 3D (F0: mecánica, F1: arte, F2: interacción). Página aparte a propósito: no toca index.html ni
      viewHome(). Reusa el cielo real (styles.css + el starfield de app.js, copiado abajo tal
      cual porque app.js entero montaría la home) y monta solar.js encima. Los estilos .solar-*
      viven aquí mientras sea prototipo; si se adopta, pasan a styles.css. -->
@@ -23,7 +23,7 @@
   .solar-stage{position:relative; z-index:2; height:min(100svh, 980px); min-height:520px; margin-top:-64px;}
   .solar-root{position:absolute; inset:0;}
   .solar-canvas{display:block; width:100%; height:100%; -webkit-tap-highlight-color:transparent; user-select:none;}
-  .solar-labels{position:absolute; inset:0; pointer-events:none; overflow:hidden;}
+  .solar-labels{position:absolute; inset:0; z-index:1; pointer-events:none; overflow:hidden;}
   .solar-label{position:absolute; left:0; top:0; pointer-events:auto; display:flex; flex-direction:column; align-items:center;
     gap:2px; padding:4px 10px 5px; border-radius:12px; white-space:nowrap; text-align:center;
     transition:opacity .25s linear, background .25s var(--ease), box-shadow .25s var(--ease); will-change:transform;}
@@ -38,12 +38,64 @@
     box-shadow:0 0 0 1px color-mix(in srgb, var(--pcolor) 45%, transparent), 0 0 24px color-mix(in srgb, var(--pcolor) 30%, transparent);}
   .solar-label:hover .solar-code, .solar-label.is-hover .solar-code{color:#fff;}
   .solar-label:hover .solar-title, .solar-label.is-hover .solar-title{color:#fff; text-shadow:0 0 14px var(--pcolor), 0 1px 3px #000;}
-  .solar-label:focus-visible{outline:1px solid var(--amber); outline-offset:2px;}
+  .solar-label:focus-visible{outline:1px solid var(--pcolor); outline-offset:3px;}
+  /* el Hoyo: discreto, apagado, bajo la sombra */
+  .solar-label-hole .solar-code{color:#ff8a8a; letter-spacing:.3em; font-size:.56rem;}
+  .solar-label-hole .solar-title{font-size:.86rem; color:var(--ink-dim);}
+
+  /* ---- foco: panel con la temporada ---- */
+  .solar-panel{position:absolute; z-index:5; right:clamp(16px,4vw,64px); top:50%; width:min(420px, 38vw);
+    transform:translate(24px,-50%); opacity:0; pointer-events:none;
+    padding:22px 24px 24px; border-radius:20px; background:rgba(3,12,28,.72);
+    border:1px solid color-mix(in srgb, var(--pcolor, var(--amber)) 30%, var(--line));
+    box-shadow:0 30px 80px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.05);
+    -webkit-backdrop-filter:blur(14px) saturate(1.2); backdrop-filter:blur(14px) saturate(1.2);
+    transition:opacity .45s var(--ease), transform .6s var(--ease);}
+  .solar-panel.is-open{opacity:1; transform:translate(0,-50%); pointer-events:auto; transition-delay:.25s;}
+  .solar-back{display:inline-flex; align-items:center; gap:6px; font:500 .7rem/1 'JetBrains Mono',monospace; letter-spacing:.12em;
+    text-transform:uppercase; color:var(--ink-dim); background:transparent; border:1px solid var(--line); border-radius:999px;
+    padding:8px 12px; cursor:pointer; margin-bottom:18px; transition:color .2s, border-color .2s;}
+  .solar-back:hover, .solar-back:focus-visible{color:var(--ink); border-color:var(--pcolor); outline:none;}
+  .solar-p-code{font-family:'JetBrains Mono',monospace; font-size:.72rem; font-weight:500; letter-spacing:.28em; text-transform:uppercase; color:var(--pcolor);}
+  .solar-p-title{font-family:'Cormorant Garamond',Georgia,serif; font-style:italic; font-weight:600; font-size:clamp(2rem,3.4vw,2.8rem);
+    line-height:1.02; margin:6px 0 12px; color:var(--ink); text-shadow:0 0 28px color-mix(in srgb, var(--pcolor) 35%, transparent);}
+  .solar-p-text{margin:0 0 16px; color:var(--ink-dim); line-height:1.55; font-size:.95rem;}
+  .solar-p-text.is-pending{font-family:'JetBrains Mono',monospace; font-size:.72rem; letter-spacing:.08em; color:var(--ink-faint);}
+  .solar-p-stats{display:flex; gap:22px; margin-bottom:16px; padding:12px 0; border-top:1px solid var(--line-soft); border-bottom:1px solid var(--line-soft);
+    font-family:'JetBrains Mono',monospace; font-size:.66rem; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-faint);}
+  .solar-p-stats b{display:block; font-family:'Cormorant Garamond',Georgia,serif; font-size:1.9rem; font-weight:600; letter-spacing:0; color:var(--ink); line-height:1;}
+  .solar-p-avatars{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:20px;}
+  .solar-ava{width:38px; height:38px; border-radius:50%; overflow:hidden; display:grid; place-items:center; flex:none;
+    background:color-mix(in srgb, var(--acolor) 28%, #06142a); border:1.5px solid color-mix(in srgb, var(--acolor) 70%, transparent);
+    font:600 .72rem/1 'Outfit',sans-serif; color:#fff;}
+  /* mismo recorte que .avatar-img del sitio: retrato grande, zoom a cabeza y hombros */
+  .solar-ava img{width:100%; height:100%; object-fit:cover; object-position:50% 0%; transform:scale(1.7); transform-origin:50% 0%; display:block;}
+  .solar-ava-more{background:rgba(255,255,255,.06); border-color:var(--line); color:var(--ink-dim); font-family:'JetBrains Mono',monospace; font-size:.66rem;}
+  .solar-p-enter{display:flex; align-items:center; justify-content:center; gap:10px; padding:13px 18px; border-radius:999px;
+    font:500 .95rem/1 'Outfit',sans-serif; color:#04101f; background:var(--pcolor);
+    box-shadow:0 0 0 1px rgba(255,255,255,.12) inset, 0 10px 30px color-mix(in srgb, var(--pcolor) 35%, transparent);
+    transition:transform .25s var(--ease), box-shadow .25s var(--ease);}
+  .solar-p-enter:hover, .solar-p-enter:focus-visible{transform:translateY(-1px); outline:none;
+    box-shadow:0 0 0 2px #fff inset, 0 14px 40px color-mix(in srgb, var(--pcolor) 55%, transparent);}
+  .solar-panel.is-doom{background:rgba(24,4,8,.74); border-color:rgba(255,90,90,.32);}
+  .solar-panel.is-doom .solar-p-title{text-shadow:0 0 30px rgba(255,60,60,.55);}
+  .solar-stage:has(.solar-root.is-focus) .solar-hint{opacity:0;}
+  /* en vertical (teléfono): el objeto queda arriba y el panel es una hoja abajo */
+  .solar-root.is-portrait .solar-panel{left:12px; right:12px; top:auto; bottom:12px; width:auto; max-height:52%; overflow:auto;
+    padding:16px 18px 18px; transform:translateY(24px);}
+  .solar-root.is-portrait .solar-panel.is-open{transform:translateY(0);}
+  .solar-root.is-portrait .solar-back{margin-bottom:12px;}
+  .solar-root.is-portrait .solar-p-title{font-size:2rem; margin-bottom:8px;}
+  .solar-root.is-portrait .solar-p-text{margin-bottom:12px; font-size:.9rem;}
+  .solar-root.is-portrait .solar-p-stats{margin-bottom:12px; padding:8px 0;}
+  .solar-root.is-portrait .solar-p-avatars{margin-bottom:14px;}
+  .solar-root.is-portrait .solar-ava{width:32px; height:32px;}
   @media (max-width:600px){
     .solar-title{font-size:.95rem;} .solar-code{font-size:.56rem;}
     .solar-stage{height:min(100svh, 160vw); margin-top:-40px;}
     .proto-tag{font-size:.56rem; padding:5px 9px;}
     .solar-hint{padding:0 16px; bottom:14px;}
+    .solar-hint .long{display:none;}
   }
 
   .solar-status{position:absolute; inset:0; display:grid; place-items:center; color:var(--ink-dim);
@@ -68,12 +120,12 @@
 
 <header class="proto-bar">
   <a href="index.html">Yoshe con <em>Hoyo</em></a>
-  <span class="proto-tag">Prototipo F1 · sistema 3D</span>
+  <span class="proto-tag">Prototipo F2 · sistema 3D</span>
 </header>
 
 <section class="solar-stage" id="solarStage">
   <div class="solar-status" id="solarStatus">cargando el sistema…</div>
-  <div class="solar-hint" id="solarHint">arrastra para girar · toca un planeta</div>
+  <div class="solar-hint" id="solarHint">arrastra<span class="long"> para girar</span> · toca un planeta o el Hoyo</div>
 </section>
 
 <section class="proto-notes">
@@ -83,7 +135,10 @@
     <li>La rueda del mouse hace scroll (no zoom). En el teléfono: swipe horizontal rota, vertical baja la página.</li>
     <li>Cada planeta es una temporada: color de la temporada, tamaño según cuántas historias tiene. S0 orbita lejos y S5 cerca del Hoyo.</li>
     <li>El hilo de luz une S0→S5; los pulsos viajan en el sentido del tiempo.</li>
-    <li>Clic en un planeta (o en su etiqueta) abre esa temporada en el sitio real. Al pasar el mouse, el planeta crece y brilla.</li>
+    <li>Clic (o toque) en un planeta: la cámara vuela hacia él y aparece el panel de la temporada. Esc, clic en el vacío o «←» vuelven. «Entrar a la temporada» abre la temporada en el sitio real.</li>
+    <li>Clic en el Hoyo: lo mismo, pero con el humor del Armagedón.</li>
+    <li>Teclado: Tab recorre S0→S5 y luego el Hoyo; Enter abre el foco.</li>
+    <li>Al volver con «atrás» desde una temporada, la cámara queda en el mismo ángulo.</li>
     <li>Cada planeta tiene su propia superficie: S0 rocoso con cráteres, S1 gigante con anillos, S2 océano con nubes, S3 volcánico, S4 tormenta gigante con anillo, S5 hielo.</li>
     <li>En desktop hay bloom; en el teléfono el brillo es con sprites. Para comparar: <code>?bloom=0</code> o <code>?bloom=1</code> en la URL.</li>
   </ul>
@@ -283,7 +338,7 @@ try{
 (function(){
   const stage = document.getElementById("solarStage");
   const status = document.getElementById("solarStatus");
-  const opts = { hrefFor: id => `index.html#/season/${id}` };
+  const opts = { hrefFor: id => `index.html#/season/${id}`, armageddonHref: "index.html#/armageddon" };
   const q = new URLSearchParams(location.search).get("bloom");
   if(q === "0" || q === "1") opts.bloom = q === "1";
   function mount(){
