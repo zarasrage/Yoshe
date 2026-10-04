@@ -108,18 +108,24 @@
 
   // niveles de calidad. dpr: tope del devicePixelRatio; detail: octavas de ruido y capas de
   // cráteres/grietas en los shaders (2 completo, 1 menos, 0 mínimo); bloom: solo en alto
+  // Ojo con el DPR: los teléfonos tienen pantallas 3x, y bajo ~1.5 la escena se ve borrosa y
+  // los anillos dentados (pasó en un iPhone con dpr 1). El ahorro grande está en el bloom y en
+  // el detalle de los shaders, no en dibujar a baja resolución.
   const TIERS = {
-    high:   { dpr:1.5, detail:2, bloom:true  },
-    medium: { dpr:1.5, detail:1, bloom:false },
-    low:    { dpr:1,   detail:0, bloom:false },
+    high:   { dpr:2,    detail:2, bloom:true  },
+    medium: { dpr:2,    detail:1, bloom:false },
+    low:    { dpr:1.5,  detail:0, bloom:false },
   };
   const TIER_DOWN = { high:"medium", medium:"low", low:null };
   function initialTier(){
     const nav = navigator;
-    const mem = nav.deviceMemory || 4, cores = nav.hardwareConcurrency || 4;
+    // Safari no informa deviceMemory, y hardwareConcurrency no dice nada útil en iOS: sin el
+    // dato no se castiga (antes un iPhone partía en "low" por eso). El ritmo medido en vivo
+    // corrige después si hace falta
+    const mem = nav.deviceMemory || 8, cores = nav.hardwareConcurrency || 8;
     if(isDesktop()) return (mem >= 4 && cores >= 4) ? "high" : "medium";
-    // teléfonos y tablets nunca parten en alto (sin bloom, y el DPR ya topa en 1.5)
-    return (mem <= 2 || cores <= 4) ? "low" : "medium";
+    // teléfonos y tablets nunca parten en alto (sin bloom); "low" solo con poca memoria declarada
+    return mem <= 2 ? "low" : "medium";
   }
 
   // precarga de baja prioridad: no compite con el primer pintado ni con las fotos
@@ -700,7 +706,7 @@
     // orientación: yaw libre, pitch acotado (nunca queda de cabeza). Vista inicial desde
     // arriba; en vertical más inclinada, para llenar el alto disponible
     const portraitAtMount = container.clientWidth < container.clientHeight*0.8;
-    let yaw = 0, pitch = portraitAtMount ? 0.9 : 0.46;
+    let yaw = 0, pitch = portraitAtMount ? 1.18 : 0.46;
     const PITCH_MIN = -0.12, PITCH_MAX = 1.3;
     stage.add(world);
 
@@ -936,7 +942,7 @@
       const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov/2));
       // en la home la caja es una franja ancha y baja: ahí manda el alto, y la vista desde
       // arriba (pitch ~0.46) ocupa bastante menos que el radio entero, así que se aprieta más
-      const dV = (extent*(portrait ? 0.82 : 0.7))/tanV, dH = extent*(portrait ? 0.97 : 1)/(tanV*camera.aspect);
+      const dV = (extent*(portrait ? 0.82 : 0.7))/tanV, dH = extent*(portrait ? 0.9 : 1)/(tanV*camera.aspect);
       baseZ = Math.max(dV, dH) + 1.5;
       camera.updateProjectionMatrix();
       measureLabels();
@@ -1133,7 +1139,7 @@
       dest.pos.set(0, 2.5*(1 - camE), baseZ*(1 + 2.4*(1 - camE)));
       // el lado cercano de las órbitas baja más de lo que el lejano sube: mirar un poco más
       // abajo del Hoyo deja el conjunto centrado en la caja
-      dest.target.set(0, portrait ? 0 : -0.55, 0);
+      dest.target.set(0, portrait ? -0.45 : -0.55, 0);
       dest.k = 0;
     }
     function focusDest(){
@@ -1381,7 +1387,7 @@
     // y sobre 60ms (<16fps) = rendirse. Tras bajar, una pausa para que se asiente.
     // El modo de bajo consumo de iOS topa el rAF en 30fps (33ms): eso baja la calidad hasta el
     // nivel bajo, que es justo lo que conviene ahí, pero nunca llega a rendirse.
-    let paceN = 0, paceSum = 0, prevCb = 0, paceHold = 0;
+    let paceN = 0, paceSum = 0, prevCb = 0, paceHold = 0, slowWins = 0;
     // en táctiles, en reposo se dibuja a ~30fps
     const idleThrottle = !isDesktop();
 
@@ -1474,7 +1480,10 @@
       if(paceN < 90) return true;
       const avg = paceSum/paceN;
       paceN = 0; paceSum = 0;
-      if(avg > 26 && lowerTier()){ paceHold = now + 2500; return true; }
+      // dos ventanas lentas seguidas: un tirón suelto (fotos decodificándose, otra pestaña) no
+      // debe bajar la calidad para siempre
+      slowWins = avg > 26 ? slowWins + 1 : 0;
+      if(slowWins >= 2 && lowerTier()){ slowWins = 0; paceHold = now + 2500; return true; }
       if(avg > 60 && tier === "low" && !opts.force){ fail("slow"); return false; }
       return true;
     }
