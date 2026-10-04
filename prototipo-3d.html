@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Outfit:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
-<!-- Prototipo F0 del sistema solar 3D. Página aparte a propósito: no toca index.html ni
+<!-- Prototipo del sistema solar 3D (F0: mecánica, F1: arte). Página aparte a propósito: no toca index.html ni
      viewHome(). Reusa el cielo real (styles.css + el starfield de app.js, copiado abajo tal
      cual porque app.js entero montaría la home) y monta solar.js encima. Los estilos .solar-*
      viven aquí mientras sea prototipo; si se adopta, pasan a styles.css. -->
@@ -25,16 +25,22 @@
   .solar-canvas{display:block; width:100%; height:100%; -webkit-tap-highlight-color:transparent; user-select:none;}
   .solar-labels{position:absolute; inset:0; pointer-events:none; overflow:hidden;}
   .solar-label{position:absolute; left:0; top:0; pointer-events:auto; display:flex; flex-direction:column; align-items:center;
-    gap:1px; padding:3px 8px; border-radius:10px; white-space:nowrap; text-align:center;
-    transition:opacity .25s linear; will-change:transform;}
-  .solar-code{font-family:'JetBrains Mono',monospace; font-size:.66rem; letter-spacing:.16em; color:var(--pcolor);
-    text-shadow:0 0 10px rgba(0,0,0,.9);}
-  .solar-title{font-family:'Cormorant Garamond',Georgia,serif; font-size:1.02rem; font-weight:600; color:var(--ink);
-    text-shadow:0 1px 3px rgba(0,0,0,.95), 0 0 14px rgba(1,10,20,.9);}
-  .solar-label:hover .solar-title, .solar-label.is-hover .solar-title{color:#fff; text-shadow:0 0 12px var(--pcolor), 0 1px 3px #000;}
+    gap:2px; padding:4px 10px 5px; border-radius:12px; white-space:nowrap; text-align:center;
+    transition:opacity .25s linear, background .25s var(--ease), box-shadow .25s var(--ease); will-change:transform;}
+  .solar-code{font-family:'JetBrains Mono',monospace; font-size:.62rem; font-weight:500; letter-spacing:.22em; padding-left:.22em;
+    color:var(--pcolor); text-shadow:0 0 8px rgba(0,0,0,.95), 0 0 14px rgba(0,0,0,.7); transition:color .25s;}
+  .solar-title{font-family:'Cormorant Garamond',Georgia,serif; font-size:1.12rem; font-weight:600; font-style:italic; letter-spacing:.01em;
+    color:var(--ink); text-shadow:0 1px 3px rgba(0,0,0,.95), 0 0 16px rgba(1,10,20,.95);
+    transition:color .25s, text-shadow .25s, max-height .3s var(--ease), opacity .2s; max-height:2em; overflow:hidden;}
+  /* tapada por una etiqueta más cercana: queda solo el código */
+  .solar-label.is-compact .solar-title{max-height:0; opacity:0;}
+  .solar-label:hover, .solar-label.is-hover{background:rgba(3,12,28,.55);
+    box-shadow:0 0 0 1px color-mix(in srgb, var(--pcolor) 45%, transparent), 0 0 24px color-mix(in srgb, var(--pcolor) 30%, transparent);}
+  .solar-label:hover .solar-code, .solar-label.is-hover .solar-code{color:#fff;}
+  .solar-label:hover .solar-title, .solar-label.is-hover .solar-title{color:#fff; text-shadow:0 0 14px var(--pcolor), 0 1px 3px #000;}
   .solar-label:focus-visible{outline:1px solid var(--amber); outline-offset:2px;}
   @media (max-width:600px){
-    .solar-title{font-size:.88rem;} .solar-code{font-size:.6rem;}
+    .solar-title{font-size:.95rem;} .solar-code{font-size:.56rem;}
     .solar-stage{height:min(100svh, 160vw); margin-top:-40px;}
     .proto-tag{font-size:.56rem; padding:5px 9px;}
     .solar-hint{padding:0 16px; bottom:14px;}
@@ -62,7 +68,7 @@
 
 <header class="proto-bar">
   <a href="index.html">Yoshe con <em>Hoyo</em></a>
-  <span class="proto-tag">Prototipo F0 · sistema 3D</span>
+  <span class="proto-tag">Prototipo F1 · sistema 3D</span>
 </header>
 
 <section class="solar-stage" id="solarStage">
@@ -77,7 +83,9 @@
     <li>La rueda del mouse hace scroll (no zoom). En el teléfono: swipe horizontal rota, vertical baja la página.</li>
     <li>Cada planeta es una temporada: color de la temporada, tamaño según cuántas historias tiene. S0 orbita lejos y S5 cerca del Hoyo.</li>
     <li>El hilo de luz une S0→S5; los pulsos viajan en el sentido del tiempo.</li>
-    <li>Clic en un planeta (o en su etiqueta) abre esa temporada en el sitio real.</li>
+    <li>Clic en un planeta (o en su etiqueta) abre esa temporada en el sitio real. Al pasar el mouse, el planeta crece y brilla.</li>
+    <li>Cada planeta tiene su propia superficie: S0 rocoso con cráteres, S1 gigante con anillos, S2 océano con nubes, S3 volcánico, S4 tormenta gigante con anillo, S5 hielo.</li>
+    <li>En desktop hay bloom; en el teléfono el brillo es con sprites. Para comparar: <code>?bloom=0</code> o <code>?bloom=1</code> en la URL.</li>
   </ul>
   <p>
     <button type="button" id="btnUnmount">Desmontar</button>
@@ -276,6 +284,8 @@ try{
   const stage = document.getElementById("solarStage");
   const status = document.getElementById("solarStatus");
   const opts = { hrefFor: id => `index.html#/season/${id}` };
+  const q = new URLSearchParams(location.search).get("bloom");
+  if(q === "0" || q === "1") opts.bloom = q === "1";
   function mount(){
     status.textContent = "cargando el sistema…"; status.style.display = "";
     mountSolar(stage, opts).then(r=>{ if(r) status.style.display = "none"; })
