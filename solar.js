@@ -34,7 +34,8 @@
    inicial sale del equipo y después solo BAJA, nunca sube (no hay oscilación), si el ritmo de
    cuadros medido en vivo no da. En el nivel bajo, si ni así da, onFail("slow").
 
-   Batería: en reposo (sin arrastre, inercia ni vuelo), en pantallas táctiles se dibuja a ~30fps;
+   Batería: se dibuja al ritmo de la pantalla siempre (se probó bajar a 30fps en reposo en
+   táctiles y se notaba);
    el bucle se detiene del todo fuera de pantalla o con la pestaña oculta (en el foco sigue animado).
 
    Carga: en la home, three.js no se pide hasta que la página ya pintó y está ociosa. Desde las
@@ -1451,8 +1452,6 @@
     // El modo de bajo consumo de iOS topa el rAF en 30fps (33ms): eso baja la calidad hasta el
     // nivel bajo, que es justo lo que conviene ahí, pero nunca llega a rendirse.
     let paceN = 0, paceSum = 0, prevCb = 0, paceHold = 0, slowWins = 0;
-    // en táctiles, en reposo se dibuja a ~30fps
-    const idleThrottle = !isDesktop();
 
     function wake(){ dirty = true; if(raf === null && visible && inView){ lastT = 0; prevCb = 0; raf = requestAnimationFrame(frame); } }
     function stop(){ if(raf !== null){ cancelAnimationFrame(raf); raf = null; } }
@@ -1555,8 +1554,6 @@
       raf = null;
       if(dead) return;
       if(!pace(now)) return;
-      // reposo en táctil: un cuadro sí y uno no (~30fps a 60Hz)
-      if(idleThrottle && lastT && !dirty && now - lastT < 28 && !busy()){ raf = requestAnimationFrame(frame); return; }
       const dt = lastT ? Math.min((now-lastT)/1000, 0.05) : 0;
       lastT = now;
 
@@ -1680,7 +1677,7 @@
 
       // con reduced-motion el bucle se duerme apenas se asienta, hasta la próxima interacción.
       // Si no, sigue siempre (también en el foco: el planeta gira, el disco y los pulsos siguen;
-      // en táctiles en reposo va a ~30fps, ver idleThrottle)
+      // siempre al ritmo de la pantalla)
       if((!reduced || busy() || dirty) && visible && inView) raf = requestAnimationFrame(frame);
     }
 
