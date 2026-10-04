@@ -146,12 +146,15 @@ nav.seasons-strip button.active{
 }
 
 /* ===== HOME / PORTAL ===== */
-/* 100dvh (not vh) so the mobile address bar can't push the constellation past the fold */
+/* 100svh (the SMALL viewport: browser bar shown), not vh (which on iOS is the big one and puts
+   the scroll cue under the bar) and not dvh (which changes while the bar collapses during the
+   scroll: the hero would grow and shrink, and the 3D canvas would resize every frame of it).
+   The plain vh line is the fallback for browsers without svh. */
 /* the hero fills the viewport BELOW the sticky nav (--nav-h): copy on top, scroll cue at the
    bottom, and .home-sky (the 2D constellation + the 3D scene) growing into everything between */
 .hero{
   --nav-h:64px;
-  min-height:calc(100dvh - var(--nav-h)); display:flex; flex-direction:column; align-items:center; justify-content:center;
+  min-height:calc(100vh - var(--nav-h)); min-height:calc(100svh - var(--nav-h)); display:flex; flex-direction:column; align-items:center; justify-content:center;
   text-align:center; padding:24px 20px 26px; position:relative;
 }
 /* Readability pocket behind the headline: the photo behind it is busy, this keeps a

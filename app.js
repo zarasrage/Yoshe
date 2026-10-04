@@ -383,7 +383,8 @@ function getPhotos(c){
 function avatarSrc(c){ return getPhotos(c)[0] || c.photo || null; }
 function avatarInner(c){
   const src = avatarSrc(c);
-  if(src) return `<img src="${src}" alt="${escapeHtml(c.name)}" class="avatar-img">`;
+  // lazy: the cast grid sits below the hero, and these are full portraits (~350KB each)
+  if(src) return `<img src="${src}" alt="${escapeHtml(c.name)}" class="avatar-img" loading="lazy" decoding="async">`;
   return initials(c.name);
 }
 function cyclePhoto(imgEl){
@@ -669,8 +670,38 @@ function viewHome(){
 // ---- sistema solar 3D: montaje sobre la 2D ----
 // ?3d=0 apaga el 3D (para ver el respaldo); ?3d=1 lo fuerza aunque el equipo parezca débil
 // o el navegador renderice por software (headless, pruebas)
+// ?q=high|medium|low fija el nivel inicial de calidad (pruebas; si no, lo elige solar.js)
 const SOLAR_PARAM = (()=>{ try{ return new URLSearchParams(location.search).get("3d"); }catch(e){ return null; } })();
-let solarGaveUp = false;   // falló una vez en esta carga (contexto perdido, lento): no reintentar
+const SOLAR_Q = (()=>{ try{ return new URLSearchParams(location.search).get("q"); }catch(e){ return null; } })();
+let solarGaveUp = false;   // falló sin remedio en esta carga (lento, shader): no reintentar
+// pérdida de contexto WebGL: iOS la provoca seguido al volver de otra app o al desbloquear.
+// Se reintenta montando de nuevo (sin entrada, con el ángulo guardado) cuando la pestaña está
+// visible; si se pierde 3 veces en la misma carga, queda la 2D.
+let solarLosses = 0, solarRetry = null;
+function cancelSolarRetry(){
+  if(!solarRetry) return;
+  clearTimeout(solarRetry.timer);
+  document.removeEventListener("visibilitychange", solarRetry.onVis);
+  solarRetry = null;
+}
+function scheduleSolarRetry(){
+  cancelSolarRetry();
+  const r = solarRetry = { timer:null, onVis:null };
+  const go = ()=>{
+    if(solarRetry !== r) return;
+    cancelSolarRetry();
+    if(document.getElementById("solarStage")) mountHomeSolar({ intro:false, restoreView:true });
+  };
+  r.onVis = ()=>{ if(!document.hidden){ clearTimeout(r.timer); r.timer = setTimeout(go, 400); } };
+  document.addEventListener("visibilitychange", r.onVis);
+  if(!document.hidden) r.timer = setTimeout(go, 1200);
+}
+// desmontar del todo antes de cambiar de vista: la escena y un reintento pendiente
+function unmountHomeSolar(){
+  cancelSolarRetry();
+  try{ if(typeof unmountSolar === "function") unmountSolar(); }catch(e){}
+}
+function setStarDensityFor(q){ if(window.setStarDensity) window.setStarDensity(q === "low" ? 0.55 : q === "medium" ? 0.8 : 1); }
 function routeIsArmageddon(){ return /^#\/?armageddon/.test(location.hash); }
 // body.mood-doom tiene dos dueños: la ruta (#/armageddon) y el foco del Hoyo en la home. Se
 // calcula siempre desde ambos, así desmontar o cerrar el foco deja lo que pide la ruta
@@ -688,12 +719,15 @@ function mountHomeSolar(o){
       intro: o.intro,
       restoreView: o.restoreView,
       force,
+      quality: SOLAR_Q || undefined,
+      onQuality: setStarDensityFor,
       onMood: syncMood,
       onReady: ()=>{ if(stage.isConnected) hero.classList.add("solar-on"); },
       onFail: reason=>{
-        solarGaveUp = true;
         try{ unmountSolar(); }catch(e){}
         back2d();
+        if(reason === "context-lost" && ++solarLosses < 3){ scheduleSolarRetry(); return; }
+        solarGaveUp = true;
         if(window.console) console.warn("sistema 3D desactivado:", reason);
       },
       keysBlocked: ()=> !!document.querySelector(".modal-overlay.active, .search-overlay.active"),
@@ -864,6 +898,7 @@ function setupTimelineProgress(){
     bar.style.height = (scrolled/total*100)+"%";
   }
   window.addEventListener("scroll", onScroll, {passive:true});
+  viewCleanups.push(()=>window.removeEventListener("scroll", onScroll, {passive:true}));
   onScroll();
 }
 
@@ -1169,6 +1204,10 @@ const scrollMemory = {};
 // true while rendering a back/forward navigation: viewHome() passes it to the 3D scene so
 // it restores its camera angle (sessionStorage) along with the router's scroll position
 let routeFromHistory = false;
+// listeners on window/document that a view adds for itself: render() removes them before the
+// next view (otherwise every visit to a season left one more scroll handler behind, holding
+// that visit's detached timeline alive)
+const viewCleanups = [];
 function render(){
   try{
     scrollMemory[lastHash] = window.scrollY;
@@ -1180,7 +1219,9 @@ function render(){
     // the 3D home scene goes away before any view swap (even home -> home): it frees its
     // WebGL context, rAF loop and listeners, saves its camera angle and drops a doom mood
     // it may have set. viewHome() mounts a fresh one.
-    try{ if(typeof unmountSolar === "function") unmountSolar(); }catch(e){}
+    unmountHomeSolar();
+    viewCleanups.splice(0).forEach(fn=>{ try{ fn(); }catch(e){} });
+    setStarDensityFor("high");
 
     const hash = location.hash.replace(/^#\/?/,"");
     const parts = hash.split("/").filter(Boolean);
@@ -1220,6 +1261,14 @@ function replayRouteAnimation(){
   app.classList.add("route-in");
 }
 window.addEventListener("hashchange", render);
+// three.js se precarga con baja prioridad una vez que la página terminó de cargar y está
+// ociosa, aunque se haya entrado por otra vista: así volver a la home no espera la descarga.
+// (En la home misma, mountSolar ya la pide después del primer pintado.)
+window.addEventListener("load", ()=>{
+  if(SOLAR_PARAM === "0" || typeof preloadSolar !== "function") return;
+  const go = ()=>{ try{ if(solarCapable(SOLAR_PARAM === "1")) preloadSolar(); }catch(e){} };
+  if(window.requestIdleCallback) requestIdleCallback(go, { timeout:3000 }); else setTimeout(go, 1500);
+});
 (function(){
   // the constellation uses a different point layout above/below the 600px breakpoint
   // (see constellationHtml), so crossing it needs a rebuild of the 2D points - just the 2D:
@@ -1255,6 +1304,14 @@ try{
   let stars=[], shots=[], dust=[];
   let rafId=null, lastT=0, shotCooldown=1.5+Math.random()*2.5;
   let dpr=1;
+  // density: share of the stars that get painted (the 3D home lowers it on weaker devices,
+  // see setStarDensityFor). Stars are generated in random order, so drawing the first N is a
+  // uniform thinning with no visible reshuffle.
+  let density = 1;
+  window.setStarDensity = k=>{ density = Math.max(0.2, Math.min(1, k)); if(reduced) drawStatic(); };
+  // touch devices (phones, tablets): the twinkle runs at ~30fps, which looks the same and
+  // halves the battery cost of a layer that animates on every page
+  const halfRate = (()=>{ try{ return !window.matchMedia("(hover: hover) and (pointer: fine)").matches; }catch(e){ return false; } })();
 
   // The canvas is a VIEWPORT-sized fixed layer sitting on top of the (also fixed) sky photo.
   // It used to be document-sized, which meant allocating a buffer several thousand px tall and
@@ -1295,10 +1352,14 @@ try{
 
   function resize(){
     dpr = Math.min(window.devicePixelRatio||1, 2);
+    const sameWidth = stars.length && c.cssW === window.innerWidth;
     c.cssW = window.innerWidth; c.cssH = window.innerHeight;
     c.width = Math.round(c.cssW*dpr); c.height = Math.round(c.cssH*dpr);
     c.style.width = c.cssW+"px"; c.style.height = c.cssH+"px";
     ctx.setTransform(dpr,0,0,dpr,0,0);
+    // a height-only change is the mobile browser bar showing/hiding while scrolling: keep the
+    // same stars (they wrap to the new height) instead of reshuffling the whole sky
+    if(sameWidth){ if(reduced) drawStatic(); return; }
     const area = c.cssW*c.cssH;
     const count = Math.min(560, Math.max(150, Math.round(area/2600)));
     stars = Array.from({length: count}, makeStar);
@@ -1333,7 +1394,8 @@ try{
   // single static frame for prefers-reduced-motion
   function drawStatic(){
     ctx.clearRect(0,0,c.cssW,c.cssH);
-    stars.forEach(s=>paintStar(s,s.base,0,0));
+    const n = Math.round(stars.length*density);
+    for(let i=0;i<n;i++) paintStar(stars[i],stars[i].base,0,0);
   }
 
   function spawnShot(){
@@ -1359,16 +1421,22 @@ try{
   }
 
   function draw(t){
+    if(halfRate && lastT && t-lastT < 28){ rafId = requestAnimationFrame(draw); return; }
     const dt = lastT? Math.min((t-lastT)/1000, 0.08) : 0;
     lastT = t;
     const W=c.cssW, H=c.cssH;
+    const n = Math.round(stars.length*density);
+    // drift speeds were tuned per 60fps frame; scale by the real elapsed time so they move
+    // the same at 30fps (or on a slow device)
+    const k = dt ? dt*60 : 1;
 
-    stars.forEach(s=>{
-      s.x += s.vx; s.y += s.vy;
+    for(let i=0;i<n;i++){
+      const s = stars[i];
+      s.x += s.vx*k; s.y += s.vy*k;
       if(s.x<-6) s.x=W+6; else if(s.x>W+6) s.x=-6;
       if(s.y<-6) s.y=H+6; else if(s.y>H+6) s.y=-6;
-    });
-    dust.forEach(d=>{ d.y += 0.05; if(d.y>H+4) d.y=-4; });
+    }
+    dust.forEach(d=>{ d.y += 0.05*k; if(d.y>H+4) d.y=-4; });
 
     maybeSpawnShot(dt||0.016);
     shots.forEach(sh=>{ sh.x+=sh.vx*dt; sh.y+=sh.vy*dt; sh.life+=dt; });
@@ -1388,7 +1456,8 @@ try{
       ctx.fillStyle=`rgba(200,224,255,${d.a})`; ctx.fill();
     });
 
-    stars.forEach(s=>{
+    for(let i=0;i<n;i++){
+      const s = stars[i];
       const a = s.base*(0.34+0.66*Math.sin(t*0.0013*s.speed+s.phase));
       let oy = driftY - sy*s.par;
       // wrap the parallax offset so stars never march off the top of a long page
@@ -1396,7 +1465,7 @@ try{
       oy = ((oy % span) + span) % span;
       if(s.y+oy > H+6) oy -= span;
       paintStar(s, a, driftX, oy);
-    });
+    }
 
     shots.forEach(sh=>{
       const p = sh.life/sh.maxLife;
@@ -1429,10 +1498,11 @@ try{
 })();
 }catch(e){ /* decorative starfield failing should never block the app */ }
 
-// One shared rAF loop for the scroll driven chrome: nav condensing and the hero receding as
-// it scrolls away. All cheap transform / class writes, no layout thrash. The star canvas is
-// fixed and handles its own parallax internally, and the 3D scene runs its own loop (which
-// sleeps when the hero is out of view), so neither needs anything here.
+// Scroll driven chrome: nav condensing and the hero receding as it scrolls away. All cheap
+// transform / class writes, no layout thrash. It runs one rAF per scroll (or resize / route
+// change) instead of a loop on every frame: with nothing scrolling, nothing runs. The star
+// canvas is fixed and handles its own parallax internally, and the 3D scene runs its own
+// loop (which sleeps when the hero is out of view), so neither needs anything here.
 try{
   const heroReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   let rafId = null;
@@ -1466,12 +1536,13 @@ try{
         }
       }
     }
-    rafId = requestAnimationFrame(tick);
+    rafId = null;
   }
-  function start(){ if(rafId===null) rafId = requestAnimationFrame(tick); }
-  function stop(){ if(rafId!==null){ cancelAnimationFrame(rafId); rafId=null; } }
-  document.addEventListener("visibilitychange", ()=>{ if(document.hidden) stop(); else start(); });
-  start();
+  function schedule(){ if(rafId===null) rafId = requestAnimationFrame(tick); }
+  window.addEventListener("scroll", schedule, { passive:true });
+  window.addEventListener("resize", schedule);
+  window.addEventListener("hashchange", ()=>setTimeout(schedule, 0));   // after render()
+  schedule();
 }catch(e){ /* decorative depth effects failing should never block the app */ }
 
 render();

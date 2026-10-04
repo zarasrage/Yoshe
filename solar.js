@@ -20,8 +20,22 @@
      restoreView      true: retomar el ángulo guardado en sessionStorage (volver con "atrás")
      intro            false: sin la entrada (cámara desde lejos, planetas en orden)
      keysBlocked()    true mientras otra capa (modal, buscador) es dueña del teclado
-     force            no apagarse por lento (pruebas con ?3d=1)
-     bloom            forzar (true) o apagar (false) el bloom de desktop
+     force            no apagarse por lento (pruebas con ?3d=1); igual puede bajar de nivel
+     quality          "high" | "medium" | "low": nivel inicial (por defecto, según el equipo)
+     onQuality(q)     se llama con el nivel al montar y cada vez que baja
+     bloom            false: sin bloom aunque el nivel sea alto
+
+   Calidad por niveles (ver TIERS): alto = bloom + DPR hasta 1.5 + shaders completos; medio =
+   sin bloom, DPR hasta 1.5, menos octavas de ruido; bajo = DPR 1, lo mínimo de ruido. El nivel
+   inicial sale del equipo y después solo BAJA, nunca sube (no hay oscilación), si el ritmo de
+   cuadros medido en vivo no da. En el nivel bajo, si ni así da, onFail("slow").
+
+   Batería: en reposo (sin arrastre, inercia ni vuelo), en pantallas táctiles se dibuja a ~30fps;
+   el bucle se detiene del todo fuera de pantalla, con la pestaña oculta o con el foco quieto.
+
+   Carga: en la home, three.js no se pide hasta que la página ya pintó y está ociosa. Desde las
+   otras vistas, app.js lo precarga con preloadSolar() (<link rel="modulepreload"
+   fetchpriority="low">, tras el load), y el import() de la home después reusa esa descarga.
 
    Interacción: arrastrar rota (yaw libre, pitch acotado), con inercia; clic/toque/Enter en
    un planeta o en el Hoyo abre el "foco": la cámara vuela hasta el objetivo y un panel
@@ -85,11 +99,54 @@
     }catch(e){ return fallback; }
   }
 
-  // bloom solo donde hay mouse fino y pantalla ancha: en teléfonos y tablets, sprites
-  function wantsBloom(){
+  // mouse fino y pantalla ancha = desktop; todo lo demás (teléfonos, tablets) se trata como móvil
+  function isDesktop(){
     try{
       return window.matchMedia("(hover: hover) and (pointer: fine)").matches && window.innerWidth >= 900;
     }catch(e){ return false; }
+  }
+
+  // niveles de calidad. dpr: tope del devicePixelRatio; detail: octavas de ruido y capas de
+  // cráteres/grietas en los shaders (2 completo, 1 menos, 0 mínimo); bloom: solo en alto
+  const TIERS = {
+    high:   { dpr:1.5, detail:2, bloom:true  },
+    medium: { dpr:1.5, detail:1, bloom:false },
+    low:    { dpr:1,   detail:0, bloom:false },
+  };
+  const TIER_DOWN = { high:"medium", medium:"low", low:null };
+  function initialTier(){
+    const nav = navigator;
+    const mem = nav.deviceMemory || 4, cores = nav.hardwareConcurrency || 4;
+    if(isDesktop()) return (mem >= 4 && cores >= 4) ? "high" : "medium";
+    // teléfonos y tablets nunca parten en alto (sin bloom, y el DPR ya topa en 1.5)
+    return (mem <= 2 || cores <= 4) ? "low" : "medium";
+  }
+
+  // precarga de baja prioridad: no compite con el primer pintado ni con las fotos
+  const preloaded = {};
+  function preloadSolar(withPost){
+    try{
+      const urls = [THREE_URL];
+      if(withPost === undefined ? isDesktop() : withPost) urls.push(POST_URL);
+      urls.forEach(u=>{
+        if(preloaded[u]) return;
+        preloaded[u] = true;
+        const l = document.createElement("link");
+        l.rel = "modulepreload"; l.href = u;
+        l.setAttribute("fetchpriority", "low");
+        document.head.appendChild(l);
+      });
+    }catch(e){ /* sin precarga: el import() la hace igual */ }
+  }
+  // espera a que la página haya pintado (dos rAF) y esté ociosa, con tope de medio segundo
+  function afterFirstPaint(){
+    return new Promise(res=>{
+      const go = ()=>{
+        if(window.requestIdleCallback) requestIdleCallback(()=>res(), { timeout:500 });
+        else setTimeout(res, 50);
+      };
+      requestAnimationFrame(()=>requestAnimationFrame(go));
+    });
   }
 
   async function mountSolar(container, opts){
@@ -98,7 +155,13 @@
     const token = {};
     current = { token, dispose: null };
 
-    const bloom = opts.bloom !== undefined ? !!opts.bloom : wantsBloom();
+    const tier = TIERS[opts.quality] ? opts.quality : initialTier();
+    const bloom = TIERS[tier].bloom && opts.bloom !== false;
+    // la 2D ya está en pantalla: three.js espera a que la página pinte y quede ociosa. Acá
+    // (en la home) se pide con la prioridad normal de un módulo: con fetchpriority="low"
+    // quedaba en la cola detrás de las fotos del elenco y el 3D llegaba segundos después
+    await afterFirstPaint();
+    if(!current || current.token !== token) return null;
     const THREE = await load(THREE_URL);
     let POST = null;
     if(bloom){
@@ -107,7 +170,7 @@
     // se desmontó (o se volvió a montar) mientras cargaba: no construir nada
     if(!current || current.token !== token) return null;
 
-    try{ current.dispose = build(THREE, POST, container, opts); }
+    try{ current.dispose = build(THREE, POST, container, Object.assign({}, opts, { quality: tier })); }
     catch(err){ current = null; throw err; }
     return { unmount: unmountSolar };
   }
@@ -135,6 +198,19 @@
   /* ---------- GLSL compartido ---------- */
   // simplex 3D (Ashima Arts / Stefan Gustavson, MIT) + fbm + worley + hashes
   const NOISE = `
+    #ifndef DETAIL
+    #define DETAIL 2
+    #endif
+    #if DETAIL >= 2
+    #define FBM_OCT 5
+    #define FBM3_OCT 3
+    #elif DETAIL == 1
+    #define FBM_OCT 4
+    #define FBM3_OCT 2
+    #else
+    #define FBM_OCT 3
+    #define FBM3_OCT 2
+    #endif
     vec3 mod289(vec3 x){ return x - floor(x*(1.0/289.0))*289.0; }
     vec4 mod289(vec4 x){ return x - floor(x*(1.0/289.0))*289.0; }
     vec4 permute(vec4 x){ return mod289(((x*34.0)+10.0)*x); }
@@ -180,12 +256,12 @@
     }
     float fbm(vec3 p){
       float s = 0.0, a = 0.5;
-      for(int k=0; k<5; k++){ s += a*snoise(p); p = p*2.03 + 17.1; a *= 0.5; }
+      for(int k=0; k<FBM_OCT; k++){ s += a*snoise(p); p = p*2.03 + 17.1; a *= 0.5; }
       return s;
     }
     float fbm3(vec3 p){
       float s = 0.0, a = 0.5;
-      for(int k=0; k<3; k++){ s += a*snoise(p); p = p*2.07 + 9.7; a *= 0.5; }
+      for(int k=0; k<FBM3_OCT; k++){ s += a*snoise(p); p = p*2.07 + 9.7; a *= 0.5; }
       return s;
     }
     vec3 hash3(vec3 p){
@@ -336,8 +412,11 @@
         vec2 w = worley(sp*4.0);
         float bowl = smoothstep(0.42, 0.18, w.x);
         float rimL = exp(-pow((w.x - 0.44)/0.05, 2.0));
-        vec2 w2 = worley(sp*9.0 + 4.0);
-        float bowl2 = smoothstep(0.35, 0.12, w2.x);
+        float bowl2 = 0.0;
+        #if DETAIL >= 1
+        vec2 w2 = worley(sp*9.0 + 4.0);   // cráteres chicos: 27 celdas más por píxel
+        bowl2 = smoothstep(0.35, 0.12, w2.x);
+        #endif
         col *= 1.0 - bowl*0.35 - bowl2*0.2;
         col += uC2*rimL*0.25;
       } else if(uType == 1 || uType == 4){
@@ -376,8 +455,11 @@
         col = mix(uC0*0.55, uC1*0.6, smoothstep(-0.6, 0.6, h));
         vec2 w = worley(sp*3.6 + h*0.35);
         float crack = 1.0 - smoothstep(0.0, 0.07, w.y - w.x);
-        vec2 w2 = worley(sp*8.0 + 2.0);
-        float crack2 = 1.0 - smoothstep(0.0, 0.05, w2.y - w2.x);
+        float crack2 = 0.0;
+        #if DETAIL >= 1
+        vec2 w2 = worley(sp*8.0 + 2.0);   // grietas finas
+        crack2 = 1.0 - smoothstep(0.0, 0.05, w2.y - w2.x);
+        #endif
         float pulse = 0.75 + 0.25*sin(uTime*1.7 + h*9.0);
         emis = uC3 * (crack*1.5 + crack2*0.6) * pulse;
         col *= 1.0 - crack*0.5;
@@ -601,7 +683,11 @@
     on(canvas, "webglcontextlost", e=>{ e.preventDefault(); fail("context-lost"); });
     renderer.setClearColor(0x000000, 0);
     const dpr = window.devicePixelRatio || 1;
-    renderer.setPixelRatio(Math.min(dpr, POST ? 1.5 : 2));
+    let tier = opts.quality;
+    renderer.setPixelRatio(Math.min(dpr, TIERS[tier].dpr));
+    // los materiales cuyo shader usa NOISE: al bajar de nivel se recompilan con menos detalle
+    const detailMats = [];
+    const detailed = m=>{ m.defines = Object.assign({}, m.defines, { DETAIL: TIERS[tier].detail }); detailMats.push(m); return m; };
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 400);
     camera.position.set(0, 0, 20);
@@ -636,7 +722,7 @@
     };
     const disc = new THREE.Mesh(
       new THREE.RingGeometry(DISC_IN, DISC_OUT, 220, 24),
-      new THREE.ShaderMaterial({ uniforms:discU, vertexShader:DISC_VERT, fragmentShader:DISC_FRAG, side:THREE.DoubleSide, ...additive })
+      detailed(new THREE.ShaderMaterial({ uniforms:discU, vertexShader:DISC_VERT, fragmentShader:DISC_FRAG, side:THREE.DoubleSide, ...additive }))
     );
     disc.rotation.x = -Math.PI/2;
     disc.renderOrder = 2;
@@ -650,7 +736,7 @@
       uTime:{ value:0 }, uRs:{ value:HOLE_R }, uReveal:{ value:0 }, uDiscN:{ value:new THREE.Vector3(0,1,0) },
       uHot:discU.uHot, uCyan:discU.uCyan, uViolet:discU.uViolet
     };
-    const lens = new THREE.Mesh(lensGeo, new THREE.ShaderMaterial({ uniforms:lensU, vertexShader:LENS_VERT, fragmentShader:LENS_FRAG, ...additive }));
+    const lens = new THREE.Mesh(lensGeo, detailed(new THREE.ShaderMaterial({ uniforms:lensU, vertexShader:LENS_VERT, fragmentShader:LENS_FRAG, ...additive })));
     lens.renderOrder = 3;
     scene.add(lens);
     const shadowU = { uRs:{ value:HOLE_R }, uReveal:lensU.uReveal };
@@ -719,7 +805,7 @@
       };
       if(look.type === 3) planetU.uC3.value = new THREE.Color(color).lerp(C("#ffb347"), 0.55).multiplyScalar(1.6);
       const sphere = new THREE.Mesh(new THREE.SphereGeometry(r, 64, 40),
-        new THREE.ShaderMaterial({ uniforms:planetU, vertexShader:PLANET_VERT, fragmentShader:PLANET_FRAG }));
+        detailed(new THREE.ShaderMaterial({ uniforms:planetU, vertexShader:PLANET_VERT, fragmentShader:PLANET_FRAG })));
       tilt.add(sphere);
 
       const ATMO_K = 1.16;
@@ -733,7 +819,7 @@
         ringU = { uIn:{ value:r*1.45 }, uOut:{ value:r*2.35 }, uSeed:{ value:i*0.73 }, uR:{ value:r }, uReveal:{ value:0 },
           uC1:{ value:pal.c1.clone().lerp(C("#ffffff"), 0.15) }, uC2:{ value:pal.c2 }, uCenter:{ value:new THREE.Vector3() }, uLightW:{ value:new THREE.Vector3() } };
         const ring = new THREE.Mesh(new THREE.RingGeometry(r*1.45, r*2.35, 128, 4),
-          new THREE.ShaderMaterial({ uniforms:ringU, vertexShader:RING_VERT, fragmentShader:RING_FRAG, transparent:true, depthWrite:false, side:THREE.DoubleSide }));
+          detailed(new THREE.ShaderMaterial({ uniforms:ringU, vertexShader:RING_VERT, fragmentShader:RING_FRAG, transparent:true, depthWrite:false, side:THREE.DoubleSide })));
         ring.rotation.x = -Math.PI/2 + 0.08;
         tilt.add(ring);
       }
@@ -815,10 +901,23 @@
       composer.passes.forEach(p=>{ if(p.dispose) p.dispose(); });
       composer.dispose();
       composer = null; bloomPass = null; shadowPass = null;
-      renderer.setPixelRatio(Math.min(dpr, 2));
-      resize();
     }
-    if(POST){ try{ setupBloom(); }catch(e){ composer = null; } }
+    if(POST && TIERS[tier].bloom){ try{ setupBloom(); }catch(e){ composer = null; } }
+    // bajar un nivel: sin bloom, menos píxeles, shaders con menos detalle (se recompilan una
+    // vez). Solo hacia abajo: nunca se vuelve a subir, así no hay idas y vueltas
+    function lowerTier(){
+      const next = TIER_DOWN[tier];
+      if(!next) return false;
+      tier = next;
+      const T = TIERS[tier];
+      if(!T.bloom) dropBloom();
+      renderer.setPixelRatio(Math.min(dpr, T.dpr));
+      detailMats.forEach(m=>{ m.defines.DETAIL = T.detail; m.needsUpdate = true; });
+      resize();
+      root.dataset.quality = tier;
+      if(opts.onQuality) opts.onQuality(tier);
+      return true;
+    }
     // intensidad de los sprites: con bloom hacen falta mucho menos
     const spriteK = ()=> composer ? 0.35 : 1;
 
@@ -1277,12 +1376,16 @@
     let introT = (reduced || restored || opts.intro === false) ? INTRO : 0, introStart = -1;
     const vTmp = new THREE.Vector3(), vSeg = new THREE.Vector3(), vHole = new THREE.Vector3(), vClosest = new THREE.Vector3();
     const qWorld = new THREE.Quaternion(), qCamInv = new THREE.Quaternion();
-    // vigilancia de framerate (solo con bloom): si no da, se apaga
-    let perfFrames = 0, perfAccum = 0;
-    // y si ni sin bloom da (~16fps sostenidos), la escena se rinde y vuelve la 2D
-    let slowFrames = 0, slowAccum = 0, prevNow = 0;
+    // vigilancia del ritmo: intervalos entre callbacks de rAF (también los que se saltan a
+    // 30fps), en ventanas de 90. Promedio sobre ~26ms (<38fps) = bajar un nivel; ya en el bajo
+    // y sobre 60ms (<16fps) = rendirse. Tras bajar, una pausa para que se asiente.
+    // El modo de bajo consumo de iOS topa el rAF en 30fps (33ms): eso baja la calidad hasta el
+    // nivel bajo, que es justo lo que conviene ahí, pero nunca llega a rendirse.
+    let paceN = 0, paceSum = 0, prevCb = 0, paceHold = 0;
+    // en táctiles, en reposo se dibuja a ~30fps
+    const idleThrottle = !isDesktop();
 
-    function wake(){ dirty = true; if(raf === null && visible && inView){ lastT = 0; raf = requestAnimationFrame(frame); } }
+    function wake(){ dirty = true; if(raf === null && visible && inView){ lastT = 0; prevCb = 0; raf = requestAnimationFrame(frame); } }
     function stop(){ if(raf !== null){ cancelAnimationFrame(raf); raf = null; } }
 
     on(document, "visibilitychange", ()=>{ visible = !document.hidden; if(visible) wake(); else { stop(); saveView(); } });
@@ -1358,9 +1461,30 @@
       });
     }
 
+    function busy(){
+      return drag || velYaw || velPitch || tween || introT < INTRO || Math.abs(doomTarget() - doomK) > 0.001 ||
+        items.some(it=> Math.abs(((it.hover || (focus && focus.item === it))?1:0) - it.hoverK) > 0.01);
+    }
+    function doomTarget(){ return focus && focus.item.kind === "hole" ? 1 : 0; }
+    function pace(now){
+      const gap = prevCb ? now - prevCb : 0;
+      prevCb = now;
+      if(!gap || gap > 250 || reduced || introT < INTRO || now < paceHold) return true;
+      paceN++; paceSum += gap;
+      if(paceN < 90) return true;
+      const avg = paceSum/paceN;
+      paceN = 0; paceSum = 0;
+      if(avg > 26 && lowerTier()){ paceHold = now + 2500; return true; }
+      if(avg > 60 && tier === "low" && !opts.force){ fail("slow"); return false; }
+      return true;
+    }
+
     function frame(now){
       raf = null;
       if(dead) return;
+      if(!pace(now)) return;
+      // reposo en táctil: un cuadro sí y uno no (~30fps a 60Hz)
+      if(idleThrottle && lastT && !dirty && now - lastT < 28 && !busy()){ raf = requestAnimationFrame(frame); return; }
       const dt = lastT ? Math.min((now-lastT)/1000, 0.05) : 0;
       lastT = now;
 
@@ -1401,8 +1525,8 @@
 
       // --- humor ---
       const kM = dt ? 1 - Math.exp(-dt*3) : 1;
-      const doomTarget = focus && focus.item.kind === "hole" ? 1 : 0;
-      if(Math.abs(doomTarget - doomK) > 0.001 || reduced){ doomK = reduced ? doomTarget : doomK + (doomTarget - doomK)*kM; applyDoom(); }
+      const doomT = doomTarget();
+      if(Math.abs(doomT - doomK) > 0.001 || reduced){ doomK = reduced ? doomT : doomK + (doomT - doomK)*kM; applyDoom(); }
 
       if(!reduced) simTime += dt;
       discU.uTime.value = simTime;
@@ -1483,34 +1607,17 @@
         if(opts.onReady) setTimeout(()=>{ if(!dead) opts.onReady(); }, 0);
       }
 
-      if(!composer && !opts.force && !reduced && introT >= INTRO && prevNow && lastT){
-        const raw = (now - prevNow)/1000;
-        if(raw < 0.5){            // un hueco largo es la pestaña dormida, no lentitud
-          slowFrames++; slowAccum += raw;
-          if(slowFrames >= 120){
-            if(slowAccum/slowFrames > 0.06){ fail("slow"); return; }
-            slowFrames = 0; slowAccum = 0;
-          }
-        }
-      }
-      prevNow = now;
-
-      // si el bloom no sostiene ~40fps (medido después de la entrada), se apaga
-      if(composer && introT >= INTRO && dt > 0){
-        perfFrames++; perfAccum += dt;
-        if(perfFrames >= 90){
-          if(perfAccum/perfFrames > 0.025) dropBloom();
-          perfFrames = 0; perfAccum = 0;
-        }
-      }
-
-      // con reduced-motion no hay nada que animar en reposo: el bucle se duerme hasta la
-      // próxima interacción. Sin reduced-motion sigue (auto-giro, disco, pulsos).
-      const settling = drag || velYaw || velPitch || tween || items.some(it=> Math.abs(((it.hover || (focus && focus.item === it))?1:0) - it.hoverK) > 0.01);
-      if((!reduced || settling || dirty) && visible && inView) raf = requestAnimationFrame(frame);
+      // el bucle se duerme hasta la próxima interacción: con reduced-motion apenas se asienta,
+      // y en el foco cuando ya llegó la cámara y lleva 1.5s sin que se toque nada (el panel
+      // está quieto; volver a tocar, mover el mouse sobre un objeto o salir lo despierta)
+      const focusQuiet = focus && !tween && now - lastInteract > 1500;
+      const sleepy = reduced || focusQuiet;
+      if((!sleepy || busy() || dirty) && visible && inView) raf = requestAnimationFrame(frame);
     }
 
     resize();
+    root.dataset.quality = tier;
+    if(opts.onQuality) opts.onQuality(tier);
 
     // ---- desmontaje ----
     return function dispose(){
@@ -1521,8 +1628,12 @@
       if(composer){ composer.passes.forEach(p=>{ if(p.dispose) p.dispose(); }); composer.dispose(); composer = null; }
       const mats = new Set(), geos = new Set();
       scene.traverse(o=>{
-        // los Sprite comparten una geometría interna de three: no es nuestra, no se libera
-        if(o.geometry && !o.isSprite) geos.add(o.geometry);
+        // incluida la geometría que todos los Sprite comparten (global del módulo three): el
+        // renderer le cuelga un listener de "dispose", y si no se le hace dispose() ese
+        // listener nunca se suelta y deja vivo TODO este montaje (renderer, escena, bloom).
+        // Medido: 20 idas y vueltas con bloom pasaban de 7 a ~37MB. three la vuelve a subir
+        // sola en el próximo montaje.
+        if(o.geometry) geos.add(o.geometry);
         if(o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m=>mats.add(m));
       });
       geos.forEach(g=>g.dispose());
@@ -1535,6 +1646,7 @@
   }
 
   window.solarCapable = solarCapable;
+  window.preloadSolar = preloadSolar;
   window.mountSolar = mountSolar;
   window.unmountSolar = unmountSolar;
 })();
