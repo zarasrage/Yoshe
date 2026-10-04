@@ -2,17 +2,16 @@
 
 Sitio de una sola página (HTML/CSS/JS puro, sin build, sin frameworks) que cuenta la historia de un grupo de amigos a través de temporadas (S0–S5), con personajes, lugares, un mapa de relaciones, y una sección final "Armagedón" con el destino de cada integrante.
 
-**Archivos principales:** `index.html` (esqueleto HTML, ~60 líneas), `styles.css` (todo el CSS), `app.js` (toda la lógica/vistas JS) y `data.js` (el objeto `DATA` con toda la historia: personajes, lugares, temporadas). `index.html` carga los tres vía `<link rel="stylesheet" href="styles.css">` y `<script src="data.js">` + `<script src="app.js">` (data.js primero, porque `app.js` usa `DATA` como variable de módulo top-level sin imports). No hay build step: se edita directo y se abre en el navegador — los cuatro archivos son texto plano, sin bundler, sin transpilación. Se separó `DATA` a su propio archivo porque es la parte que más crece con cada historia nueva, y CSS/JS se separaron de `index.html` por lo mismo en sentido inverso: son las partes que casi no cambian de tamaño pero sí se tocan seguido, así que aislarlas evita cargar ~2300 líneas de HTML+CSS+JS mezclado para tocar un solo estilo o una sola función. Las fotos de personajes son archivos reales en `/images` (NO base64 inline — se sacaron de ahí porque hacían el archivo pesadísimo), referenciadas por ruta relativa.
+**Archivos principales:** `index.html` (esqueleto HTML, ~60 líneas), `styles.css` (todo el CSS), `app.js` (toda la lógica/vistas JS), `data.js` (el objeto `DATA` con toda la historia: personajes, lugares, temporadas) y `solar.js` (el sistema solar 3D de la home). `index.html` los carga vía `<link rel="stylesheet" href="styles.css">` y `<script src="data.js">` + `<script src="solar.js">` + `<script src="app.js">`, en ese orden (`app.js` usa `DATA` como variable de módulo top-level sin imports, y llama a `mountSolar`/`unmountSolar` de `solar.js`). Three.js vive vendorizado en `vendor/three/` y **no** se carga con un `<script>`: `solar.js` lo trae con `import()` dinámico recién al montar la home (ver "Página principal: el sistema solar 3D"). No hay build step: se edita directo y se abre en el navegador — todo es texto plano, sin bundler, sin transpilación. Se separó `DATA` a su propio archivo porque es la parte que más crece con cada historia nueva, y CSS/JS se separaron de `index.html` por lo mismo en sentido inverso: son las partes que casi no cambian de tamaño pero sí se tocan seguido, así que aislarlas evita cargar ~2300 líneas de HTML+CSS+JS mezclado para tocar un solo estilo o una sola función. Las fotos de personajes son archivos reales en `/images` (NO base64 inline — se sacaron de ahí porque hacían el archivo pesadísimo), referenciadas por ruta relativa.
 
 ## Cómo probar cambios
 
-No hay servidor ni build. Para validar que el JS no tiene errores de sintaxis después de editar:
+No hay build. Para validar que el JS no tiene errores de sintaxis después de editar:
 
 ```bash
 node -e "
 const fs = require('fs');
-new Function(fs.readFileSync('app.js','utf8'));
-new Function(fs.readFileSync('data.js','utf8'));
+['app.js','data.js','solar.js'].forEach(f=>new Function(fs.readFileSync(f,'utf8')));
 console.log('JS syntax OK');
 "
 ```
@@ -24,7 +23,8 @@ npm install jsdom --no-save   # si no está instalado
 node -e "
 const { JSDOM } = require('jsdom');
 const fs = require('fs');
-const dom = new JSDOM(fs.readFileSync('index.html','utf8'), { runScripts:'dangerously', resources:'usable', pretendToBeVisual:true, url:'http://localhost/' });
+const dom = new JSDOM(fs.readFileSync('index.html','utf8'), { runScripts:'dangerously', resources:'usable', pretendToBeVisual:true, url:'http://localhost/',
+  beforeParse(w){ w.matchMedia = ()=>({ matches:false, addEventListener(){}, removeEventListener(){} }); } });
 const win = dom.window;
 win.IntersectionObserver = class { observe(){} };
 setTimeout(()=>{
@@ -34,7 +34,19 @@ setTimeout(()=>{
 "
 ```
 
-No hay tests automatizados formales — la validación es: syntax check + un par de aserciones puntuales en jsdom sobre la vista que tocaste, y listo.
+En jsdom no hay WebGL ni `import()`, así que ahí la home siempre queda con la constelación 2D (el respaldo) — sirve para probar el respaldo, no la escena 3D.
+
+**Probar la escena 3D** necesita un navegador de verdad y un servidor HTTP (con `file://` el `import()` de three.js falla y la home se queda, a propósito, en 2D):
+
+```bash
+python3 -m http.server 8765   # y abrir http://localhost:8765/
+```
+
+- `?3d=0` en la URL (`http://localhost:8765/?3d=0#/home`) apaga el 3D para ver el respaldo 2D; `?3d=1` lo fuerza aunque el equipo parezca débil o el navegador renderice por software.
+- Chromium headless (Playwright) renderiza por software (SwiftShader): la sonda de `solarCapable()` lo descarta, así que ahí siempre hay que usar `?3d=1`, lanzar con `--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader` y esperar a `.hero.solar-on` (el primer cuadro tarda varios segundos en compilar los shaders por software).
+- Qué mirar: que aparezca `.hero.solar-on`; que haya un solo `.solar-root` aunque se entre y salga de la home muchas veces; que no salga el aviso "Too many active WebGL contexts"; que clic en una etiqueta (`.solar-label`) abra `.solar-root.is-focus` y el del Hoyo ponga `body.mood-doom`; y que forzar la pérdida de contexto (`getContext('webgl2').getExtension('WEBGL_lose_context').loseContext()`) deje la 2D de vuelta.
+
+No hay tests automatizados formales — la validación es: syntax check + un par de aserciones puntuales en jsdom (o Playwright, si tocaste el 3D) sobre la vista que tocaste, y listo.
 
 ## Arquitectura
 
@@ -84,6 +96,8 @@ Hay una función `autoTagText(text)` que hace esto automáticamente a partir de 
 
 `render()` lee `location.hash` y despacha a: `viewHome()`, `viewSeason(id)`, `viewCharacter(id)`, `viewPlace(id)`, `viewMap()`, `viewArmageddon()`. Viven en `app.js`, sin imports — `DATA` (de `data.js`) está disponible ahí porque `data.js` se carga antes que `app.js` en el HTML, no porque cuelgue de `window`.
 
+Antes de despachar, `render()` siempre llama a `unmountSolar()` (también de home a home) y recalcula `body.mood-doom` con `syncMood()`. Guarda el scroll de cada hash en `scrollMemory` y lo restaura solo en navegaciones de historial (atrás/adelante, vía `popstate`); en esas mismas navegaciones `routeFromHistory` es `true` y `viewHome()` le pide a la escena 3D que retome su ángulo de cámara guardado.
+
 ### Persistencia (modo edición)
 
 Los cambios hechos desde el botón ✏️ (bios, apodos, frases, habilidades, destinos, hitos, nuevas historias) se guardan en `localStorage` del navegador vía `patchCharacter()`, `patchPlace()`, `patchSeasonMeta()`, `addEventToSeason()`, `patchArmageddon()` — todas mutan `DATA` en memoria Y persisten un "override" parcial. `applyOverrides()` los reaplica al cargar. Hay export/import de JSON como respaldo manual (no hay backend ni base de datos).
@@ -130,16 +144,46 @@ images/
   unused/                   # archivos que quedaron sin usar tras algún cambio de fondo; no referenciados desde el código
 ```
 
+### Estructura de archivos
+
+```
+index.html        # esqueleto; carga styles.css, data.js, solar.js, app.js
+styles.css        # todo el CSS (incluye .home-sky / .solar-*)
+data.js           # DATA
+solar.js          # sistema solar 3D: solarCapable / mountSolar / unmountSolar
+app.js            # router, vistas, modo edición, cielo animado
+vendor/three/     # three.js r186 vendorizado (ESM minificado) + postprocesado para el bloom;
+                  # README.md dice cómo se generaron. No se editan a mano.
+images/           # ver arriba
+```
+
 ### Movimiento
 
 - `.reveal` / `.reveal-stagger` + `setupReveals()` — entrada al hacer scroll, vía IntersectionObserver. Hay que llamar a `setupReveals()` al final de cada `view*()` que use esas clases. Si no hay IntersectionObserver o el usuario pidió `prefers-reduced-motion`, todo se muestra de inmediato (importante: `.reveal` arranca en `opacity:0`, así que sin ese fallback la página quedaría en blanco).
 - `#app.route-in` — transición de entrada en cada cambio de ruta (`replayRouteAnimation()`).
-- Un solo bucle `requestAnimationFrame` maneja el nav que se condensa, el hero que retrocede al hacer scroll y el tilt de la constelación con el puntero.
-- `backdrop-filter` se usa **solo** en superficies grandes y pocas a la vez (nav, modales, buscador, paneles del timeline, paneles de perfil). Las tarjetas que se renderizan de a decenas (`.cast-card`, `.place-card`, `.epitaph-card`, `.story-link-card`) usan un fondo plano más opaco: se ve casi igual sobre la foto oscura y cuesta una fracción.
+- Un solo bucle `requestAnimationFrame` (al final de `app.js`) maneja el nav que se condensa y el hero que retrocede al hacer scroll (transform/opacity sobre `.home-sky` y `.hero-copy`). La escena 3D tiene su propio bucle dentro de `solar.js`, que se duerme cuando la home sale de pantalla o la pestaña se oculta.
+- `backdrop-filter` se usa **solo** en superficies grandes y pocas a la vez (nav, modales, buscador, paneles del timeline, paneles de perfil, el panel de foco del 3D). Las tarjetas que se renderizan de a decenas (`.cast-card`, `.place-card`, `.epitaph-card`, `.story-link-card`) usan un fondo plano más opaco: se ve casi igual sobre la foto oscura y cuesta una fracción.
 
-Página principal: los nodos de temporada son una **constelación dibujada a mano** (posiciones fijas en `CONSTELLATION_POS`, no un layout circular), conectados por curvas SVG. El nodo "Armagedón" está deliberadamente apagado/discreto, separado de la constelación principal. El ancho de `.constellation-wrap` está limitado también por `vh` para que todo el hero (copy + constelación + scroll cue) entre en pantallas de laptop bajitas (1280×720).
+### Página principal: el sistema solar 3D (y la constelación 2D de respaldo)
 
-Armagedón es la única ruta que cambia el humor del sitio: `body.mood-doom` (lo pone el router) tiñe `#skyWash` de rojo y desatura `#skyPhoto`.
+El hero de la home es: copy arriba, `.home-sky` al medio y el scroll cue abajo. `.hero` mide `100dvh` menos el nav (`--nav-h`) y `.home-sky` crece hasta llenar lo que queda (nunca menos que la caja 2D, máx. 820px), así todo el hero entra en un laptop de 1280×720; en móvil (≤600px) `.home-sky` mide `128vw` de alto, igual que la caja 2D.
+
+Dentro de `.home-sky` conviven dos versiones del mapa de temporadas, en la misma caja:
+
+1. **La constelación 2D** (`.constellation-wrap`, HTML + SVG, generada por `constellationHtml()`): se pinta al instante, sin esperar nada, y es el respaldo. Posiciones fijas dibujadas a mano en `CONSTELLATION_POS` (una para desktop 16:8.2 y otra para móvil 3:4), conectadas por curvas SVG; el nodo "Armagedón" deliberadamente apagado. Cruzar el breakpoint de 600px regenera solo la 2D, sin tocar el 3D.
+2. **El sistema solar 3D** (`#solarStage`, montado por `mountHomeSolar()` en `app.js` con `mountSolar()` de `solar.js`): el Hoyo al centro (agujero negro con disco de acreción, anillo de fotones y lente) y seis planetas S0–S5 en órbitas inclinadas (S0 afuera, S5 adentro), cada uno con superficie procedural por shader, tamaño según cuántas historias tiene, unidos por el "hilo del tiempo". Arrastrar rota (con inercia; en touch solo el gesto horizontal, el vertical sigue siendo scroll); clic/toque/Enter en un planeta abre el **modo foco** (la cámara vuela y aparece `.solar-panel` con la temporada y "Entrar a la temporada"); en el Hoyo, el foco del Armagedón (pone `body.mood-doom`, botón a `#/armageddon`). Esc, clic en el vacío o "← Vista general" vuelven. Bloom solo en desktop (`vendor/three/postprocessing.min.js`), sprites en móvil.
+
+Cuando el primer cuadro 3D ya está pintado (`onReady`), `.hero` recibe `.solar-on`: la 2D se funde hacia afuera y la escena hacia adentro (también cambia el tagline: "estrella" → "planeta"). **Si el 3D no sirve, la 2D se queda** y la página nunca queda en blanco: `solarCapable()` lo descarta de entrada sin WebGL, con render por software (`failIfMajorPerformanceCaveat`), con poca memoria/CPU o con ahorro de datos; si el `import()` falla (offline, `file://`) la promesa se rechaza y no pasa nada; y si después se pierde el contexto WebGL, un shader no compila o la escena no sostiene ~16fps, `onFail` desmonta y saca `.solar-on` (y no se reintenta hasta recargar).
+
+**Ciclo de vida:** `viewHome()` monta; `render()` llama a `unmountSolar()` antes de cualquier cambio de vista, que libera todo (renderer + `forceContextLoss()`, composer, geometrías, materiales, texturas, listeners, observers, el bucle rAF y el DOM). Si se desmonta mientras three.js todavía se descarga, el montaje se cancela solo (token). Al desmontar guarda el ángulo de cámara en `sessionStorage` (`ychSolarView`); `viewHome()` lo pide de vuelta solo al volver con "atrás" (igual que `scrollMemory`). La entrada animada del 3D (cámara desde lejos, planetas en orden) va con la del hero: una vez por sesión.
+
+**`body.mood-doom` tiene dos dueños:** la ruta `#/armageddon` y el foco del Hoyo. Ambos pasan por `syncMood(focusDoom)` en `app.js`, que lo calcula desde los dos, así cerrar el foco o desmontar deja lo que pide la ruta.
+
+**Capas:** dentro de `.home-sky`, de abajo hacia arriba: 2D, canvas 3D, etiquetas HTML proyectadas (`.solar-labels`), panel de foco (`.solar-panel`). Todo vive dentro de `#app`, así que el nav (z 40), la barra de edición (55), el buscador (60) y los modales (70) quedan siempre encima. Con un modal o el buscador abierto, Esc no cierra el foco de atrás (`keysBlocked`).
+
+**Por qué `solar.js` es un `<script>` clásico y three.js entra con `import()`:** `solar.js` sigue la convención del resto (script clásico, expone funciones en `window`, sin build) y se carga sincrónico entre `data.js` y `app.js` para que `mountSolar` exista cuando `app.js` hace el primer `render()`; además usa `document.currentScript.src` para resolver `vendor/` relativo a sí mismo, y eso solo existe en scripts clásicos. Pesa poco (shaders en texto). Three.js (~740KB) en cambio es ESM y se pide con `import()` recién al montar la home: las demás vistas nunca lo descargan, el primer pintado no lo espera, y si falla (por ejemplo abriendo el HTML como `file://`, donde los navegadores bloquean módulos) solo se pierde el 3D, no la página. Un `<script type="module">` habría sido diferido (llegaría tarde al primer `render()`) y con `file://` no cargaría nada.
+
+Armagedón es la única ruta que cambia el humor del sitio: `body.mood-doom` (lo pone el router, y el foco del Hoyo mientras está abierto) tiñe `#skyWash` de rojo y desatura `#skyPhoto`.
 
 Cada ficha de personaje tiene un wash de color de fondo (`--pcolor`, tomado de `character.color`) y, si tiene `photos`/`photoLarge`, un layout partido (texto a un lado, retrato grande con marco de esquinas al otro). Sin foto, cae a un layout centrado con avatar circular chico.
 
@@ -152,6 +196,6 @@ Cada ficha de personaje tiene un wash de color de fondo (`--pcolor`, tomado de `
 
 ## Deploy
 
-Pensado para GitHub Pages: el archivo se llama `index.html` a propósito para que quede servido en la raíz del sitio sin configurar nada más. `data.js` y la carpeta `/images` viajan junto al `index.html` en el mismo repo/rama, así las rutas relativas funcionan igual en local y en Pages. `git init` → commit → push a `main` → activar Pages en Settings del repo (source: `main` branch, carpeta raíz).
+Pensado para GitHub Pages: el archivo se llama `index.html` a propósito para que quede servido en la raíz del sitio sin configurar nada más. `data.js`, `solar.js`, `vendor/` y la carpeta `/images` viajan junto al `index.html` en el mismo repo/rama, así las rutas relativas funcionan igual en local y en Pages. `git init` → commit → push a `main` → activar Pages en Settings del repo (source: `main` branch, carpeta raíz).
 
 Se trabaja siempre directo sobre `main` (sin ramas ni PRs) — es un proyecto de una sola persona.

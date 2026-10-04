@@ -1,12 +1,26 @@
-/* ===== SISTEMA SOLAR 3D (prototipo; F0 mecánica, F1 arte, F2 interacción) =====
-   mountSolar(container, opts) / unmountSolar()
+/* ===== SISTEMA SOLAR 3D de la home =====
+   solarCapable() / mountSolar(container, opts) / unmountSolar()
+
+   app.js lo monta en viewHome() encima de la constelación 2D (que queda de respaldo) y lo
+   desmonta en render() antes de cada cambio de vista.
+
+   solarCapable(force): ¿vale la pena intentarlo? false sin WebGL, con render por software
+   (failIfMajorPerformanceCaveat), con poca memoria/CPU o con "ahorro de datos". force=true
+   solo exige que exista WebGL.
 
    opts (todos opcionales):
      seasons          arreglo de temporadas (por defecto DATA.seasons)
      hrefFor(id)      URL de una temporada (por defecto "#/season/<id>")
      armageddonHref   URL del Armagedón (por defecto "#/armageddon")
-     onMood(doom)     se llama al entrar/salir del foco del Hoyo; por defecto pone/saca
-                      body.mood-doom, igual que hace el router de app.js en #/armageddon
+     onMood(doom)     se llama al entrar/salir del foco del Hoyo (y con false al desmontar);
+                      por defecto pone/saca body.mood-doom
+     onReady()        el primer cuadro ya se pintó: recién ahí conviene mostrar la escena
+     onFail(reason)   la escena dejó de servir ("context-lost", "shader", "slow"): quien
+                      montó debe desmontar y volver al respaldo
+     restoreView      true: retomar el ángulo guardado en sessionStorage (volver con "atrás")
+     intro            false: sin la entrada (cámara desde lejos, planetas en orden)
+     keysBlocked()    true mientras otra capa (modal, buscador) es dueña del teclado
+     force            no apagarse por lento (pruebas con ?3d=1)
      bloom            forzar (true) o apagar (false) el bloom de desktop
 
    Interacción: arrastrar rota (yaw libre, pitch acotado), con inercia; clic/toque/Enter en
@@ -24,7 +38,9 @@
    (vendor/three/postprocessing.min.js); en móvil el brillo sale de sprites aditivos, que cuestan
    casi nada. Si el bloom no sostiene el framerate, se apaga solo y se vuelve a los sprites.
 
-   Script clásico, sin módulos, igual que app.js: expone mountSolar/unmountSolar en window.
+   Script clásico, sin módulos, igual que app.js (index.html lo carga entre data.js y app.js):
+   expone solarCapable/mountSolar/unmountSolar en window. Solo three.js es ESM y entra con
+   import() recién al montar, así que las otras vistas nunca lo descargan.
    Todo lo que se crea al montar (renderer, composer, geometrías, materiales, texturas,
    listeners, el bucle rAF, observers y nodos del DOM) se libera en unmountSolar(). */
 (function(){
@@ -39,6 +55,28 @@
   }
 
   let current = null;   // { token, dispose } del montaje vivo
+
+  let capable = null;
+  function solarCapable(force){
+    if(!force && capable !== null) return capable;
+    let ok = false;
+    try{
+      const nav = navigator, conn = nav.connection;
+      const weak = (conn && conn.saveData) || (nav.deviceMemory && nav.deviceMemory < 2) ||
+        (nav.hardwareConcurrency && nav.hardwareConcurrency < 4);
+      if(force || !weak){
+        // sonda: un contexto de prueba que se suelta en el acto. Con failIfMajorPerformanceCaveat
+        // el navegador dice que no si renderizaría por software (sin GPU real)
+        const cv = document.createElement("canvas");
+        const attrs = force ? {} : { failIfMajorPerformanceCaveat:true };
+        const gl = cv.getContext("webgl2", attrs) || cv.getContext("webgl", attrs);
+        ok = !!gl;
+        if(gl){ const ext = gl.getExtension("WEBGL_lose_context"); if(ext) ext.loseContext(); }
+      }
+    }catch(e){ ok = false; }
+    if(!force) capable = ok;
+    return ok;
+  }
 
   function cssVar(name, fallback){
     try{
@@ -69,7 +107,8 @@
     // se desmontó (o se volvió a montar) mientras cargaba: no construir nada
     if(!current || current.token !== token) return null;
 
-    current.dispose = build(THREE, POST, container, opts);
+    try{ current.dispose = build(THREE, POST, container, opts); }
+    catch(err){ current = null; throw err; }
     return { unmount: unmountSolar };
   }
 
@@ -509,6 +548,14 @@
 
   /* ---------- escena ---------- */
   function build(THREE, POST, container, opts){
+    // si algo revienta a medio construir, se suelta lo que alcanzó a crearse (DOM, listeners,
+    // el contexto WebGL) y el error sigue hacia mountSolar, que lo rechaza
+    const partial = [];
+    try{ return buildScene(THREE, POST, container, opts, partial); }
+    catch(err){ partial.forEach(fn=>{ try{ fn(); }catch(e){} }); throw err; }
+  }
+
+  function buildScene(THREE, POST, container, opts, partial){
     const seasons = (opts.seasons || (typeof DATA !== "undefined" ? DATA.seasons : [])).slice(0, 6);
     const hrefFor = opts.hrefFor || (id => `#/season/${id}`);
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -517,8 +564,15 @@
     const VIOLET = cssVar("--violet", "#6f8fe8");
     const TEAL = cssVar("--teal", "#33d6e0");
 
-    const cleanups = [];
+    const cleanups = partial;
     const textures = [];
+    let dead = false;   // desmontado o fallido: ningún callback hacia afuera después de esto
+    function fail(reason){
+      if(dead) return;
+      dead = true;
+      stop();
+      if(opts.onFail) setTimeout(()=>opts.onFail(reason), 0);   // fuera del cuadro / del evento
+    }
     const on = (target, type, fn, o)=>{ target.addEventListener(type, fn, o); cleanups.push(()=>target.removeEventListener(type, fn, o)); };
 
     // ---- DOM ----
@@ -535,6 +589,16 @@
 
     // ---- renderer / cámara ----
     const renderer = new THREE.WebGLRenderer({ canvas, alpha:true, antialias:true, powerPreference:"high-performance" });
+    cleanups.push(()=>{
+      renderer.dispose();
+      // soltar el contexto ya, sin esperar al GC (si no, 20 visitas a la home = 20 contextos)
+      const gl = renderer.getContext();
+      if(gl && !gl.isContextLost()) renderer.forceContextLoss();
+    });
+    // un shader que no compila deja la escena vacía: mejor volver al respaldo
+    renderer.debug.onShaderError = ()=> fail("shader");
+    // el sistema puede quitarnos el contexto (GPU reiniciada, demasiadas pestañas)
+    on(canvas, "webglcontextlost", e=>{ e.preventDefault(); fail("context-lost"); });
     renderer.setClearColor(0x000000, 0);
     const dpr = window.devicePixelRatio || 1;
     renderer.setPixelRatio(Math.min(dpr, POST ? 1.5 : 2));
@@ -550,7 +614,7 @@
     // orientación: yaw libre, pitch acotado (nunca queda de cabeza). Vista inicial desde
     // arriba; en vertical más inclinada, para llenar el alto disponible
     const portraitAtMount = container.clientWidth < container.clientHeight*0.8;
-    let yaw = 0, pitch = portraitAtMount ? 0.74 : 0.46;
+    let yaw = 0, pitch = portraitAtMount ? 0.9 : 0.46;
     const PITCH_MIN = -0.12, PITCH_MAX = 1.3;
     stage.add(world);
 
@@ -771,7 +835,9 @@
       // en vertical se acepta que las órbitas exteriores rocen el borde, si no queda diminuto
       const extent = ORBIT_R[0] + 0.8;
       const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov/2));
-      const dV = (extent*0.82)/tanV, dH = extent*(camera.aspect < 0.8 ? 0.86 : 1)/(tanV*camera.aspect);
+      // en la home la caja es una franja ancha y baja: ahí manda el alto, y la vista desde
+      // arriba (pitch ~0.46) ocupa bastante menos que el radio entero, así que se aprieta más
+      const dV = (extent*(portrait ? 0.82 : 0.7))/tanV, dH = extent*(portrait ? 0.97 : 1)/(tanV*camera.aspect);
       baseZ = Math.max(dV, dH) + 1.5;
       camera.updateProjectionMatrix();
       measureLabels();
@@ -946,7 +1012,7 @@
       }catch(e){ /* sin storage (vista previa, modo privado estricto): no se recuerda, y listo */ }
     }
     let restored = false;
-    try{
+    if(opts.restoreView) try{
       const v = JSON.parse(sessionStorage.getItem(VIEW_KEY) || "null");
       if(v && isFinite(v.yaw) && isFinite(v.pitch) && Date.now() - (v.t || 0) < 6*3600*1000){
         yaw = v.yaw; pitch = Math.max(PITCH_MIN, Math.min(PITCH_MAX, v.pitch));
@@ -966,7 +1032,9 @@
 
     function overviewDest(camE){
       dest.pos.set(0, 2.5*(1 - camE), baseZ*(1 + 2.4*(1 - camE)));
-      dest.target.set(0, 0, 0);
+      // el lado cercano de las órbitas baja más de lo que el lejano sube: mirar un poco más
+      // abajo del Hoyo deja el conjunto centrado en la caja
+      dest.target.set(0, portrait ? 0 : -0.55, 0);
       dest.k = 0;
     }
     function focusDest(){
@@ -977,15 +1045,16 @@
       dest.k = 1;
       if(it.kind === "hole"){ dest.pos.copy(center).addScaledVector(focus.dir, holeFocusDist()); return; }
       const rEff = it.r * (it.ringed ? 2.35 : 1.2), frac = 0.36;
-      // en horizontal el objeto vive en la mitad izquierda; en vertical, en la mitad de arriba
-      const usableW = portrait ? 1 : 0.55, usableH = portrait ? 0.5 : 1;
+      // en horizontal el objeto vive en la mitad izquierda; en vertical, en el tercio de arriba
+      // (la hoja del panel ocupa el resto)
+      const usableW = portrait ? 1 : 0.55, usableH = portrait ? 0.36 : 1;
       const D = Math.max(rEff/(frac*tanV*usableH*1.6), rEff/(frac*tanV*camera.aspect*usableW*1.2));
       dest.pos.copy(center).addScaledVector(focus.dir, D);
     }
     function holeFocusDist(){
       const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov/2));
       const rEff = DISC_OUT*1.05, frac = 0.7;
-      const usableW = portrait ? 1 : 0.55, usableH = portrait ? 0.5 : 1;
+      const usableW = portrait ? 1 : 0.55, usableH = portrait ? 0.36 : 1;
       return Math.max(rEff/(frac*tanV*usableH), rEff/(frac*tanV*camera.aspect*usableW));
     }
     function startTween(){
@@ -996,7 +1065,7 @@
     function applyViewOffset(k){
       if(k < 0.001){ if(camera.view && camera.view.enabled) camera.clearViewOffset(); return; }
       // correr el encuadre: el objeto queda a un lado y el panel ocupa el otro
-      if(portrait) camera.setViewOffset(W, H, 0, H*0.21*k, W, H);
+      if(portrait) camera.setViewOffset(W, H, 0, H*0.31*k, W, H);
       else camera.setViewOffset(W, H, W*0.2*k, 0, W, H);
     }
 
@@ -1073,7 +1142,10 @@
     }
     on($p(".solar-back"), "click", closeFocus);
     on($p(".solar-p-enter"), "click", saveView);
-    on(document, "keydown", e=>{ if(e.key === "Escape" && focus){ e.preventDefault(); closeFocus(); } });
+    on(document, "keydown", e=>{
+      if(e.key !== "Escape" || !focus || (opts.keysBlocked && opts.keysBlocked())) return;
+      e.preventDefault(); closeFocus();
+    });
 
     // etiquetas: clic / Enter abren el foco (ctrl/cmd-clic sigue abriendo el link)
     items.forEach(it=>{
@@ -1202,11 +1274,13 @@
     // entrada: la cámara llega desde lejos y el sistema aparece por partes, en orden. Si se
     // vuelve con "atrás" (vista recordada), se salta: ya la vio.
     const INTRO = 3.6;
-    let introT = (reduced || restored) ? INTRO : 0, introStart = -1;
+    let introT = (reduced || restored || opts.intro === false) ? INTRO : 0, introStart = -1;
     const vTmp = new THREE.Vector3(), vSeg = new THREE.Vector3(), vHole = new THREE.Vector3(), vClosest = new THREE.Vector3();
     const qWorld = new THREE.Quaternion(), qCamInv = new THREE.Quaternion();
     // vigilancia de framerate (solo con bloom): si no da, se apaga
     let perfFrames = 0, perfAccum = 0;
+    // y si ni sin bloom da (~16fps sostenidos), la escena se rinde y vuelve la 2D
+    let slowFrames = 0, slowAccum = 0, prevNow = 0;
 
     function wake(){ dirty = true; if(raf === null && visible && inView){ lastT = 0; raf = requestAnimationFrame(frame); } }
     function stop(){ if(raf !== null){ cancelAnimationFrame(raf); raf = null; } }
@@ -1286,6 +1360,7 @@
 
     function frame(now){
       raf = null;
+      if(dead) return;
       const dt = lastT ? Math.min((now-lastT)/1000, 0.05) : 0;
       lastT = now;
 
@@ -1403,7 +1478,22 @@
       } else renderer.render(scene, camera);
       updateLabels();
       dirty = false;
-      if(introStart < 0) introStart = performance.now();
+      if(introStart < 0){
+        introStart = performance.now();
+        if(opts.onReady) setTimeout(()=>{ if(!dead) opts.onReady(); }, 0);
+      }
+
+      if(!composer && !opts.force && !reduced && introT >= INTRO && prevNow && lastT){
+        const raw = (now - prevNow)/1000;
+        if(raw < 0.5){            // un hueco largo es la pestaña dormida, no lentitud
+          slowFrames++; slowAccum += raw;
+          if(slowFrames >= 120){
+            if(slowAccum/slowFrames > 0.06){ fail("slow"); return; }
+            slowFrames = 0; slowAccum = 0;
+          }
+        }
+      }
+      prevNow = now;
 
       // si el bloom no sostiene ~40fps (medido después de la entrada), se apaga
       if(composer && introT >= INTRO && dt > 0){
@@ -1424,10 +1514,10 @@
 
     // ---- desmontaje ----
     return function dispose(){
+      dead = true;
       stop();
       saveView();
       if(doomOn) setMood(false);
-      cleanups.forEach(fn=>{ try{ fn(); }catch(e){} });
       if(composer){ composer.passes.forEach(p=>{ if(p.dispose) p.dispose(); }); composer.dispose(); composer = null; }
       const mats = new Set(), geos = new Set();
       scene.traverse(o=>{
@@ -1438,11 +1528,13 @@
       geos.forEach(g=>g.dispose());
       mats.forEach(m=>m.dispose());
       textures.forEach(t=>t.dispose());
-      renderer.dispose();
-      renderer.forceContextLoss();
+      // listeners, observers, el renderer y el DOM, en orden inverso al de creación: así el
+      // listener de webglcontextlost ya no está cuando forceContextLoss() suelta el contexto
+      for(let i = cleanups.length - 1; i >= 0; i--){ try{ cleanups[i](); }catch(e){} }
     };
   }
 
+  window.solarCapable = solarCapable;
   window.mountSolar = mountSolar;
   window.unmountSolar = unmountSolar;
 })();

@@ -505,13 +505,17 @@ function renderSeasonsStrip(activeId){
 }
 
 /* =========================== render: HOME =========================== */
-function viewHome(){
-  renderSeasonsStrip(undefined);
-  const app=document.getElementById("app");
+// La home tiene dos versiones del mapa de temporadas, en la misma caja (.home-sky):
+//  - la constelación 2D (HTML + SVG), que se pinta al instante y es el respaldo;
+//  - el sistema solar 3D (solar.js + three.js), que se monta encima y la reemplaza con un
+//    fundido cuando su primer cuadro ya está pintado (.hero.solar-on).
+// Si el 3D no se puede (sin WebGL, equipo débil, import() que falla, contexto perdido, va
+// lento), la 2D simplemente se queda: la home nunca queda en blanco.
 
-  // Hand-arranged constellation layout (percent coordinates) — not a circle, like a scattered star chart.
-  // Two layouts: a wide scatter for the 16:9 desktop box, a tall serpentine for the 3:4 mobile box
-  // (stretching one set of points across both boxes made the lines steep and chunky on narrow screens).
+// Hand-arranged constellation layout (percent coordinates) — not a circle, like a scattered star chart.
+// Two layouts: a wide scatter for the 16:9 desktop box, a tall serpentine for the 3:4 mobile box
+// (stretching one set of points across both boxes made the lines steep and chunky on narrow screens).
+function constellationHtml(){
   const isNarrow = window.matchMedia("(max-width:600px)").matches;
   const CONSTELLATION_POS = isNarrow ? [
     {x:32, y:7},  {x:74, y:19}, {x:22, y:36},
@@ -577,6 +581,14 @@ function viewHome(){
     <div class="star-label">armagedón</div>
   </div>`;
 
+  return `<svg id="constellationSvg" viewBox="0 0 100 ${vbH.toFixed(3)}" preserveAspectRatio="none">${linesSvg}</svg>
+    ${microStars}${seasonNodesHtml}${armageddonNode}`;
+}
+
+function viewHome(){
+  renderSeasonsStrip(undefined);
+  const app=document.getElementById("app");
+
   const castCard = ([id,c])=>`
     <div class="cast-card" onclick="navigateTo('character','${id}')">
       <div class="cast-avatar" style="background:${avatarSrc(c)?'transparent':c.color}; overflow:hidden;">${avatarInner(c)}</div>
@@ -610,13 +622,12 @@ function viewHome(){
       <div class="eyebrow">La crónica de un grupo de amigos</div>
       <h1>Yoshe con <em>Hoyo</em></h1>
       <p class="tag">Cinco temporadas (y una S0) de historias, viajes y desastres compartidos.
-      Elige una estrella para caer dentro de esa temporada.</p>
+      <span class="tag-2d">Elige una estrella para caer dentro de esa temporada.</span><span class="tag-3d">Elige un planeta para caer dentro de esa temporada.</span></p>
     </div>
-    <div class="constellation-wrap">
-      <div class="constellation-tilt" id="constellationTilt">
-        <svg id="constellationSvg" viewBox="0 0 100 ${vbH.toFixed(3)}" preserveAspectRatio="none">${linesSvg}</svg>
-        ${microStars}${seasonNodesHtml}${armageddonNode}
-      </div>
+    <div class="home-sky">
+      <div class="constellation-wrap">${constellationHtml()}</div>
+      <div class="solar-stage" id="solarStage"></div>
+      <div class="solar-hint" aria-hidden="true">arrastra<span class="long"> para girar</span> · toca un planeta o el Hoyo</div>
     </div>
     <div class="scroll-cue">Explora el elenco y los lugares<div class="chevron"></div></div>
   </section>
@@ -651,6 +662,47 @@ function viewHome(){
   if(playIntro){ try{ sessionStorage.setItem(INTRO_KEY, "1"); }catch(e){} }
   setupConstellationFX();
   setupReveals();
+  // la entrada del 3D (cámara desde lejos) va con la del hero: una vez por sesión
+  mountHomeSolar({ intro: playIntro, restoreView: routeFromHistory });
+}
+
+// ---- sistema solar 3D: montaje sobre la 2D ----
+// ?3d=0 apaga el 3D (para ver el respaldo); ?3d=1 lo fuerza aunque el equipo parezca débil
+// o el navegador renderice por software (headless, pruebas)
+const SOLAR_PARAM = (()=>{ try{ return new URLSearchParams(location.search).get("3d"); }catch(e){ return null; } })();
+let solarGaveUp = false;   // falló una vez en esta carga (contexto perdido, lento): no reintentar
+function routeIsArmageddon(){ return /^#\/?armageddon/.test(location.hash); }
+// body.mood-doom tiene dos dueños: la ruta (#/armageddon) y el foco del Hoyo en la home. Se
+// calcula siempre desde ambos, así desmontar o cerrar el foco deja lo que pide la ruta
+function syncMood(focusDoom){ document.body.classList.toggle("mood-doom", !!focusDoom || routeIsArmageddon()); }
+function mountHomeSolar(o){
+  const stage = document.getElementById("solarStage");
+  const hero = document.querySelector(".hero");
+  if(!stage || !hero || solarGaveUp || SOLAR_PARAM === "0") return;
+  if(typeof mountSolar !== "function" || typeof solarCapable !== "function") return;
+  const force = SOLAR_PARAM === "1";
+  try{ if(!solarCapable(force)) return; }catch(e){ return; }
+  const back2d = ()=>{ hero.classList.remove("solar-on"); };
+  try{
+    mountSolar(stage, {
+      intro: o.intro,
+      restoreView: o.restoreView,
+      force,
+      onMood: syncMood,
+      onReady: ()=>{ if(stage.isConnected) hero.classList.add("solar-on"); },
+      onFail: reason=>{
+        solarGaveUp = true;
+        try{ unmountSolar(); }catch(e){}
+        back2d();
+        if(window.console) console.warn("sistema 3D desactivado:", reason);
+      },
+      keysBlocked: ()=> !!document.querySelector(".modal-overlay.active, .search-overlay.active"),
+    }).catch(err=>{
+      // import() que falla (offline, file://), WebGL que no arranca: queda la 2D
+      back2d();
+      if(window.console) console.warn("sistema 3D no disponible:", err && err.message ? err.message : err);
+    });
+  }catch(err){ back2d(); }
 }
 
 // lines fade in one after another on first appearance, and glow along the pair connected
@@ -1114,17 +1166,27 @@ let cameFromPopstate = false;
 window.addEventListener("popstate", ()=>{ cameFromPopstate = true; });
 let lastHash = location.hash;
 const scrollMemory = {};
+// true while rendering a back/forward navigation: viewHome() passes it to the 3D scene so
+// it restores its camera angle (sessionStorage) along with the router's scroll position
+let routeFromHistory = false;
 function render(){
   try{
     scrollMemory[lastHash] = window.scrollY;
     lastHash = location.hash;
     const restoreY = cameFromPopstate ? scrollMemory[location.hash] : undefined;
+    routeFromHistory = cameFromPopstate;
     cameFromPopstate = false;
+
+    // the 3D home scene goes away before any view swap (even home -> home): it frees its
+    // WebGL context, rAF loop and listeners, saves its camera angle and drops a doom mood
+    // it may have set. viewHome() mounts a fresh one.
+    try{ if(typeof unmountSolar === "function") unmountSolar(); }catch(e){}
 
     const hash = location.hash.replace(/^#\/?/,"");
     const parts = hash.split("/").filter(Boolean);
-    // Armagedón is the one view with its own (red) mood; everywhere else keeps the blue sky.
-    document.body.classList.toggle("mood-doom", parts[0]==="armageddon");
+    // Armagedón is the one view with its own (red) mood; everywhere else keeps the blue sky
+    // (the home's Hoyo focus also sets it, see syncMood).
+    syncMood(false);
     if(parts[0]==="season" && parts[1]!==undefined) viewSeason(parts[1]);
     else if(parts[0]==="character" && parts[1]!==undefined) viewCharacter(parts[1]);
     else if(parts[0]==="place" && parts[1]!==undefined) viewPlace(parts[1]);
@@ -1160,7 +1222,8 @@ function replayRouteAnimation(){
 window.addEventListener("hashchange", render);
 (function(){
   // the constellation uses a different point layout above/below the 600px breakpoint
-  // (see viewHome), so crossing it needs a re-render, not just a redraw of the same points
+  // (see constellationHtml), so crossing it needs a rebuild of the 2D points - just the 2D:
+  // the 3D scene on top handles its own resize and must not be remounted for this
   let resizeTimer;
   const mq = window.matchMedia("(max-width:600px)");
   let wasNarrow = mq.matches;
@@ -1169,7 +1232,8 @@ window.addEventListener("hashchange", render);
     resizeTimer = setTimeout(()=>{
       const nowNarrow = mq.matches;
       const onHome = !location.hash || location.hash==="#/" || location.hash==="#/home";
-      if(onHome && nowNarrow!==wasNarrow) viewHome();
+      const wrap = document.querySelector(".hero .constellation-wrap");
+      if(onHome && wrap && nowNarrow!==wasNarrow){ wrap.innerHTML = constellationHtml(); setupConstellationFX(); }
       wasNarrow = nowNarrow;
     }, 200);
   });
@@ -1365,28 +1429,14 @@ try{
 })();
 }catch(e){ /* decorative starfield failing should never block the app */ }
 
-// One shared rAF loop for the scroll/pointer driven chrome: nav condensing, the hero
-// receding as it scrolls away, and the constellation's pointer tilt. All cheap transform /
-// class writes, no layout thrash. The star canvas is fixed and handles its own parallax
-// internally, so it needs nothing here.
+// One shared rAF loop for the scroll driven chrome: nav condensing and the hero receding as
+// it scrolls away. All cheap transform / class writes, no layout thrash. The star canvas is
+// fixed and handles its own parallax internally, and the 3D scene runs its own loop (which
+// sleeps when the hero is out of view), so neither needs anything here.
 try{
   const heroReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const canHover = !heroReduced && window.matchMedia("(hover: hover) and (pointer: fine)").matches;
   let rafId = null;
-  let targetTiltX = 0, targetTiltY = 0, tiltX = 0, tiltY = 0;
   let navCondensed = false;
-
-  if(canHover){
-    document.addEventListener("pointermove", (e)=>{
-      const wrap = document.querySelector(".constellation-wrap");
-      if(!wrap) return;
-      const r = wrap.getBoundingClientRect();
-      const px = (e.clientX - (r.left + r.width/2)) / (r.width/2 || 1);
-      const py = (e.clientY - (r.top + r.height/2)) / (r.height/2 || 1);
-      targetTiltX = Math.max(-1, Math.min(1, px)) * 13;
-      targetTiltY = Math.max(-1, Math.min(1, py)) * 9;
-    });
-  }
 
   function tick(){
     const sy = window.scrollY || 0;
@@ -1403,7 +1453,8 @@ try{
         const rect = hero.getBoundingClientRect();
         const span = rect.height || window.innerHeight;
         const progress = Math.min(1, Math.max(0, -rect.top/span));
-        const wrap = hero.querySelector(".constellation-wrap");
+        // .home-sky holds both the 2D constellation and the 3D stage, so both recede together
+        const wrap = hero.querySelector(".home-sky");
         if(wrap){
           wrap.style.transform = `translateY(${(progress*54).toFixed(1)}px) scale(${(1-progress*0.07).toFixed(3)})`;
           wrap.style.opacity = (1 - progress*0.6).toFixed(3);
@@ -1413,11 +1464,6 @@ try{
           copy.style.transform = `translateY(${(progress*-26).toFixed(1)}px)`;
           copy.style.opacity = (1 - progress*0.85).toFixed(3);
         }
-      }
-      if(canHover){
-        tiltX += (targetTiltX-tiltX)*0.08; tiltY += (targetTiltY-tiltY)*0.08;
-        const tilt = document.getElementById("constellationTilt");
-        if(tilt) tilt.style.transform = `translate(${tiltX.toFixed(2)}px, ${tiltY.toFixed(2)}px)`;
       }
     }
     rafId = requestAnimationFrame(tick);
