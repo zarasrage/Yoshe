@@ -40,6 +40,7 @@ const DATA = {
     "daniela":            {name:"Daniela",                 role:"— rol pendiente —", tier:"secundario", color:"#f2a65a", bio:"Amiga de Connie. Cristóbal Jones la conoció en un carrete en casa de Heidi — tenía pololo y él no lo sabía.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
     "blanca":             {name:"Blanca",                  role:"— rol pendiente —", tier:"secundario", color:"#8b6bf2", bio:"Cuéntame más sobre Blanca: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
     "javier-diaz":        {name:"Javier Díaz",             role:"— rol pendiente —", tier:"secundario", color:"#3f8c82", bio:"Cuéntame más sobre el Javo: quién es y cómo se relaciona con el grupo.", apodo:"Javo", frase:null, habilidad:null, destino:null, tags:[]},
+    "milf":               {name:"Milf",                    role:"— rol pendiente —", tier:"secundario", color:"#d9748a", bio:"Cuéntame más sobre la Milf: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
   },
   places: {
 
@@ -343,7 +344,7 @@ const DATA = {
         },
         {
           date:"Viernes 18 de septiembre de 2026", title:"La fonda del Dieciocho en Chapultepec",
-          place:"chapultepec", chars:["gerardo-cortes","paula-jara","andres","hernan-suarez","maca-hermantraut","valeria-dassori","maria-ignacia-demandes","sofia-yanez","agustin-gonzalez","javier-diaz"],
+          place:"chapultepec", chars:["gerardo-cortes","paula-jara","andres","hernan-suarez","maca-hermantraut","valeria-dassori","maria-ignacia-demandes","sofia-yanez","agustin-gonzalez","javier-diaz","milf"],
           content:[
             {t:"text",v:"Para el 18 de septiembre el grupo armó su propia fonda en "},
             {t:"place",id:"chapultepec"},
@@ -369,13 +370,15 @@ const DATA = {
             {t:"char",id:"maria-ignacia-demandes"},
             {t:"text",v:". "},
             {t:"char",id:"gerardo-cortes"},
-            {t:"text",v:" se agarró a la MILF, y la cosa llegó hasta el final. "},
+            {t:"text",v:" se agarró a la "},
+            {t:"char",id:"milf"},
+            {t:"text",v:", y la cosa llegó hasta el final. "},
             {t:"char",id:"sofia-yanez"},
             {t:"text",v:", en cambio, murió por ese curao raja: terminó vomitando, y "},
             {t:"char",id:"agustin-gonzalez"},
             {t:"text",v:" la ayudó a pasarla.\n\n"},
             {t:"char",id:"javier-diaz"},
-            {t:"text",v:" llegó con un amigo — Ferrán, o algo así — y estuvo como cinco minutos. Lo amenazaron con el cuadro y lo sacaron a tomarse un copete al seco mientras le cantaban el cumpleaños; poco después, se fueron los dos.\n\nLa gente lo pasó muy bien y se quedó hasta tarde. Una muy buena fonda. — Cuéntame más: ¿qué es \"el cuadro\"? ¿Quién era la MILF?"}
+            {t:"text",v:" llegó con un amigo — Ferrán, o algo así — y estuvo como cinco minutos. No se salvó del cuadro: en la casa hay uno que dice \"Feliz cumpleaños Javier\", y es ley que a todo Javier que pisa la casa se le canta el cumpleaños. Lo amenazaron con él, lo sacaron, y le tocó tomarse un copete al seco mientras le cantaban; poco después, se fueron los dos.\n\nLa gente lo pasó muy bien y se quedó hasta tarde. Una muy buena fonda."}
           ]
         },
         {
