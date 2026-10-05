@@ -134,7 +134,7 @@ function runSearch(q){
     p.name.toLowerCase().includes(query) || (p.desc&&p.desc.toLowerCase().includes(query))
   );
   const eventMatches = allEventsFlat().filter(r=>{
-    const text = r.event.title + " " + r.event.content.filter(s=>s.t==="text").map(s=>s.v).join(" ");
+    const text = r.event.title + " " + plainText(r.event.content);
     return text.toLowerCase().includes(query);
   });
 
@@ -145,8 +145,8 @@ function runSearch(q){
   let html="";
   if(charMatches.length){
     html += `<div class="search-result-group"><h4>Personajes</h4>` + charMatches.map(([id,c])=>
-      `<div class="search-result-item" onclick="toggleSearch();navigateTo('character','${id}')">
-        <div class="srn">${escapeHtml(c.name)}</div><div class="srd">${escapeHtml(c.role)}</div>
+      `<div class="search-result-item sri-person" onclick="toggleSearch();navigateTo('character','${id}')">
+        ${faceHtml(id, {static:true})}<div><div class="srn">${escapeHtml(c.name)}</div><div class="srd">${c.apodo?`“${escapeHtml(c.apodo)}” · `:""}${characterStats(id).count} historias · ${c.tier==='secundario'?'aparición especial':'del grupo'}</div></div>
       </div>`).join("") + `</div>`;
   }
   if(placeMatches.length){
@@ -157,8 +157,8 @@ function runSearch(q){
   }
   if(eventMatches.length){
     html += `<div class="search-result-group"><h4>Historias</h4>` + eventMatches.map(r=>
-      `<div class="search-result-item" onclick="toggleSearch();location.hash='#/season/${r.season.id}';setTimeout(()=>flashEvent(${r.season.id},${r.index}),120)">
-        <div class="srn">${escapeHtml(r.event.title)}</div><div class="srd">${r.season.code} · ${escapeHtml(r.event.date)}</div>
+      `<div class="search-result-item" onclick="toggleSearch();location.hash='${storyHref(r.season.id, r.index)}'">
+        <div class="srn">${escapeHtml(r.event.title)}</div><div class="srd"><span style="color:${r.season.color}">${r.season.code}</span> · ${escapeHtml(isPending(r.event.date)?"fecha pendiente":r.event.date)} — ${escapeHtml(excerpt(r.event.content, 90))}</div>
       </div>`).join("") + `</div>`;
   }
   box.innerHTML = html;
@@ -169,8 +169,9 @@ function goRandomStory(){
   const all = allEventsFlat();
   if(!all.length){ alert("Todavía no hay historias cargadas."); return; }
   const pick = all[Math.floor(Math.random()*all.length)];
-  location.hash = `#/season/${pick.season.id}`;
-  setTimeout(()=>flashEvent(pick.season.id, pick.index), 150);
+  const href = storyHref(pick.season.id, pick.index);
+  // misma historia que la actual: el hash no cambia y no habría render; se destaca igual
+  if(location.hash === href) flashEvent(pick.season.id, pick.index); else location.hash = href;
 }
 
 /* =========================== MODO EDICIÓN =========================== */
@@ -432,7 +433,12 @@ function cyclePhoto(imgEl){
 }
 function renderContent(content){
   return content.map(seg=>{
-    if(seg.t==="text") return escapeHtml(seg.v);
+    if(seg.t==="text"){
+      // "— Cuéntame más: ..." dentro de una historia es una nota para completar: se ve como tal
+      const m = seg.v.match(/^([\s\S]*?)(—\s*Cu[ée]ntame[\s\S]*)$/);
+      if(m) return escapeHtml(m[1]) + `<span class="ask-note">${escapeHtml(m[2].replace(/^—\s*/, ""))}</span>`;
+      return escapeHtml(seg.v);
+    }
     if(seg.t==="char"){
       const c=DATA.characters[seg.id]; if(!c) return "";
       return `<span class="tag-char" onclick="event.stopPropagation();navigateTo('character','${seg.id}')">${escapeHtml(c.name)}</span>`;
@@ -445,6 +451,89 @@ function renderContent(content){
   }).join("");
 }
 function escapeHtml(s){const d=document.createElement("div");d.textContent=(s===null||s===undefined)?"":String(s);return d.innerHTML;}
+
+/* ---------- ayudantes compartidos por las vistas ---------- */
+// Una historia como texto plano, CON los nombres de personajes y lugares (los extractos y la
+// búsqueda solo tomaban los segmentos de texto y quedaban frases como "carreteando en , en...")
+function plainText(content){
+  return (content||[]).map(seg=>{
+    if(seg.t==="text") return seg.v;
+    if(seg.t==="char") return (DATA.characters[seg.id]||{}).name || "";
+    if(seg.t==="place") return (DATA.places[seg.id]||{}).name || "";
+    return "";
+  }).join("");
+}
+// Las historias traen a veces una nota para completar al final ("— Cuéntame más: ..."): es un
+// recordatorio, no parte del relato, así que el extracto la deja fuera
+const ASK_RE = /\s*—\s*Cu[ée]ntame[\s\S]*$/;
+function excerpt(content, n){
+  n = n || 150;
+  const t = plainText(content).replace(ASK_RE, "").replace(/\s+/g, " ").trim();
+  if(t.length <= n) return t;
+  const cut = t.slice(0, n);
+  return cut.slice(0, Math.max(cut.lastIndexOf(" "), n*0.7)).replace(/[,;:.\s—-]+$/, "") + "…";
+}
+// enlace directo a una historia (el router hace scroll a la tarjeta y la destaca)
+function storyHref(seasonId, idx){ return `#/season/${seasonId}/${idx}`; }
+// Un campo pendiente ("Cuéntame...") no se muestra como si fuera contenido: en modo lectura sale
+// una marca discreta; en modo edición, el texto completo (es el recordatorio de qué falta).
+function pendingHtml(text, label){
+  if(isEditOn()) return `<span class="pending-note is-edit">${escapeHtml(text||label)}</span>`;
+  return `<span class="pending-note">${escapeHtml(label)}</span>`;
+}
+// personajes de una lista de historias, con cuántas veces aparece cada uno (mayor a menor)
+function castOf(events){
+  const count = {};
+  events.forEach(e=> (e.chars||[]).forEach(id=>{ if(DATA.characters[id]) count[id] = (count[id]||0) + 1; }));
+  return Object.entries(count).sort((a,b)=> b[1]-a[1] || DATA.characters[a[0]].name.localeCompare(DATA.characters[b[0]].name));
+}
+// fila de caritas clicables (avatar o iniciales con el color del personaje). Dentro de algo que
+// ya es un enlace (una tarjeta), `static` las hace <span>: un <a> dentro de otro <a> no es HTML
+// válido y el navegador parte la tarjeta en dos
+function faceHtml(id, opts){
+  const c = DATA.characters[id]; if(!c) return "";
+  const o = opts || {};
+  const src = avatarSrc(c);
+  const inner = src ? `<img src="${src}" alt="" class="avatar-img${c.thumb?'':' is-full'}" loading="lazy" decoding="async">` : `<span>${escapeHtml(initials(c.name))}</span>`;
+  const label = escapeHtml(c.name) + (o.count ? ` · ${o.count} ${o.count===1?"historia":"historias"}` : "");
+  if(o.static) return `<span class="face${src?'':' is-initials'}" style="--fcolor:${c.color}" title="${label}">${inner}</span>`;
+  return `<a class="face${src?'':' is-initials'}" href="#/character/${id}" style="--fcolor:${c.color}" title="${label}" aria-label="${label}" onclick="event.stopPropagation()">${inner}</a>`;
+}
+function facesHtml(ids, max, cls, isStatic){
+  const shown = ids.slice(0, max);
+  const more = ids.length - shown.length;
+  return `<div class="faces ${cls||''}">${shown.map(x=> Array.isArray(x) ? faceHtml(x[0], {count:x[1], static:isStatic}) : faceHtml(x, {static:isStatic})).join("")}${more>0?`<span class="face face-more">+${more}</span>`:""}</div>`;
+}
+// nombre corto para etiquetas chicas: el primer nombre, o con la inicial del apellido si se
+// repite ("María D." / "María C.", "Hernán S." / "Hernán M.")
+function shortName(id){
+  const c = DATA.characters[id]; if(!c) return "";
+  const parts = c.name.split(" ");
+  const first = parts[0];
+  const dup = Object.entries(DATA.characters).some(([k,o])=> k!==id && o.name.split(" ")[0]===first);
+  return dup && parts.length > 1 ? `${first} ${parts[parts.length-1][0]}.` : first;
+}
+// fechas en texto libre ("Sábado 13 de junio", "Del 2 al 8 de febrero de 2024"): se saca lo que
+// se pueda (día, mes, año) para el marcador grande del timeline; si no hay, null
+const MONTHS = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+function parseDate(text){
+  if(!text || isPending(text)) return null;
+  const t = String(text).toLowerCase();
+  const m = t.match(/(\d{1,2})\s+(?:de\s+)?(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)/);
+  if(!m) return null;
+  const y = t.match(/(20\d\d)/);
+  return { day: m[1], month: m[2].slice(0,3), year: y ? y[1] : "" };
+}
+function seasonOfEvent(e){ return DATA.seasons.find(s=> s.events.includes(e)); }
+function siteFooter(){
+  return `<footer class="site-footer reveal">
+    <div class="sf-brand">Yoshe con <em>Hoyo</em></div>
+    <nav class="sf-links">
+      <a href="#/home">Galaxia</a><a href="#/elenco">Elenco</a><a href="#/map">Mapa</a><a href="#/records">Récords</a><a href="#/armageddon" class="sf-doom">Armagedón</a>
+    </nav>
+    <div class="sf-note">una crónica en construcción · S0 → S5</div>
+  </footer>`;
+}
 
 /* An event can carry photos (e.images[], or legacy single e.image) and/or a video (e.video). */
 function getEventMedia(e){
@@ -481,9 +570,12 @@ function renderPlacePlate(e, place){
    and a right-side card reads media-then-copy, mirroring each other across the spine. */
 function renderEventBody(e, place, side){
   const media = getEventMedia(e);
-  const tagsHtml = `<div class="event-tags">
-        ${e.chars.map(cid=>DATA.characters[cid]?`<span class="chip-small">${escapeHtml(DATA.characters[cid].name)}</span>`:"").join("")}
-      </div>`;
+  // quiénes estuvieron: caritas clicables (las mismas del elenco) en vez de una lista de nombres
+  const people = e.chars.filter(cid=>DATA.characters[cid]);
+  const tagsHtml = people.length ? `<div class="event-people">
+        ${facesHtml(people, 16)}
+        <span class="ep-count">${people.length} ${people.length===1?"persona":"personas"}</span>
+      </div>` : "";
   if(!media.length){
     return `${renderPlacePlate(e, place)}
       <div class="story-text">${renderContent(e.content)}</div>
@@ -496,6 +588,7 @@ function renderEventBody(e, place, side){
 function navigateTo(view,id){ location.hash = `#/${view}/${id}`; }
 
 /* =========================== render: NAV STRIP =========================== */
+// activeId: undefined = la home; "elenco"; el id de una temporada; null = ninguno (mapa, récords...)
 function renderSeasonsStrip(activeId){
   const strip=document.getElementById("seasonsStrip");
   let html = `<button data-s="home" class="${activeId===undefined?'active':''}" onclick="location.hash='#/home'">Inicio</button>`;
@@ -632,43 +725,67 @@ function viewCast(){
   renderSeasonsStrip("elenco");
   const app=document.getElementById("app");
 
-  const castCard = ([id,c])=>`
-    <div class="cast-card" onclick="navigateTo('character','${id}')">
+  const storyCount = {};
+  allEventsFlat().forEach(r=> r.event.chars.forEach(id=>{ storyCount[id] = (storyCount[id]||0) + 1; }));
+  const seasonsOf = id => DATA.seasons.filter(s=> s.events.some(e=> e.chars.includes(id)));
+  // la tarjeta dice lo que sí se sabe: apodo, cuántas historias y en qué temporadas. El rol
+  // pendiente ya no sale repetido en cada una
+  const castCard = ([id,c])=>{
+    const n = storyCount[id] || 0;
+    const ss = seasonsOf(id);
+    return `
+    <a class="cast-card${c.tier==='secundario'?' is-sec':''}" href="#/character/${id}" style="--pcolor:${c.color}">
       <div class="cast-avatar" style="background:${avatarSrc(c)?'transparent':c.color}; overflow:hidden;">${avatarInner(c)}</div>
       <div class="cname">${escapeHtml(c.name)}</div>
-      <div class="crole">${escapeHtml(c.role)}</div>
-      <div class="tier-badge tier-${c.tier==='secundario'?'sec':'pri'}">${c.tier==='secundario'?'Secundario':'Primario'}</div>
-    </div>`;
+      ${c.apodo ? `<div class="capodo">“${escapeHtml(c.apodo)}”</div>` : (!isPending(c.role) ? `<div class="crole">${escapeHtml(c.role)}</div>` : "")}
+      <div class="cmeta">
+        <span class="cn">${n} ${n===1?"historia":"historias"}</span>
+        <span class="cdots">${ss.map(s=>`<i style="background:${s.color}" title="${s.code}"></i>`).join("")}</span>
+      </div>
+    </a>`;
+  };
   const entries = Object.entries(DATA.characters);
-  const primaryHtml = entries.filter(([,c])=>c.tier!=='secundario').map(castCard).join("");
-  const secondaryHtml = entries.filter(([,c])=>c.tier==='secundario').map(castCard).join("");
+  const byStories = (a,b)=> (storyCount[b[0]]||0) - (storyCount[a[0]]||0) || a[1].name.localeCompare(b[1].name);
+  const primary = entries.filter(([,c])=>c.tier!=='secundario');
+  const secondary = entries.filter(([,c])=>c.tier==='secundario').sort(byStories);
 
-  const placesHtml = Object.entries(DATA.places).map(([id,p])=>`
-    <div class="place-card" onclick="navigateTo('place','${id}')">
+  const placeCount = {};
+  allEventsFlat().forEach(r=>{ if(r.event.place) placeCount[r.event.place] = (placeCount[r.event.place]||0) + 1; });
+  const placesHtml = Object.entries(DATA.places).sort((a,b)=> (placeCount[b[0]]||0) - (placeCount[a[0]]||0)).map(([id,p])=>{
+    const n = placeCount[id] || 0;
+    return `
+    <a class="place-card" href="#/place/${id}">
       <span class="picon">${p.icon}</span>
       <div class="pname">${escapeHtml(p.name)}</div>
-      <div class="pdesc">${escapeHtml(p.desc)}</div>
-    </div>`).join("");
+      ${isPending(p.desc) ? `<div class="pdesc is-pending">${pendingHtml(p.desc, "descripción pendiente")}</div>` : `<div class="pdesc">${escapeHtml(p.desc)}</div>`}
+      <div class="cmeta"><span class="cn">${n} ${n===1?"historia":"historias"}</span></div>
+    </a>`;
+  }).join("");
 
   app.innerHTML = `
-  <div class="cast-topbar"><a class="back-btn" href="#/home"><span aria-hidden="true">←</span> Galaxia</a></div>
+  <div class="page-topbar"><a class="back-btn" href="#/home"><span aria-hidden="true">←</span> Galaxia</a></div>
   <section class="section-wrap cast-page">
+    <div class="cast-intro">
+      <div class="eyebrow">El elenco</div>
+      <h1>Quiénes son</h1>
+      <p>${primary.length} integrantes del grupo, ${secondary.length} apariciones especiales y ${Object.keys(DATA.places).length} lugares donde pasaron las cosas.</p>
+    </div>
     <div class="section-head">
-      <div class="eyebrow">Elenco · principales</div>
+      <div class="eyebrow">El grupo</div>
       <h2>Los personajes</h2>
     </div>
-    <div class="grid-cast reveal-stagger">${primaryHtml}</div>
+    <div class="grid-cast reveal-stagger">${primary.map(castCard).join("")}</div>
   </section>
 
   <section class="section-wrap" style="padding-top:0;">
     <div class="section-head">
-      <div class="eyebrow">Elenco · secundarios</div>
+      <div class="eyebrow">Elenco invitado</div>
       <h2>Apariciones especiales</h2>
     </div>
-    <div class="grid-cast reveal-stagger">${secondaryHtml || '<div style="color:var(--ink-dim); font-size:.9rem;">Todavía no hay personajes secundarios.</div>'}</div>
+    <div class="grid-cast grid-cast-sec reveal-stagger">${secondary.map(castCard).join("") || '<div style="color:var(--ink-dim); font-size:.9rem;">Todavía no hay personajes secundarios.</div>'}</div>
   </section>
 
-  <section class="section-wrap">
+  <section class="section-wrap" style="padding-top:0;">
     <div class="section-head">
       <div class="eyebrow">Escenarios</div>
       <h2>Los lugares</h2>
@@ -676,7 +793,7 @@ function viewCast(){
     <div class="grid-places reveal-stagger">${placesHtml}</div>
   </section>
 
-  <footer class="site-footer reveal">Yoshe con Hoyo · una crónica en construcción · S0 → S5</footer>
+  ${siteFooter()}
   `;
 
   setupReveals();
@@ -840,33 +957,51 @@ function setupConstellationFX(){
 /* =========================== render: SEASON =========================== */
 function viewSeason(id){
   const s = DATA.seasons.find(x=>String(x.id)===String(id));
-  renderSeasonsStrip(s?s.id:undefined);
+  renderSeasonsStrip(s?s.id:null);
   const app=document.getElementById("app");
   if(!s){ app.innerHTML = `<div class="section-wrap">Temporada no encontrada.</div>`; return; }
 
+  const sIdx = DATA.seasons.indexOf(s);
+  const prev = DATA.seasons[sIdx-1], next = DATA.seasons[sIdx+1];
+  const cast = castOf(s.events);
+  const placeIds = [...new Set(s.events.map(e=>e.place).filter(p=>p && DATA.places[p]))];
+
+  // la cabecera: código, título, hito (o su marca de pendiente), cifras y el reparto
+  const statsHtml = s.events.length ? `
+      <div class="season-stats">
+        <div><b>${s.events.length}</b><span>${s.events.length===1?"historia":"historias"}</span></div>
+        <div><b>${cast.length}</b><span>${cast.length===1?"personaje":"personajes"}</span></div>
+        <div><b>${placeIds.length}</b><span>${placeIds.length===1?"lugar":"lugares"}</span></div>
+      </div>
+      ${cast.length ? `<div class="season-cast"><div class="season-cast-label">Reparto</div>${facesHtml(cast, 14, "faces-lg")}</div>` : ""}` : "";
   const seasonHeroHtml = `
     <section class="season-hero" style="--scolor:${s.color}">
-      <div class="scode-big">${s.code}</div>
+      <div class="scode-big">${s.code} <span>· temporada ${sIdx+1} de ${DATA.seasons.length}</span></div>
       <h1>${escapeHtml(s.title)}</h1>
-      <p class="hito">${escapeHtml(s.hito)}</p>
-      ${isPending(s.hito) ? "" : `<div class="hito-badge">Hito de inicio · ${escapeHtml(firstSentence(s.hito))}</div>`}
+      <p class="hito">${isPending(s.hito) ? pendingHtml(s.hito, "— el hito de esta temporada está por escribirse —") : escapeHtml(s.hito)}</p>
+      ${statsHtml}
       <div class="edit-only-btn edit-row">
         <button class="back-btn" style="margin:0;" onclick="openSeasonMetaModal('${s.id}')">✏️ Editar título/hito</button>
         <button class="back-btn" style="margin:0;" onclick="openAddEventModal('${s.id}')">➕ Agregar historia</button>
       </div>
     </section>`;
 
+  // anterior / siguiente: la temporada no es un callejón sin salida
+  const seasonNavHtml = `
+    <nav class="season-nav reveal" aria-label="Otras temporadas">
+      ${prev ? `<a class="sn-card sn-prev" href="#/season/${prev.id}" style="--scolor:${prev.color}"><span class="sn-dir">← Anterior</span><span class="sn-code">${prev.code}</span><span class="sn-title">${escapeHtml(prev.title)}</span></a>` : `<span class="sn-card sn-empty"></span>`}
+      <a class="sn-home" href="#/home"><span class="sn-orbit" aria-hidden="true"></span>Galaxia</a>
+      ${next ? `<a class="sn-card sn-next" href="#/season/${next.id}" style="--scolor:${next.color}"><span class="sn-dir">Siguiente →</span><span class="sn-code">${next.code}</span><span class="sn-title">${escapeHtml(next.title)}</span></a>`
+             : `<a class="sn-card sn-next sn-doom" href="#/armageddon"><span class="sn-dir">Y después →</span><span class="sn-code">†</span><span class="sn-title">El Armagedón</span></a>`}
+    </nav>`;
+
   if(!s.events.length){
     app.innerHTML = seasonHeroHtml + `
     <div class="season-empty reveal">
       <div class="empty-orbit" style="--scolor:${s.color}"><span></span><span></span><span></span></div>
       <h3>Esta temporada todavía está por escribirse</h3>
-      <p>No hay historias cargadas para ${escapeHtml(s.code)} — ${escapeHtml(s.title)}.
-         Cuéntamelas y las agrego al timeline.</p>
-      <div class="empty-actions">
-        <div class="back-btn" style="margin:0;" onclick="location.hash='#/'">← Volver a la galaxia</div>
-      </div>
-    </div>`;
+      <p>No hay historias cargadas para ${escapeHtml(s.code)} — ${escapeHtml(s.title)}.</p>
+    </div>` + seasonNavHtml + siteFooter();
     setupReveals();
     return;
   }
@@ -874,21 +1009,32 @@ function viewSeason(id){
     const side = idx%2===0 ? "left" : "right";
     const place = DATA.places[e.place];
     const rot = (idx%2===0? -1 : 1) * (1 + (idx%3));
+    const d = parseDate(e.date);
+    const pendingDate = isPending(e.date);
+    // al otro lado del eje (en desktop), la fecha grande y el lugar: así el timeline no deja
+    // media pantalla vacía y se puede recorrer de un vistazo
+    const sideHtml = `
+      <div class="event-side" aria-hidden="true">
+        <div class="es-n">Historia ${idx+1} <span>de ${s.events.length}</span></div>
+        ${d ? `<div class="es-date"><b>${d.day}</b><span>${d.month}${d.year?` ${d.year}`:""}</span></div>` : `<div class="es-date es-nodate"><span>${pendingDate?"fecha pendiente":escapeHtml(e.date)}</span></div>`}
+        ${place ? `<div class="es-place">${place.icon} ${escapeHtml(place.name)}</div>` : ""}
+      </div>`;
     return `
-    <div class="event ${side}" id="event-${s.id}-${idx}" data-idx="${idx}" style="--rot:${rot}deg">
+    <article class="event ${side}" id="event-${s.id}-${idx}" data-idx="${idx}" style="--rot:${rot}deg; --scolor:${s.color}">
       <div class="node-dot" style="border-color:${s.color}"></div>
-      <div class="edate">${escapeHtml(e.date)} · ${s.code}</div>
+      ${sideHtml}
+      <div class="edate"><span class="edate-n">${idx+1}</span>${escapeHtml(pendingDate ? "fecha pendiente" : e.date)}</div>
       <h3>${escapeHtml(e.title)}</h3>
       ${renderEventBody(e, place, side)}
-    </div>`;
+    </article>`;
   }).join("");
 
   app.innerHTML = seasonHeroHtml + `
-    <div class="timeline" id="timeline">
+    <div class="timeline" id="timeline" style="--scolor:${s.color}">
       <div class="tl-progress" id="tlProgress" style="background:linear-gradient(to bottom, ${s.color}, var(--violet))"></div>
       ${eventsHtml}
     </div>
-  `;
+  ` + seasonNavHtml + siteFooter();
   setupScrollReveal();
   setupTimelineProgress();
   setupReveals();
@@ -960,41 +1106,91 @@ function setupTimelineProgress(){
 }
 
 /* =========================== render: CHARACTER =========================== */
+// tarjeta de una historia en las bitácoras (ficha de personaje y de lugar): color de su
+// temporada, lugar, quiénes estuvieron y un extracto que sí incluye los nombres
+function storyCardHtml(r, opts){
+  const o = opts || {};
+  const place = DATA.places[r.event.place];
+  const people = r.event.chars.filter(id=> DATA.characters[id] && id !== o.skip);
+  return `
+    <a class="story-link-card" href="${storyHref(r.season.id, r.index)}" style="--scolor:${r.season.color}">
+      <div class="slc-top">
+        <span class="slc-season">${r.season.code} · ${escapeHtml(r.season.title)}</span>
+        <span class="slc-date">${escapeHtml(isPending(r.event.date) ? "fecha pendiente" : r.event.date)}</span>
+      </div>
+      <h4>${escapeHtml(r.event.title)}</h4>
+      <p>${escapeHtml(excerpt(r.event.content, 170))}</p>
+      <div class="slc-foot">
+        ${place && !o.noPlace ? `<span class="slc-place">${place.icon} ${escapeHtml(place.name)}</span>` : ""}
+        ${people.length ? facesHtml(people, 7, "faces-sm", true) : ""}
+      </div>
+    </a>`;
+}
+// en qué temporadas aparece: seis puntos, encendidos los suyos
+function seasonDotsHtml(codes){
+  return `<div class="season-dots" aria-label="Temporadas: ${codes.join(", ") || "ninguna"}">${DATA.seasons.map(s=>{
+    const on = codes.includes(s.code);
+    return `<a class="sd${on?' on':''}" href="#/season/${s.id}" style="--scolor:${s.color}" title="${s.code} · ${escapeHtml(s.title)}"><i></i><span>${s.code}</span></a>`;
+  }).join("")}</div>`;
+}
+
 function viewCharacter(id){
-  renderSeasonsStrip(undefined);
+  renderSeasonsStrip("elenco");
   const c = DATA.characters[id];
   const app=document.getElementById("app");
   if(!c){ app.innerHTML=`<div class="section-wrap">Personaje no encontrado.</div>`; return; }
 
   const related = allEventsFlat().filter(x=>x.event.chars.includes(id));
   const stats = characterStats(id);
+  const placeId = stats.topPlace ? Object.keys(DATA.places).find(k=>DATA.places[k]===stats.topPlace) : null;
 
   const statCards = `
     <div class="stat-cell"><div class="stat-num">${stats.count}</div><div class="stat-label">historia${stats.count===1?"":"s"}</div></div>
-    <div class="stat-cell"><div class="stat-num">${stats.seasons.length}</div><div class="stat-label">temporada${stats.seasons.length===1?"":"s"}${stats.seasons.length?` (${stats.seasons.join(", ")})`:""}</div></div>
-    ${stats.topPlace ? `<div class="stat-cell" data-clickable onclick="navigateTo('place','${Object.keys(DATA.places).find(k=>DATA.places[k]===stats.topPlace)}')"><div class="stat-num">${stats.topPlace.icon}</div><div class="stat-label">lugar frecuente: ${escapeHtml(stats.topPlace.name)}</div></div>` : ""}
-    ${stats.topCoChar ? `<div class="stat-cell" data-clickable onclick="navigateTo('character','${stats.topCoCharId}')"><div class="stat-num">🤝</div><div class="stat-label">compañero frecuente: ${escapeHtml(stats.topCoChar.name)}</div></div>` : ""}
+    <div class="stat-cell"><div class="stat-num">${stats.seasons.length}</div><div class="stat-label">temporada${stats.seasons.length===1?"":"s"}</div></div>
+    ${stats.topPlace ? `<a class="stat-cell" href="#/place/${placeId}"><div class="stat-num">${stats.topPlace.icon}</div><div class="stat-label">su lugar: ${escapeHtml(stats.topPlace.name)}</div></a>` : ""}
+    ${stats.topCoChar ? `<a class="stat-cell" href="#/character/${stats.topCoCharId}"><div class="stat-num stat-face">${faceHtml(stats.topCoCharId, {static:true})}</div><div class="stat-label">más junto a: ${escapeHtml(stats.topCoChar.name.split(" ")[0])}</div></a>` : ""}
   `;
 
+  const rolePending = isPending(c.role);
+  const bioPending = isPending(c.bio);
   const infoContent = `
+      <div class="dossier-eyebrow">${c.tier==='secundario' ? "Aparición especial" : "Del grupo"}</div>
       <h1>${escapeHtml(c.name)}</h1>
-      ${c.apodo ? `<div class="apodo">"${escapeHtml(c.apodo)}"</div>` : ""}
-      <div class="meta-row">
-        <span class="role-chip">${escapeHtml(c.role)}</span>
-        <span class="tier-badge tier-${c.tier==='secundario'?'sec':'pri'}">${c.tier==='secundario'?'Personaje secundario':'Personaje primario'}</span>
-      </div>
-      <p class="profile-bio">${escapeHtml(c.bio)}</p>
+      ${c.apodo ? `<div class="apodo">“${escapeHtml(c.apodo)}”</div>` : ""}
+      ${rolePending && !isEditOn() ? "" : `<div class="meta-row"><span class="role-chip">${escapeHtml(c.role)}</span></div>`}
+      ${bioPending
+        ? `<p class="profile-bio is-pending">${pendingHtml(c.bio, "Perfil por escribir: todavía no hay una descripción de " + c.name.split(" ")[0] + ".")}</p>`
+        : `<p class="profile-bio">${escapeHtml(c.bio)}</p>`}
       ${c.habilidad ? `<div class="skill-card"><div class="skill-icon">⟡</div><div><div class="skill-label">Habilidad especial</div><div class="skill-value">${escapeHtml(c.habilidad)}</div></div></div>` : ""}
       ${c.frase ? `<blockquote class="quote-block">${escapeHtml(c.frase)}</blockquote>` : ""}
-      <div class="profile-tags">${c.tags.map(t=>`<span class="chip-small">${escapeHtml(t)}</span>`).join("")}</div>
+      ${(c.tags||[]).length ? `<div class="profile-tags">${c.tags.map(t=>`<span class="chip-small">${escapeHtml(t)}</span>`).join("")}</div>` : ""}
       <div class="stat-rail">${statCards}</div>
+      ${seasonDotsHtml(stats.seasons)}
   `;
+
+  // su gente: con quiénes comparte más historias
+  const co = castOf(related.map(r=>r.event)).filter(([cid])=> cid !== id);
+  const coHtml = co.length ? `
+    <section class="co-section reveal" style="--pcolor:${c.color}">
+      <div class="dossier-eyebrow">Su gente</div>
+      <h2>Con quién comparte la crónica</h2>
+      <div class="co-grid">${co.slice(0, 12).map(([cid, n])=>{
+        const p = DATA.characters[cid];
+        return `<a class="co-card" href="#/character/${cid}" style="--fcolor:${p.color}">
+          ${faceHtml(cid, {static:true})}
+          <span class="co-name">${escapeHtml(p.name)}</span>
+          <span class="co-n">${n} ${n===1?"historia":"historias"} juntos</span>
+        </a>`;
+      }).join("")}</div>
+    </section>` : "";
 
   const photos = getPhotos(c);
 
   app.innerHTML = `
-    <div class="back-btn" onclick="history.back()">← Volver</div>
-    <button class="back-btn edit-only-btn" style="margin-left:8px;" onclick="openCharEditModal('${id}')">✏️ Editar personaje</button>
+    <div class="page-topbar">
+      <div class="back-btn" onclick="history.length>1?history.back():location.hash='#/elenco'">← Volver</div>
+      <button class="back-btn edit-only-btn" onclick="openCharEditModal('${id}')">✏️ Editar personaje</button>
+    </div>
     ${photos.length ? `
     <section class="profile-hero-split" style="--pcolor:${c.color}">
       <div class="hero-wash"></div>
@@ -1014,25 +1210,18 @@ function viewCharacter(id){
     ` : `
     <section class="profile-hero" style="--pcolor:${c.color}">
       <div class="hero-wash"></div>
-
       <div class="profile-avatar" style="background:${avatarSrc(c)?'transparent':c.color}; overflow:hidden;">${avatarInner(c)}</div>
       ${infoContent}
     </section>
-    `}    <section class="related-stories">
-      <div class="dossier-eyebrow" style="--pcolor:${c.color}">Bitácora</div>
-      <h2>Historias que involucran a ${escapeHtml(c.name.split(" ")[0])}</h2>
-      <div class="sub">${related.length} historia${related.length===1?"":"s"} registrada${related.length===1?"":"s"} en la crónica</div>
-      ${related.map(r=>`
-        <a class="story-link-card" href="#/season/${r.season.id}" onclick="setTimeout(()=>flashEvent(${r.season.id},${r.index}),60)">
-          <div class="slc-top">
-            <span class="slc-season" style="color:${r.season.color}">${r.season.code} · ${escapeHtml(r.season.title)}</span>
-            <span class="slc-date">${escapeHtml(r.event.date)}</span>
-          </div>
-          <h4>${escapeHtml(r.event.title)}</h4>
-          <p>${r.event.content.filter(s=>s.t==="text").map(s=>s.v).join("").slice(0,140)}…</p>
-        </a>
-      `).join("")}
+    `}
+    ${coHtml}
+    <section class="related-stories reveal" style="--pcolor:${c.color}">
+      <div class="dossier-eyebrow">Bitácora</div>
+      <h2>Historias de ${escapeHtml(c.name.split(" ")[0])}</h2>
+      <div class="sub">${related.length} historia${related.length===1?"":"s"} en la crónica</div>
+      ${related.length ? related.map(r=>storyCardHtml(r, {skip:id})).join("") : `<div class="empty-note">Todavía no aparece en ninguna historia.</div>`}
     </section>
+    ${siteFooter()}
   `;
   /* Warm the rest of the carousel now, not on first click: an un-cached photo makes the
      first swap to it hold a blank beat while it downloads (cyclePhoto waits for pixels
@@ -1043,46 +1232,45 @@ function viewCharacter(id){
 
 /* =========================== render: PLACE =========================== */
 function viewPlace(id){
-  renderSeasonsStrip(undefined);
+  renderSeasonsStrip("elenco");
   const p = DATA.places[id];
   const app=document.getElementById("app");
   if(!p){ app.innerHTML=`<div class="section-wrap">Lugar no encontrado.</div>`; return; }
 
   const related = allEventsFlat().filter(x=>x.event.place===id);
   const stats = placeStats(id);
+  const visitors = castOf(related.map(r=>r.event));
 
   const statCards = `
     <div class="stat-cell"><div class="stat-num">${stats.count}</div><div class="stat-label">historia${stats.count===1?"":"s"}</div></div>
-    <div class="stat-cell"><div class="stat-num">${stats.seasons.length}</div><div class="stat-label">temporada${stats.seasons.length===1?"":"s"}${stats.seasons.length?` (${stats.seasons.join(", ")})`:""}</div></div>
-    ${stats.topChar ? `<div class="stat-cell" data-clickable onclick="navigateTo('character','${stats.topCharId}')"><div class="stat-num">⭐</div><div class="stat-label">quien más lo frecuenta: ${escapeHtml(stats.topChar.name)}</div></div>` : ""}
+    <div class="stat-cell"><div class="stat-num">${visitors.length}</div><div class="stat-label">${visitors.length===1?"persona ha pasado":"personas han pasado"}</div></div>
+    ${stats.topChar ? `<a class="stat-cell" href="#/character/${stats.topCharId}"><div class="stat-num stat-face">${faceHtml(stats.topCharId, {static:true})}</div><div class="stat-label">habitué: ${escapeHtml(stats.topChar.name.split(" ")[0])}</div></a>` : ""}
   `;
 
   app.innerHTML = `
-    <div class="back-btn" onclick="history.back()">← Volver</div>
-    <button class="back-btn edit-only-btn" style="margin-left:8px;" onclick="openPlaceEditModal('${id}')">✏️ Editar lugar</button>
-    <section class="profile-hero" style="--pcolor:var(--teal)">
+    <div class="page-topbar">
+      <div class="back-btn" onclick="history.length>1?history.back():location.hash='#/elenco'">← Volver</div>
+      <button class="back-btn edit-only-btn" onclick="openPlaceEditModal('${id}')">✏️ Editar lugar</button>
+    </div>
+    <section class="profile-hero place-hero" style="--pcolor:var(--teal)">
       <div class="hero-wash"></div>
-      <div class="profile-avatar" style="background:linear-gradient(135deg, var(--teal), var(--violet)); font-size:2.2rem;">${p.icon}</div>
+      <div class="profile-avatar place-avatar">${p.icon}</div>
+      <div class="dossier-eyebrow">Escenario</div>
       <h1>${escapeHtml(p.name)}</h1>
-      <div class="meta-row"><span class="role-chip">Lugar</span></div>
-      <p class="profile-bio">${escapeHtml(p.desc)}</p>
+      ${isPending(p.desc)
+        ? `<p class="profile-bio is-pending">${pendingHtml(p.desc, "Todavía no hay una descripción de este lugar.")}</p>`
+        : `<p class="profile-bio">${escapeHtml(p.desc)}</p>`}
       <div class="stat-rail">${statCards}</div>
+      ${seasonDotsHtml(stats.seasons)}
+      ${visitors.length ? `<div class="place-visitors"><div class="season-cast-label">Quiénes han estado aquí</div>${facesHtml(visitors, 24, "faces-lg")}</div>` : ""}
     </section>
-    <section class="related-stories">
-      <div class="dossier-eyebrow" style="--pcolor:var(--teal)">Bitácora</div>
-      <h2>Historias ocurridas en ${escapeHtml(p.name)}</h2>
-      <div class="sub">${related.length} historia${related.length===1?"":"s"} registrada${related.length===1?"":"s"} en la crónica</div>
-      ${related.map(r=>`
-        <a class="story-link-card" href="#/season/${r.season.id}" onclick="setTimeout(()=>flashEvent(${r.season.id},${r.index}),60)">
-          <div class="slc-top">
-            <span class="slc-season" style="color:${r.season.color}">${r.season.code} · ${escapeHtml(r.season.title)}</span>
-            <span class="slc-date">${escapeHtml(r.event.date)}</span>
-          </div>
-          <h4>${escapeHtml(r.event.title)}</h4>
-          <p>${r.event.content.filter(s=>s.t==="text").map(s=>s.v).join("").slice(0,140)}…</p>
-        </a>
-      `).join("")}
+    <section class="related-stories reveal" style="--pcolor:var(--teal)">
+      <div class="dossier-eyebrow">Bitácora</div>
+      <h2>Lo que pasó en ${escapeHtml(p.name)}</h2>
+      <div class="sub">${related.length} historia${related.length===1?"":"s"} en la crónica</div>
+      ${related.length ? related.map(r=>storyCardHtml(r, {noPlace:true})).join("") : `<div class="empty-note">Todavía no hay historias en este lugar.</div>`}
     </section>
+    ${siteFooter()}
   `;
   setupReveals();
 }
@@ -1090,34 +1278,52 @@ function viewPlace(id){
 /* =========================== render: MAPA DE RELACIONES =========================== */
 /* =========================== render: ARMAGEDDON =========================== */
 function viewArmageddon(){
-  renderSeasonsStrip(undefined);
+  renderSeasonsStrip(null);
   const app=document.getElementById("app");
   const a = DATA.armageddon;
   const primaryChars = Object.entries(DATA.characters).filter(([,c])=>c.tier!=='secundario');
+  const written = primaryChars.filter(([,c])=> c.destino && !isPending(c.destino)).length;
 
-  const cardsHtml = primaryChars.map(([id,c])=>`
-    <div class="epitaph-card" onclick="navigateTo('character','${id}')">
-      <div class="ename">${escapeHtml(c.name)}</div>
-      <div class="edestino ${c.destino?'':'pending'}">${c.destino?escapeHtml(c.destino):'Destino aún sin escribir…'}</div>
-    </div>
-  `).join("");
+  // lápidas: cara apagada (se enciende al pasar), nombre y su destino, o la marca de pendiente
+  const cardsHtml = primaryChars.map(([id,c])=>{
+    const src = avatarSrc(c);
+    const has = c.destino && !isPending(c.destino);
+    return `
+    <a class="epitaph-card${has?'':' is-pending'}" href="#/character/${id}" style="--pcolor:${c.color}">
+      <div class="ep-face">${src ? `<img src="${src}" alt="" class="avatar-img${c.thumb?'':' is-full'}" loading="lazy" decoding="async">` : `<span>${escapeHtml(initials(c.name))}</span>`}</div>
+      <div class="ep-body">
+        <div class="ename">${escapeHtml(c.name)}</div>
+        <div class="edestino ${has?'':'pending'}">${has ? escapeHtml(c.destino) : 'Destino aún sin escribir…'}</div>
+      </div>
+    </a>`;
+  }).join("");
 
   app.innerHTML = `
-    <div class="back-btn" onclick="history.back()">← Volver</div>
-    <button class="back-btn edit-only-btn" style="margin-left:8px;" onclick="openArmageddonModal()">✏️ Editar profecía</button>
+    <div class="page-topbar">
+      <div class="back-btn" onclick="history.length>1?history.back():location.hash='#/home'">← Volver</div>
+      <button class="back-btn edit-only-btn" onclick="openArmageddonModal()">✏️ Editar profecía</button>
+    </div>
     <section class="armageddon-hero">
       <div class="wash"></div>
+      <div class="arm-hole" aria-hidden="true"><i></i></div>
       <div class="eyebrow">Capítulo final</div>
       <h1>ARMAGEDÓN</h1>
-      <p class="prophecy">${escapeHtml(a.intro)}</p>
+      ${isPending(a.intro)
+        ? `<p class="prophecy is-pending">${isEditOn() ? escapeHtml(a.intro) : "La profecía todavía no ha sido escrita. El Hoyo espera."}</p>`
+        : `<p class="prophecy">${escapeHtml(a.intro)}</p>`}
+      <div class="arm-progress">
+        <div class="arm-bar"><i style="width:${primaryChars.length ? (written/primaryChars.length*100).toFixed(1) : 0}%"></i></div>
+        <span>${written} de ${primaryChars.length} destinos escritos</span>
+      </div>
     </section>
-    <div class="section-wrap" style="padding-top:60px;">
+    <div class="section-wrap arm-section">
       <div class="section-head">
         <div class="eyebrow" style="color:#ff5252;">El destino de cada uno</div>
         <h2>¿Cómo termina cada integrante?</h2>
       </div>
       <div class="armageddon-grid reveal-stagger">${cardsHtml}</div>
     </div>
+    ${siteFooter()}
   `;
   setupReveals();
 }
@@ -1137,109 +1343,290 @@ function submitArmageddonEdit(){
   closeModal(); render();
 }
 
-function viewMap(){
-  renderSeasonsStrip(undefined);
-  const app=document.getElementById("app");
-  const ids = Object.keys(DATA.characters);
-  const n = ids.length;
-  const cx=300, cy=300, r=230;
-  const pos = {};
-  ids.forEach((id,i)=>{
-    const angle = (i/n)*2*Math.PI - Math.PI/2;
-    pos[id] = { x: cx + r*Math.cos(angle), y: cy + r*Math.sin(angle) };
-  });
-
-  // co-occurrence weights
+// ---- el mapa de relaciones ----
+// Un grafo de fuerzas (calculado una vez, determinista: siempre sale igual): cada persona es un
+// nodo del tamaño de cuántas historias tiene, con su foto; las líneas unen a quienes comparten
+// historias, más gruesas mientras más compartan. Los que más se cruzan quedan cerca.
+let mapMode = "all";   // "all" | "group" (solo el núcleo)
+function mapGraph(mode, tall){
+  const count = {};
+  allEventsFlat().forEach(r=> r.event.chars.forEach(id=>{ count[id] = (count[id]||0) + 1; }));
+  const ids = Object.keys(DATA.characters).filter(id=> (mode !== "group" || DATA.characters[id].tier !== "secundario") && (count[id]||0) > 0);
+  const inSet = new Set(ids);
   const weights = {};
   allEventsFlat().forEach(r=>{
-    const chars = r.event.chars;
-    for(let i=0;i<chars.length;i++){
-      for(let j=i+1;j<chars.length;j++){
-        const key = [chars[i],chars[j]].sort().join("|");
-        weights[key] = (weights[key]||0)+1;
-      }
+    const cs = r.event.chars.filter(id=> inSet.has(id));
+    for(let i=0;i<cs.length;i++) for(let j=i+1;j<cs.length;j++){
+      const key = [cs[i],cs[j]].sort().join("|");
+      weights[key] = (weights[key]||0) + 1;
     }
   });
-
-  // edges are drawn behind the nodes, brightest where two people share the most stories,
-  // and each one animates its dash pattern so the network reads as alive rather than a
-  // static wire diagram
-  const maxW = Math.max(1, ...Object.values(weights));
-  const edgesSvg = Object.entries(weights).map(([key,w],i)=>{
-    const [a,b] = key.split("|");
-    if(!pos[a]||!pos[b]) return "";
-    const strength = w/maxW;
-    return `<line class="map-edge" x1="${pos[a].x}" y1="${pos[a].y}" x2="${pos[b].x}" y2="${pos[b].y}"
-      data-a="${a}" data-b="${b}"
-      stroke-width="${(0.7+strength*2.4).toFixed(2)}"
-      style="stroke-opacity:${(0.09+strength*0.26).toFixed(2)}; animation-delay:${(i*0.35).toFixed(2)}s"></line>`;
-  }).join("");
-
-  const nodesSvg = ids.map((id,i)=>{
+  const edges = Object.entries(weights).map(([k,w])=>{ const [a,b] = k.split("|"); return {a,b,w}; });
+  const deg = {}; edges.forEach(e=>{ deg[e.a]=(deg[e.a]||0)+e.w; deg[e.b]=(deg[e.b]||0)+e.w; });
+  const nodes = ids.sort((a,b)=> (deg[b]||0)-(deg[a]||0) || a.localeCompare(b)).map((id,i)=>{
     const c = DATA.characters[id];
-    const p = pos[id];
-    const rad = c.tier==="secundario" ? 13 : 19;
-    return `
-      <g class="map-node" data-id="${id}" onclick="navigateTo('character','${id}')" style="--ncolor:${c.color}; animation-delay:${(i*0.09).toFixed(2)}s">
-        <circle class="map-node-halo" cx="${p.x}" cy="${p.y}" r="${rad+13}" fill="${c.color}"></circle>
-        <circle class="map-node-circle" cx="${p.x}" cy="${p.y}" r="${rad}" fill="${c.color}"></circle>
-        <circle class="map-node-shine" cx="${p.x-rad*0.3}" cy="${p.y-rad*0.32}" r="${rad*0.34}" fill="#fff"></circle>
-        <text class="map-node-label" x="${p.x}" y="${p.y+rad+17}">${escapeHtml(c.name.split(" ")[0])}</text>
-      </g>`;
-  }).join("");
+    const r = c.tier === "secundario" ? 9 + 3.2*Math.sqrt(count[id]) : 15 + 5*Math.sqrt(count[id]);
+    // espiral dorada: los más conectados parten al centro
+    const ang = i*2.39996, rad = 26*Math.sqrt(i+0.5);
+    return { id, c, r, n:count[id], x:Math.cos(ang)*rad, y:Math.sin(ang)*rad, vx:0, vy:0 };
+  });
+  const byId = {}; nodes.forEach(n=> byId[n.id] = n);
+  // simulación: repulsión entre todos, resortes en las aristas, gravedad suave y colisión
+  const ITER = 520;
+  for(let it=0; it<ITER; it++){
+    const cool = 1 - it/ITER;
+    for(let i=0;i<nodes.length;i++){
+      const a = nodes[i];
+      for(let j=i+1;j<nodes.length;j++){
+        const b = nodes[j];
+        let dx = b.x-a.x, dy = b.y-a.y, d2 = dx*dx+dy*dy;
+        if(d2 < 0.01){ dx = 0.1*(i-j); dy = 0.1; d2 = dx*dx+dy*dy; }
+        const d = Math.sqrt(d2);
+        let f = 6400/d2;
+        const minD = a.r + b.r + 34;   // deja aire para las etiquetas
+        if(d < minD) f += (minD - d)*0.5;
+        const fx = dx/d*f, fy = dy/d*f;
+        a.vx -= fx; a.vy -= fy; b.vx += fx; b.vy += fy;
+      }
+    }
+    edges.forEach(e=>{
+      const a = byId[e.a], b = byId[e.b];
+      const dx = b.x-a.x, dy = b.y-a.y, d = Math.sqrt(dx*dx+dy*dy) || 1;
+      const L = a.r + b.r + Math.max(40, 120 - 16*e.w);
+      const f = (d - L)*0.012*Math.sqrt(e.w);
+      a.vx += dx/d*f; a.vy += dy/d*f; b.vx -= dx/d*f; b.vy -= dy/d*f;
+    });
+    nodes.forEach(n=>{
+      // en desktop un poco más ancho que alto; en el teléfono al revés, para que llene la pantalla
+      n.vx -= n.x*(tall ? 0.011 : 0.006); n.vy -= n.y*(tall ? 0.0045 : 0.0085);
+      const sp = Math.hypot(n.vx, n.vy), max = 24*cool + 1;
+      if(sp > max){ n.vx *= max/sp; n.vy *= max/sp; }
+      n.x += n.vx; n.y += n.vy;
+      n.vx *= 0.6; n.vy *= 0.6;
+    });
+  }
+  let x0=Infinity, y0=Infinity, x1=-Infinity, y1=-Infinity;
+  nodes.forEach(n=>{ x0=Math.min(x0,n.x-n.r-40); x1=Math.max(x1,n.x+n.r+40); y0=Math.min(y0,n.y-n.r-12); y1=Math.max(y1,n.y+n.r+30); });
+  return { nodes, edges, byId, box:{x:x0, y:y0, w:x1-x0, h:y1-y0}, maxW: Math.max(1, ...edges.map(e=>e.w)) };
+}
 
-  const noEdges = Object.keys(weights).length===0;
-
+function viewMap(){
+  renderSeasonsStrip(null);
+  const app=document.getElementById("app");
   app.innerHTML = `
-    <section class="season-hero" style="--scolor:var(--violet); border-bottom:none;">
+    <section class="season-hero map-hero" style="--scolor:var(--violet); border-bottom:none;">
       <div class="scode-big">Mapa</div>
       <h1>Red de relaciones</h1>
-      <p class="hito">Quiénes han compartido más historias entre sí. El grosor y el brillo de la línea indican cuántas historias los conectan.</p>
-    </section>
-    <div class="map-wrap reveal">
-      <div class="map-svg-wrap">
-        <svg viewBox="0 0 600 600" width="100%" height="100%">
-          ${edgesSvg}
-          ${nodesSvg}
-        </svg>
+      <p class="hito">Quiénes han compartido historias. Cada persona es del tamaño de cuántas historias tiene; mientras más gruesa la línea, más historias comparten.</p>
+      <div class="map-modes" role="group" aria-label="Quiénes mostrar">
+        <button type="button" data-mode="all" class="${mapMode==='all'?'active':''}">Todos</button>
+        <button type="button" data-mode="group" class="${mapMode==='group'?'active':''}">Solo el grupo</button>
       </div>
-      ${noEdges ? `<div class="map-legend">Todavía no hay suficientes historias con más de un personaje para trazar conexiones.</div>` : `<div class="map-legend">Pasa por encima de alguien para ver sus conexiones · toca para ir a su perfil.</div>`}
+    </section>
+    <div class="map-layout reveal">
+      <div class="map-svg-wrap" id="mapSvgWrap"></div>
+      <aside class="map-info" id="mapInfo" aria-live="polite"></aside>
     </div>
+    ${siteFooter()}
   `;
-  setupMapFX();
+  app.querySelectorAll(".map-modes button").forEach(b=> b.addEventListener("click", ()=>{
+    mapMode = b.dataset.mode;
+    app.querySelectorAll(".map-modes button").forEach(x=> x.classList.toggle("active", x === b));
+    drawMap();
+  }));
+  drawMap();
   setupReveals();
 }
 
-/* hovering a node dims every edge that doesn't touch it, so a single person's web of
-   relationships pops out of the tangle */
-function setupMapFX(){
-  const wrap = document.querySelector(".map-svg-wrap");
-  if(!wrap) return;
-  const edges = Array.from(wrap.querySelectorAll(".map-edge"));
-  const nodes = Array.from(wrap.querySelectorAll(".map-node"));
-  nodes.forEach(node=>{
-    const id = node.dataset.id;
-    node.addEventListener("mouseenter", ()=>{
-      wrap.classList.add("focusing");
-      edges.forEach(e=>{
-        const on = e.dataset.a===id || e.dataset.b===id;
-        e.classList.toggle("edge-hot", on);
-        e.classList.toggle("edge-dim", !on);
-      });
-      nodes.forEach(n=>{
-        const linked = n===node || edges.some(e=>
-          (e.dataset.a===id&&e.dataset.b===n.dataset.id) || (e.dataset.b===id&&e.dataset.a===n.dataset.id));
-        n.classList.toggle("node-dim", !linked);
-      });
+function drawMap(){
+  const wrap = document.getElementById("mapSvgWrap");
+  const info = document.getElementById("mapInfo");
+  if(!wrap || !info) return;
+  const g = mapGraph(mapMode, window.innerWidth < 700);
+  const { nodes, edges, byId, box, maxW } = g;
+  const uid = "m" + Math.random().toString(36).slice(2,7);
+
+  const edgesSvg = edges.sort((a,b)=> a.w-b.w).map(e=>{
+    const a = byId[e.a], b = byId[e.b], k = e.w/maxW;
+    return `<line class="map-edge" data-a="${e.a}" data-b="${e.b}" x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}"
+      stroke-width="${(1 + k*5).toFixed(2)}" style="stroke-opacity:${(0.16 + k*0.5).toFixed(2)}"></line>`;
+  }).join("");
+  const nodesSvg = nodes.map((n,i)=>{
+    const src = avatarSrc(n.c);
+    const x = n.x.toFixed(1), y = n.y.toFixed(1);
+    const face = src
+      ? `<clipPath id="${uid}c${i}"><circle cx="${x}" cy="${y}" r="${n.r}"/></clipPath>
+         <circle cx="${x}" cy="${y}" r="${n.r}" fill="${n.c.color}" opacity=".35"/>
+         <image href="${src}" x="${(n.x-n.r).toFixed(1)}" y="${(n.y-n.r).toFixed(1)}" width="${n.r*2}" height="${n.r*2}" preserveAspectRatio="xMidYMin slice" clip-path="url(#${uid}c${i})"/>`
+      : `<circle cx="${x}" cy="${y}" r="${n.r}" fill="${n.c.color}"/>
+         <text class="map-node-ini" x="${x}" y="${(n.y + n.r*0.36).toFixed(1)}" font-size="${(n.r*0.95).toFixed(1)}">${escapeHtml(initials(n.c.name))}</text>`;
+    return `
+      <a class="map-node${n.c.tier==='secundario'?' is-sec':''}" data-id="${n.id}" href="#/character/${n.id}" style="--ncolor:${n.c.color}" aria-label="${escapeHtml(n.c.name)}, ${n.n} historias">
+        <circle class="map-node-halo" cx="${x}" cy="${y}" r="${n.r+10}" fill="${n.c.color}"/>
+        ${face}
+        <circle class="map-node-ring" cx="${x}" cy="${y}" r="${n.r}" fill="none" stroke="${n.c.color}"/>
+        <text class="map-node-label" x="${x}" y="${(n.y+n.r+15).toFixed(1)}">${escapeHtml(shortName(n.id))}</text>
+      </a>`;
+  }).join("");
+
+  wrap.innerHTML = `<svg viewBox="${box.x.toFixed(0)} ${box.y.toFixed(0)} ${box.w.toFixed(0)} ${box.h.toFixed(0)}" role="img" aria-label="Red de relaciones">
+      <g class="map-edges">${edgesSvg}</g><g class="map-nodes">${nodesSvg}</g></svg>`;
+
+  // el panel lateral: por defecto un resumen; al pasar (o tocar) a alguien, sus conexiones
+  const strongest = edges.slice().sort((a,b)=> b.w-a.w)[0];
+  const idleInfo = ()=>{
+    info.innerHTML = `
+      <div class="mi-eyebrow">La red</div>
+      <div class="mi-big"><b>${nodes.length}</b> personas · <b>${edges.length}</b> conexiones</div>
+      ${strongest ? `<div class="mi-sub">El lazo más fuerte</div>
+      <div class="mi-pair">${faceHtml(strongest.a)}${faceHtml(strongest.b)}<span>${escapeHtml(shortName(strongest.a))} y ${escapeHtml(shortName(strongest.b))}<em>${strongest.w} historias juntos</em></span></div>` : ""}
+      <p class="mi-hint">${matchMedia("(hover:hover)").matches ? "Pasa sobre alguien para ver sus conexiones; clic para abrir su ficha." : "Toca a alguien para ver sus conexiones; tócalo de nuevo para abrir su ficha."}</p>`;
+  };
+  const nodeInfo = id=>{
+    const n = byId[id];
+    const links = edges.filter(e=> e.a===id || e.b===id).map(e=> [e.a===id?e.b:e.a, e.w]).sort((a,b)=> b[1]-a[1]);
+    info.innerHTML = `
+      <div class="mi-head">${faceHtml(id)}<div><div class="mi-name">${escapeHtml(n.c.name)}</div><div class="mi-sub2">${n.n} ${n.n===1?"historia":"historias"} · ${links.length} ${links.length===1?"conexión":"conexiones"}</div></div></div>
+      <ol class="mi-links">${links.slice(0,8).map(([o,w])=>`<li>${faceHtml(o)}<span>${escapeHtml(DATA.characters[o].name)}</span><b>${w}</b></li>`).join("")}</ol>
+      ${links.length > 8 ? `<div class="mi-more">y ${links.length-8} más</div>` : ""}
+      <a class="mi-go" href="#/character/${id}">Ver ficha →</a>`;
+  };
+  idleInfo();
+
+  const svg = wrap.querySelector("svg");
+  const allEdges = Array.from(svg.querySelectorAll(".map-edge"));
+  const allNodes = Array.from(svg.querySelectorAll(".map-node"));
+  let selected = null;
+  function highlight(id){
+    svg.classList.toggle("focusing", !!id);
+    if(!id){ allEdges.forEach(e=>e.classList.remove("edge-hot","edge-dim")); allNodes.forEach(n=>n.classList.remove("node-dim","node-hot")); idleInfo(); return; }
+    const linked = new Set([id]);
+    allEdges.forEach(e=>{
+      const on = e.dataset.a===id || e.dataset.b===id;
+      e.classList.toggle("edge-hot", on); e.classList.toggle("edge-dim", !on);
+      if(on){ linked.add(e.dataset.a); linked.add(e.dataset.b); }
     });
-    node.addEventListener("mouseleave", ()=>{
-      wrap.classList.remove("focusing");
-      edges.forEach(e=>e.classList.remove("edge-hot","edge-dim"));
-      nodes.forEach(n=>n.classList.remove("node-dim"));
+    allNodes.forEach(n=>{ n.classList.toggle("node-dim", !linked.has(n.dataset.id)); n.classList.toggle("node-hot", n.dataset.id===id); });
+    nodeInfo(id);
+  }
+  const canHover = matchMedia("(hover:hover)").matches;
+  allNodes.forEach(node=>{
+    const id = node.dataset.id;
+    node.addEventListener("mouseenter", ()=>{ if(canHover) highlight(id); });
+    node.addEventListener("mouseleave", ()=>{ if(canHover) highlight(selected); });
+    node.addEventListener("focus", ()=> highlight(id));
+    node.addEventListener("click", e=>{
+      // en touch: el primer toque muestra las conexiones, el segundo abre la ficha
+      if(!canHover && selected !== id){ e.preventDefault(); selected = id; highlight(id); }
     });
   });
+  svg.addEventListener("click", e=>{ if(!e.target.closest(".map-node")){ selected = null; highlight(null); } });
 }
 
+/* =========================== render: RÉCORDS =========================== */
+// El salón de la fama: todo calculado desde DATA (quién aparece más, el lugar más visitado, el
+// dúo inseparable, la noche más concurrida...). Nada inventado: si cambian las historias,
+// cambian los récords solos.
+function viewRecords(){
+  renderSeasonsStrip(null);
+  const app = document.getElementById("app");
+  const all = allEventsFlat();
+  const chars = DATA.characters;
+
+  const count = {};
+  all.forEach(r=> r.event.chars.forEach(id=>{ if(chars[id]) count[id] = (count[id]||0) + 1; }));
+  const ranking = Object.entries(count).sort((a,b)=> b[1]-a[1] || chars[a[0]].name.localeCompare(chars[b[0]].name));
+  const topN = ranking.length ? ranking[0][1] : 1;
+
+  const placeCount = {};
+  all.forEach(r=>{ if(r.event.place && DATA.places[r.event.place]) placeCount[r.event.place] = (placeCount[r.event.place]||0) + 1; });
+  const places = Object.entries(placeCount).sort((a,b)=> b[1]-a[1]);
+
+  const pairs = {};
+  all.forEach(r=>{ const cs = r.event.chars.filter(id=>chars[id]); for(let i=0;i<cs.length;i++) for(let j=i+1;j<cs.length;j++){ const k=[cs[i],cs[j]].sort().join("|"); pairs[k]=(pairs[k]||0)+1; } });
+  const duo = Object.entries(pairs).sort((a,b)=> b[1]-a[1])[0];
+  const crowd = all.slice().sort((a,b)=> b.event.chars.length - a.event.chars.length)[0];
+  const busiest = DATA.seasons.slice().sort((a,b)=> b.events.length - a.events.length)[0];
+  const media = all.filter(r=> getEventMedia(r.event).length).length;
+  const oneTimers = ranking.filter(([,n])=> n===1).length;
+  const longest = all.slice().sort((a,b)=> plainText(b.event.content).length - plainText(a.event.content).length)[0];
+  const words = all.reduce((t,r)=> t + plainText(r.event.content).split(/\s+/).filter(Boolean).length, 0);
+
+  const bar = (id, n)=> `
+    <a class="rk-row" href="#/character/${id}" style="--fcolor:${chars[id].color}">
+      ${faceHtml(id, {static:true})}
+      <span class="rk-name">${escapeHtml(chars[id].name)}</span>
+      <span class="rk-bar"><i style="width:${(n/topN*100).toFixed(1)}%"></i></span>
+      <b>${n}</b>
+    </a>`;
+
+  app.innerHTML = `
+    <section class="season-hero records-hero" style="--scolor:#e0b84f; border-bottom:none;">
+      <div class="scode-big">Salón de la fama</div>
+      <h1>Récords</h1>
+      <p class="hito">Las cifras de la crónica, sacadas de las historias mismas. Se actualizan solas con cada historia nueva.</p>
+    </section>
+    <div class="records-wrap">
+      <div class="rec-totals reveal-stagger">
+        <div><b>${all.length}</b><span>historias</span></div>
+        <div><b>${Object.keys(count).length}</b><span>personas en la crónica</span></div>
+        <div><b>${Object.keys(DATA.places).length}</b><span>lugares</span></div>
+        <div><b>${words.toLocaleString("es-CL")}</b><span>palabras escritas</span></div>
+        <div><b>${media}</b><span>${media===1?"historia con foto o video":"historias con foto o video"}</span></div>
+      </div>
+
+      <div class="rec-grid">
+        <section class="rec-card rec-wide reveal">
+          <div class="rec-eyebrow">Los más presentes</div>
+          <h2>Quién aparece en más historias</h2>
+          <div class="rk-list">${ranking.slice(0,10).map(([id,n])=>bar(id,n)).join("")}</div>
+          ${oneTimers ? `<div class="rec-foot">${oneTimers} ${oneTimers===1?"persona aparece":"personas aparecen"} una sola vez.</div>` : ""}
+        </section>
+
+        ${duo ? (()=>{ const [a,b] = duo[0].split("|"); return `
+        <section class="rec-card reveal">
+          <div class="rec-eyebrow">Dúo inseparable</div>
+          <div class="rec-duo">${faceHtml(a)}<span class="rec-amp">&</span>${faceHtml(b)}</div>
+          <h3>${escapeHtml(chars[a].name.split(" ")[0])} y ${escapeHtml(chars[b].name.split(" ")[0])}</h3>
+          <p>${duo[1]} historias juntos: la pareja que más se repite en la crónica.</p>
+        </section>`; })() : ""}
+
+        ${places.length ? `
+        <section class="rec-card reveal">
+          <div class="rec-eyebrow">El lugar de siempre</div>
+          <div class="rec-icon">${DATA.places[places[0][0]].icon}</div>
+          <h3><a href="#/place/${places[0][0]}">${escapeHtml(DATA.places[places[0][0]].name)}</a></h3>
+          <p>${places[0][1]} historias pasaron ahí.${places[1] ? ` Le sigue ${escapeHtml(DATA.places[places[1][0]].name)} (${places[1][1]}).` : ""}</p>
+        </section>` : ""}
+
+        ${crowd ? `
+        <section class="rec-card reveal">
+          <div class="rec-eyebrow">La más concurrida</div>
+          <h3><a href="${storyHref(crowd.season.id, crowd.index)}">${escapeHtml(crowd.event.title)}</a></h3>
+          <p>${crowd.event.chars.length} personas en una sola historia (${crowd.season.code}).</p>
+          ${facesHtml(crowd.event.chars, 12, "faces-sm")}
+        </section>` : ""}
+
+        ${busiest ? `
+        <section class="rec-card reveal" style="--scolor:${busiest.color}">
+          <div class="rec-eyebrow">La temporada más intensa</div>
+          <h3><a href="#/season/${busiest.id}">${busiest.code} · ${escapeHtml(busiest.title)}</a></h3>
+          <p>${busiest.events.length} historias, más que ninguna otra temporada.</p>
+          <div class="rec-seasons">${DATA.seasons.map(s=>`<a href="#/season/${s.id}" title="${s.code}: ${s.events.length}" style="--scolor:${s.color}"><i style="height:${(s.events.length/Math.max(1,busiest.events.length)*100).toFixed(0)}%"></i><span>${s.code}</span></a>`).join("")}</div>
+        </section>` : ""}
+
+        ${longest ? `
+        <section class="rec-card reveal">
+          <div class="rec-eyebrow">La más larga</div>
+          <h3><a href="${storyHref(longest.season.id, longest.index)}">${escapeHtml(longest.event.title)}</a></h3>
+          <p>${plainText(longest.event.content).split(/\s+/).filter(Boolean).length} palabras: la historia más contada de la crónica.</p>
+        </section>` : ""}
+      </div>
+    </div>
+    ${siteFooter()}
+  `;
+  setupReveals();
+}
 
 function flashEvent(seasonId, idx){
   const el=document.getElementById(`event-${seasonId}-${idx}`);
@@ -1286,12 +1673,14 @@ function render(){
     // Armagedón is the one view with its own (red) mood; everywhere else keeps the blue sky
     // (the home's Hoyo focus also sets it, see syncMood).
     syncMood(false);
+    document.body.classList.toggle("route-home", !parts[0] || parts[0]==="home");
     if(parts[0]==="season" && parts[1]!==undefined) viewSeason(parts[1]);
     else if(parts[0]==="character" && parts[1]!==undefined) viewCharacter(parts[1]);
     else if(parts[0]==="place" && parts[1]!==undefined) viewPlace(parts[1]);
     else if(parts[0]==="map") viewMap();
     else if(parts[0]==="armageddon") viewArmageddon();
     else if(parts[0]==="elenco") viewCast();
+    else if(parts[0]==="records") viewRecords();
     else viewHome();
     window.scrollTo({top: restoreY!==undefined ? restoreY : 0, behavior:"instant"});
     // #/season/N/M: enlace directo a una historia (las lunas del 3D, el buscador, las fichas).

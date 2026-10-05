@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Yoshe con Hoyo: la crónica de un grupo de amigos, temporada por temporada.">
+<meta name="theme-color" content="#011223">
 <title>Yoshe con Hoyo — La Crónica</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -21,13 +23,14 @@
     <div class="mark"></div>
     <div class="name">Yoshe con <em>Hoyo</em></div>
   </div>
-  <div style="display:flex; align-items:center; gap:14px;">
-    <nav class="seasons-strip" id="seasonsStrip"></nav>
+  <div class="nav-right">
+    <nav class="seasons-strip" id="seasonsStrip" aria-label="Secciones y temporadas"></nav>
     <div class="toolbar">
-      <button class="tool-btn" title="Buscar" onclick="toggleSearch()">🔍</button>
-      <button class="tool-btn" title="Mapa de relaciones" onclick="location.hash='#/map'">🕸️</button>
-      <button class="tool-btn" title="Historia aleatoria" onclick="goRandomStory()">🎲</button>
-      <button class="tool-btn" id="editToggleBtn" title="Modo edición" onclick="toggleEditMode()">✏️</button>
+      <button class="tool-btn" title="Buscar" aria-label="Buscar" onclick="toggleSearch()">🔍</button>
+      <button class="tool-btn" title="Mapa de relaciones" aria-label="Mapa de relaciones" onclick="location.hash='#/map'">🕸️</button>
+      <button class="tool-btn" title="Récords" aria-label="Récords" onclick="location.hash='#/records'">🏆</button>
+      <button class="tool-btn" title="Historia aleatoria" aria-label="Historia aleatoria" onclick="goRandomStory()">🎲</button>
+      <button class="tool-btn" id="editToggleBtn" title="Modo edición" aria-label="Modo edición" onclick="toggleEditMode()">✏️</button>
     </div>
   </div>
 </header>
