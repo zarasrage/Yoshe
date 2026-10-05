@@ -198,7 +198,7 @@ Cuando el primer cuadro 3D ya está pintado (`onReady`), `.hero` recibe `.solar-
 
 **`body.mood-doom` tiene dos dueños:** la ruta `#/armageddon` y el foco del Hoyo. Ambos pasan por `syncMood(focusDoom)` en `app.js`, que lo calcula desde los dos, así cerrar el foco o desmontar deja lo que pide la ruta.
 
-En un teléfono la caja de la galaxia puede ser más ancha que alta: el panel del foco se vuelve hoja inferior (`.solar-root.is-portrait`) con la caja vertical **o** angosta (<640px), y la vista inicial es más cenital mientras más angosta la caja.
+En un teléfono la caja de la galaxia puede ser más ancha que alta: el panel del foco se vuelve hoja inferior (`.solar-root.is-portrait`) con la caja vertical **o** angosta (<640px), y la vista inicial es más cenital mientras más angosta la caja. En la hoja **el planeta manda**: la hoja es compacta (máx. 36% del alto: flecha ←, título, cifras en una línea, caras chicas, historias que se deslizan adentro y "Entrar" fijo abajo) y el encuadre (`SHEET_TOP` = 0.64 en `solar.js`, el alto libre de arriba) pone al planeta con sus lunas cercanas en ~66% del ancho; las lunas lejanas pueden asomarse al borde. Si cambia el alto máximo de la hoja en el CSS, ajustar `SHEET_TOP` igual.
 
 **Capas:** dentro de `.home-sky`, de abajo hacia arriba: 2D, canvas 3D, etiquetas HTML proyectadas (`.solar-labels`), panel de foco (`.solar-panel`). Todo vive dentro de `#app`, así que el nav (z 40), la barra de edición (55), el buscador (60) y los modales (70) quedan siempre encima. Con un modal o el buscador abierto, Esc no cierra el foco de atrás (`keysBlocked`).
 

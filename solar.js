@@ -1366,19 +1366,28 @@
       dest.target.copy(center);
       dest.k = 1;
       if(it.kind === "hole"){ dest.pos.copy(center).addScaledVector(focus.dir, holeFocusDist()); return; }
-      // el planeta con sus lunas: el encuadre abarca la órbita de la más lejana
-      const rEff = Math.max(it.r * (it.ringed ? 2.35 : 1.2), it.moonMax*0.92), frac = 0.36;
-      // en horizontal el objeto vive en la mitad izquierda; en vertical, en el tercio de arriba
-      // (la hoja del panel ocupa el resto)
-      const usableW = sheet ? 1 : 0.55, usableH = sheet ? 0.36 : 1;
-      const D = Math.max(rEff/(frac*tanV*usableH*1.6), rEff/(frac*tanV*camera.aspect*usableW*1.2));
+      let D;
+      if(sheet){
+        // teléfono: la hoja de abajo es baja (SHEET_TOP libre arriba) y el planeta manda. El
+        // encuadre lo hace grande (66% del ancho para planeta + lunas cercanas); las lunas más
+        // lejanas pueden asomarse al borde mientras giran
+        const rEff = Math.max(it.r * (it.ringed ? 2.35 : 1.25), it.moonMax*0.72);
+        D = Math.max(rEff/(0.66*tanV*camera.aspect), rEff/(0.8*SHEET_TOP*tanV));
+      } else {
+        // desktop: el objeto vive en la mitad izquierda, con sus lunas
+        const rEff = Math.max(it.r * (it.ringed ? 2.35 : 1.2), it.moonMax*0.8), frac = 0.4;
+        D = Math.max(rEff/(frac*tanV*1.6), rEff/(frac*tanV*camera.aspect*0.55*1.2));
+      }
       dest.pos.copy(center).addScaledVector(focus.dir, D);
     }
+    // en la hoja del teléfono, qué fracción del alto queda libre arriba para el objeto (la hoja
+    // ocupa el resto; su alto máximo en el CSS va de la mano: .solar-root.is-portrait .solar-panel)
+    const SHEET_TOP = 0.64;
     function holeFocusDist(){
       const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov/2));
-      const rEff = DISC_OUT*1.05, frac = 0.7;
-      const usableW = sheet ? 1 : 0.55, usableH = sheet ? 0.36 : 1;
-      return Math.max(rEff/(frac*tanV*usableH), rEff/(frac*tanV*camera.aspect*usableW));
+      const rEff = DISC_OUT*1.05;
+      if(sheet) return Math.max(rEff/(0.92*tanV*camera.aspect), rEff/(0.85*SHEET_TOP*tanV));
+      return Math.max(rEff/(0.7*tanV), rEff/(0.7*tanV*camera.aspect*0.55));
     }
     function startTween(){
       if(reduced){ tween = null; return; }   // con reduced-motion la cámara salta
@@ -1388,7 +1397,8 @@
     function applyViewOffset(k){
       if(k < 0.001){ if(camera.view && camera.view.enabled) camera.clearViewOffset(); return; }
       // correr el encuadre: el objeto queda a un lado y el panel ocupa el otro
-      if(sheet) camera.setViewOffset(W, H, 0, H*0.31*k, W, H);
+      // en la hoja: el objeto queda centrado en la parte libre de arriba (SHEET_TOP del alto)
+      if(sheet) camera.setViewOffset(W, H, 0, H*(0.5 - SHEET_TOP/2)*k, W, H);
       else camera.setViewOffset(W, H, W*0.2*k, 0, W, H);
     }
 

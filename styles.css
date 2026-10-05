@@ -1526,3 +1526,31 @@ a.stat-cell:hover{background:color-mix(in srgb, var(--pcolor) 12%, transparent);
 .hero-wash{-webkit-mask-image:linear-gradient(to bottom, transparent, #000 160px); mask-image:linear-gradient(to bottom, transparent, #000 160px);}
 /* centered profiles (place, character without photos): the stats sit in the same column as the bio */
 .profile-hero .stat-rail{max-width:760px; margin-left:auto; margin-right:auto;}
+
+/* ---- foco en el teléfono: hoja compacta (≤36% del alto; ver SHEET_TOP en solar.js) ----
+   El planeta es lo principal: la hoja muestra lo justo (título, cifras en una línea, caras,
+   las historias) y lo demás se desliza adentro; "Entrar" queda siempre a la vista abajo. */
+.solar-root.is-portrait .solar-panel{max-height:36%; padding:10px 12px 0; border-radius:18px; bottom:8px; left:8px; right:8px;}
+.solar-root.is-portrait .solar-back{position:absolute; top:8px; left:8px; margin:0; padding:6px 10px; font-size:.75rem; z-index:2;}
+.solar-root.is-portrait .solar-back-txt{display:none;}
+.solar-root.is-portrait .solar-p-code{font-size:.58rem; letter-spacing:.24em;}
+.solar-root.is-portrait .solar-p-title{font-size:1.4rem; margin:1px 0 4px;}
+.solar-root.is-portrait .solar-p-text{font-size:.8rem; margin-bottom:6px; -webkit-line-clamp:2;}
+.solar-root.is-portrait .solar-p-text.is-pending{display:none;}
+.solar-root.is-portrait .solar-p-stats{border:0; padding:0; margin:0 0 8px; justify-content:center; gap:14px; font-size:.54rem; letter-spacing:.1em;}
+.solar-root.is-portrait .solar-p-stats b{display:inline; font-size:1.05rem; margin-right:4px;}
+.solar-root.is-portrait .solar-p-avatars{justify-content:center; margin-bottom:8px;}
+.solar-root.is-portrait .solar-ava{width:24px; height:24px; margin-left:-5px; font-size:.55rem;}
+.solar-root.is-portrait .solar-p-sub{display:none;}
+.solar-root.is-portrait .solar-p-stories{margin-bottom:6px; gap:0;}
+.solar-root.is-portrait .solar-p-stories a{padding:4px 6px; gap:9px;}
+.solar-root.is-portrait .solar-st-n{width:18px; height:18px; font-size:.56rem;}
+.solar-root.is-portrait .solar-st-t{font-size:.95rem;}
+.solar-root.is-portrait .solar-st-d{font-size:.52rem;}
+.solar-root.is-portrait .solar-p-enter{position:sticky; bottom:0; margin:0 -12px; padding:10px 14px; border-radius:0 0 17px 17px; font-size:.85rem;}
+/* [hidden] has to win over the display:flex above (the Hoyo's focus hides the story list) */
+.solar-p-stories[hidden], .solar-p-sub[hidden]{display:none !important;}
+/* desktop focus: a narrower panel with smaller faces, so the planet carries the screen */
+.solar-panel{width:min(380px, 34vw);}
+.solar-root:not(.is-portrait) .solar-ava{width:32px; height:32px;}
+.solar-root:not(.is-portrait) .solar-p-title{font-size:clamp(1.9rem,3vw,2.5rem);}
