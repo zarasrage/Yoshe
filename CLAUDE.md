@@ -97,7 +97,13 @@ Hay una función `autoTagText(text)` que hace esto automáticamente a partir de 
 
 ### Vistas (router por hash, sin librería)
 
-`render()` lee `location.hash` y despacha a: `viewHome()` (solo la galaxia), `viewCast()` (`#/elenco`: personajes y lugares), `viewSeason(id)`, `viewCharacter(id)`, `viewPlace(id)`, `viewMap()`, `viewArmageddon()`. Viven en `app.js`, sin imports — `DATA` (de `data.js`) está disponible ahí porque `data.js` se carga antes que `app.js` en el HTML, no porque cuelgue de `window`.
+`render()` lee `location.hash` y despacha a: `viewHome()` (solo la galaxia), `viewCast()` (`#/elenco`: personajes y lugares), `viewSeason(id)`, `viewCharacter(id)`, `viewPlace(id)`, `viewMap()`, `viewArmageddon()`, `viewRecords()` (`#/records`: el salón de la fama, todo calculado desde `DATA`).
+
+**Enlace directo a una historia:** `#/season/N/M` (M = índice en `s.events`) renderiza la temporada y hace scroll a esa tarjeta destacándola (`flashEvent`), salvo al volver con "atrás" (ahí manda el scroll recordado). Lo usan las lunas del 3D, el buscador, el dado, las bitácoras de las fichas, los récords y el botón 🔗 de cada historia (`shareStory`: menú nativo en el teléfono, copiar enlace en desktop). Para enlazar una historia usa `storyHref(seasonId, idx)`, no `location.hash` + `setTimeout(flashEvent)`.
+
+**Ayudantes compartidos** (arriba en `app.js`, después de `escapeHtml`): `plainText(content)` (la historia como texto, **con** los nombres: no armar extractos solo con los segmentos `text`, quedan frases rotas como "carreteando en , en los JIM"), `excerpt(content, n)` (corta en palabra y deja fuera la nota "— Cuéntame más..."), `pendingHtml(text, label)`, `castOf(events)` (personajes con su cuenta, mayor a menor), `faceHtml(id, {static})` / `facesHtml(ids, max, cls, static)` (caritas clicables; **dentro de algo que ya es un `<a>`, pasar `static`**: un `<a>` dentro de otro parte la tarjeta en dos), `shortName(id)` (primer nombre, con inicial del apellido si se repite: "María D." / "María C."), `parseDate(text)` (día/mes/año de las fechas en texto libre, para el marcador grande del timeline), `siteFooter()` (pie con enlaces, en todas las vistas menos la home).
+
+**Nav:** `renderSeasonsStrip(activeId)`: `undefined` = la home ("Inicio"), `"elenco"` (también fichas de personaje y lugar), el id de una temporada, o `null` = ninguno (mapa, récords, Armagedón). En el teléfono (≤720px) la fila de temporadas pasa a una segunda línea deslizable del nav, salvo en la home (`body.route-home`), donde la galaxia ya es el menú. Viven en `app.js`, sin imports — `DATA` (de `data.js`) está disponible ahí porque `data.js` se carga antes que `app.js` en el HTML, no porque cuelgue de `window`.
 
 Antes de despachar, `render()` siempre llama a `unmountSolar()` (también de home a home) y recalcula `body.mood-doom` con `syncMood()`. Guarda el scroll de cada hash en `scrollMemory` y lo restaura solo en navegaciones de historial (atrás/adelante, vía `popstate`); en esas mismas navegaciones `routeFromHistory` es `true` y `viewHome()` le pide a la escena 3D que retome su ángulo de cámara guardado.
 
@@ -205,6 +211,10 @@ En un teléfono la caja de la galaxia puede ser más ancha que alta: el panel de
 
 **Por qué `solar.js` es un `<script>` clásico y three.js entra con `import()`:** `solar.js` sigue la convención del resto (script clásico, expone funciones en `window`, sin build) y se carga sincrónico entre `data.js` y `app.js` para que `mountSolar` exista cuando `app.js` hace el primer `render()`; además usa `document.currentScript.src` para resolver `vendor/` relativo a sí mismo, y eso solo existe en scripts clásicos. Pesa poco (shaders en texto). Three.js (~550KB recortado, ~140KB con gzip) en cambio es ESM y se pide con `import()` recién al montar la home: las demás vistas nunca lo descargan, el primer pintado no lo espera, y si falla (por ejemplo abriendo el HTML como `file://`, donde los navegadores bloquean módulos) solo se pierde el 3D, no la página. Un `<script type="module">` habría sido diferido (llegaría tarde al primer `render()`) y con `file://` no cargaría nada.
 
+### Mapa de relaciones (`#/map`)
+
+Un grafo de fuerzas calculado una sola vez al entrar (`mapGraph`: repulsión entre todos, resortes en las aristas según cuántas historias comparten, gravedad y colisión; posiciones iniciales en espiral dorada, así que siempre sale igual). Cada nodo es del tamaño de cuántas historias tiene la persona y lleva su foto (`thumb`) o sus iniciales; el `viewBox` se ajusta a lo que ocupa el grafo. En el teléfono la gravedad es más fuerte a lo ancho, para que el grafo salga alto y llene la pantalla. Panel lateral (`#mapInfo`): resumen y lazo más fuerte en reposo; las conexiones de la persona al pasar el mouse (desktop: clic abre la ficha) o al primer toque (teléfono: el segundo toque abre la ficha). Filtro "Todos / Solo el grupo" (`mapMode`).
+
 Armagedón es la única ruta que cambia el humor del sitio: `body.mood-doom` (lo pone el router, y el foco del Hoyo mientras está abierto) tiñe `#skyWash` de rojo y desatura `#skyPhoto`.
 
 Cada ficha de personaje tiene un wash de color de fondo (`--pcolor`, tomado de `character.color`) y, si tiene `photos`/`photoLarge`, un layout partido (texto a un lado, retrato grande con marco de esquinas al otro). Sin foto, cae a un layout centrado con avatar circular chico.
@@ -215,6 +225,7 @@ Cada ficha de personaje tiene un wash de color de fondo (`--pcolor`, tomado de `
 - Personajes "primario" = del grupo; "secundario" = gente que aparece en alguna historia pero no es del núcleo.
 - Lugares y personajes nuevos que aparecen dentro de una historia se agregan a `DATA` con campos en null/pendiente y se le pide al usuario que los complete después.
 - No inventar hechos, fechas o roles que el usuario no haya dado — dejar marcado "— rol pendiente —" / "Cuéntame..." en vez de rellenar con suposiciones.
+- **Cómo se ven los pendientes:** en modo lectura, un campo que es un recordatorio ("Cuéntame...", "— rol pendiente —"; ver `isPending`) no se muestra como contenido: sale una marca discreta (`pendingHtml`: "— el hito de esta temporada está por escribirse —", "Perfil por escribir...", "descripción pendiente") o directamente no sale (el chip de rol). En modo edición se ve el texto completo en amarillo con ✎, porque ahí es útil saber qué falta. Las notas "— Cuéntame más: ..." al final de una historia se dibujan como nota punteada "✎ por completar" (`.ask-note`), separadas del relato.
 
 ## Deploy
 

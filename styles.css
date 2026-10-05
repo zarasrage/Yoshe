@@ -1514,3 +1514,11 @@ a.stat-cell:hover{background:color-mix(in srgb, var(--pcolor) 12%, transparent);
 /* the cards are wider now: give photos/videos more room next to the copy */
 .event-media{flex:1 1 170px; max-width:220px;}
 .event-media .polaroid, .event-media .polaroid-stack .polaroid{max-width:220px;}
+/* compartir una historia (copia su enlace directo) */
+.share-btn{margin-left:auto; position:relative; width:28px; height:28px; border-radius:50%; border:1px solid var(--line-soft); background:transparent;
+  font-size:.72rem; line-height:1; cursor:pointer; opacity:.55; transition:opacity .25s, border-color .25s, transform .25s;}
+.event:hover .share-btn, .share-btn:focus-visible{opacity:1;}
+.share-btn:hover{border-color:var(--scolor, var(--amber)); transform:scale(1.08);}
+.share-btn.is-done::after{content:attr(data-msg); position:absolute; right:0; top:calc(100% + 6px); white-space:nowrap; padding:5px 9px; border-radius:8px;
+  background:rgba(4,14,32,.95); border:1px solid var(--line); font-family:'JetBrains Mono',monospace; font-size:.58rem; letter-spacing:.06em; color:var(--ink); text-transform:none;}
+@media (pointer:coarse){ .share-btn{opacity:.85;} }

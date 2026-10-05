@@ -1023,7 +1023,8 @@ function viewSeason(id){
     <article class="event ${side}" id="event-${s.id}-${idx}" data-idx="${idx}" style="--rot:${rot}deg; --scolor:${s.color}">
       <div class="node-dot" style="border-color:${s.color}"></div>
       ${sideHtml}
-      <div class="edate"><span class="edate-n">${idx+1}</span>${escapeHtml(pendingDate ? "fecha pendiente" : e.date)}</div>
+      <div class="edate"><span class="edate-n">${idx+1}</span>${escapeHtml(pendingDate ? "fecha pendiente" : e.date)}
+        <button type="button" class="share-btn" onclick="shareStory(${s.id},${idx},this)" aria-label="Compartir esta historia" title="Copiar enlace a esta historia">🔗</button></div>
       <h3>${escapeHtml(e.title)}</h3>
       ${renderEventBody(e, place, side)}
     </article>`;
@@ -1628,6 +1629,21 @@ function viewRecords(){
   setupReveals();
 }
 
+// compartir una historia: el menú nativo del teléfono si existe; si no, copiar el enlace directo
+function shareStory(seasonId, idx, btn){
+  const s = DATA.seasons.find(x=>String(x.id)===String(seasonId));
+  const e = s && s.events[idx];
+  const url = location.href.split("#")[0] + storyHref(seasonId, idx);
+  const done = msg=>{ if(!btn) return; btn.dataset.msg = msg; btn.classList.add("is-done"); setTimeout(()=>btn.classList.remove("is-done"), 1600); };
+  try{
+    if(navigator.share && matchMedia("(pointer:coarse)").matches){
+      navigator.share({ title: e ? e.title : "Yoshe con Hoyo", url }).catch(()=>{});
+      return;
+    }
+    navigator.clipboard.writeText(url).then(()=>done("enlace copiado"), ()=>done("no se pudo copiar"));
+  }catch(err){ done("no se pudo copiar"); }
+}
+
 function flashEvent(seasonId, idx){
   const el=document.getElementById(`event-${seasonId}-${idx}`);
   if(el){ el.scrollIntoView({behavior:"smooth", block:"center"}); el.classList.add("visible"); el.classList.add("flash");
@@ -1691,6 +1707,10 @@ function render(){
     }
     // la home es solo la galaxia: sin scroll
     if(document.querySelector(".hero .home-sky")) setGalaxyLock(true);
+    // el título de la pestaña dice dónde estás (y es lo que se ve al compartir el enlace)
+    const h1 = document.querySelector("#app h1");
+    const isHome = !parts[0] || parts[0]==="home";
+    document.title = isHome || !h1 ? "Yoshe con Hoyo — La Crónica" : `${h1.textContent.trim()} · Yoshe con Hoyo`;
     replayRouteAnimation();
   }catch(err){
     const app = document.getElementById("app");
