@@ -580,12 +580,21 @@
       gl_FragColor = vec4(uColor, a);
       #include <colorspace_fragment>
     }`;
+  // El tubo central del hilo mide 0.011: casi siempre menos de un píxel, y un triángulo más
+  // fino que un píxel se dibuja a saltos (escalones, tramos cortados). Así que el radio tiene un
+  // mínimo en píxeles de pantalla (uMinPx, con uPxK = unidades de mundo por píxel por unidad de
+  // profundidad): donde el tubo se ensancha para llegar a ese mínimo, se atenúa en la misma
+  // proporción (vThin), así el brillo total no cambia y la línea queda continua y suave.
   const THREAD_VERT = `
-    uniform float uSoft;
-    varying float vU; varying float vFacing;
+    uniform float uSoft, uRadius, uMinPx, uPxK;
+    varying float vU; varying float vFacing; varying float vThin;
     void main(){
       vU = uv.x;
-      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      vec3 axis = position - normal*uRadius;
+      float depth = max(1e-3, -(modelViewMatrix * vec4(axis, 1.0)).z);
+      float r = max(uRadius, depth*uPxK*uMinPx);
+      vThin = uRadius / r;
+      vec4 mv = modelViewMatrix * vec4(axis + normal*r, 1.0);
       vec3 n = normalize(normalMatrix * normal);
       vFacing = pow(abs(dot(n, normalize(-mv.xyz))), uSoft);
       gl_Position = projectionMatrix * mv;
@@ -593,7 +602,7 @@
   const THREAD_FRAG = `
     uniform float uTime, uAlpha, uReveal;
     uniform vec3 uColors[6];
-    varying float vU; varying float vFacing;
+    varying float vU; varying float vFacing; varying float vThin;
     void main(){
       if(vU > uReveal) discard;
       float f = clamp(vU, 0.0, 1.0) * 5.0;
@@ -606,7 +615,7 @@
       comet *= smoothstep(1.0, 0.985, ph);
       // mientras se dibuja en la entrada, la punta brilla
       float tip = exp(-pow((vU - uReveal)/0.012, 2.0)) * step(uReveal, 0.999);
-      float a = uAlpha * (0.42 + 2.2*comet + 2.0*tip) * vFacing;
+      float a = uAlpha * (0.42 + 2.2*comet + 2.0*tip) * vFacing * vThin;
       a *= smoothstep(0.0, 0.03, vU) * smoothstep(1.0, 0.97, vU);
       gl_FragColor = vec4(mix(c, vec3(1.0), clamp(0.2 + 0.7*comet + tip, 0.0, 1.0)), clamp(a, 0.0, 1.0));
       #include <colorspace_fragment>
@@ -870,6 +879,7 @@
     });
 
     // ---- hilo del tiempo ----
+    const threadPxK = { value:0.001 };   // se calcula en resize()
     const threadU = {
       uTime:{ value:0 }, uReveal:{ value:0 },
       uColors:{ value: seasons.map(s=> paletteFor(THREE, s.color || CYAN).atmo) }
@@ -880,21 +890,27 @@
       const inv = new THREE.Matrix4().copy(world.matrixWorld).invert();
       const pts = planets.map(p=> p.group.getWorldPosition(new THREE.Vector3()).applyMatrix4(inv));
       const curve = new THREE.CatmullRomCurve3(pts, false, "centripetal");
-      const mk = (radius, alpha, soft)=> new THREE.Mesh(
-        new THREE.TubeGeometry(curve, 360, radius, 6, false),
+      const mk = (radius, alpha, soft, minPx)=> new THREE.Mesh(
+        new THREE.TubeGeometry(curve, 480, radius, 10, false),
         new THREE.ShaderMaterial({
-          uniforms:{ uTime:threadU.uTime, uReveal:threadU.uReveal, uColors:threadU.uColors, uAlpha:{ value:alpha }, uSoft:{ value:soft } },
+          uniforms:{ uTime:threadU.uTime, uReveal:threadU.uReveal, uColors:threadU.uColors, uAlpha:{ value:alpha }, uSoft:{ value:soft },
+            uRadius:{ value:radius }, uMinPx:{ value:minPx }, uPxK:threadPxK },
           vertexShader:THREAD_VERT, fragmentShader:THREAD_FRAG, ...additive
         })
       );
-      world.add(mk(0.011, 1.0, 0.4));
-      world.add(mk(0.05, 0.22, 2.4));
+      world.add(mk(0.011, 1.0, 0.4, 0.8));    // núcleo: al menos ~1.6px de ancho
+      world.add(mk(0.05, 0.22, 2.4, 2.2));    // halo suave
     }
 
     // ---- bloom (solo desktop) ----
     let composer = null, bloomPass = null, shadowPass = null;
     function setupBloom(){
-      composer = new POST.EffectComposer(renderer);
+      // el render target del composer es donde se dibuja la escena con bloom: sin muestras
+      // propias no hay ningún antialiasing (el MSAA del canvas no aplica acá) y los bordes de
+      // geometría (la esfera del Hoyo, el disco de canto, órbitas, el hilo) salían dentados
+      const sz = renderer.getDrawingBufferSize(new THREE.Vector2());
+      const samples = Math.min(8, renderer.capabilities.maxSamples || 4);   // 8 en casi toda GPU de escritorio
+      composer = new POST.EffectComposer(renderer, new THREE.WebGLRenderTarget(sz.x, sz.y, { type:THREE.HalfFloatType, samples }));
       composer.addPass(new POST.RenderPass(scene, camera));
       bloomPass = new POST.UnrealBloomPass(new THREE.Vector2(256, 256), 0.55, 0.42, 0.8);
       composer.addPass(bloomPass);
@@ -911,8 +927,10 @@
             vec4 c = texture2D(tDiffuse, vUv);
             vec3 b = texture2D(uBloom, vUv).rgb;
             float d = length((vUv - uCenter) * vec2(uAspect, 1.0));
-            float m = 1.0 - smoothstep(uRadius*0.88, uRadius*1.0, d);
-            c.rgb = max(c.rgb - b*m*0.95, 0.0);
+            // uBloom ya es el bloom compuesto entero: se resta completo dentro de la sombra (si
+            // no, el Hoyo queda gris), con un borde justo en la silueta
+            float m = 1.0 - smoothstep(uRadius*0.97, uRadius*1.01, d);
+            c.rgb = max(c.rgb - b*m, 0.0);
             gl_FragColor = c;
           }`
       });
@@ -967,6 +985,7 @@
       const dV = (extent*(camera.aspect < 1.25 ? 0.82 : 0.7))/tanV, dH = extent*(portrait ? 0.9 : 1)/(tanV*camera.aspect);
       baseZ = Math.max(dV, dH) + 1.5;
       camera.updateProjectionMatrix();
+      threadPxK.value = 2*tanV/(H*renderer.getPixelRatio());
       measureLabels();
       wake();
     }
