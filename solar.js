@@ -1104,6 +1104,7 @@
       return list.map(id=>({ id, c:chars[id] })).filter(x=>x.c);
     }
     function avatarSrc(c){
+      if(c.thumb) return c.thumb;
       if(Array.isArray(c.photos) && c.photos.length) return c.photos[0];
       return c.photoLarge || c.photo || null;
     }
@@ -1124,6 +1125,7 @@
         if(src){
           const img = document.createElement("img");
           img.src = src; img.alt = c.name; img.loading = "lazy"; img.decoding = "async";
+          if(!c.thumb) img.className = "is-full";
           d.appendChild(img);
         } else {
           d.textContent = initials(c.name);

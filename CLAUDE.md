@@ -60,7 +60,8 @@ const DATA = {
     "id-slug": {
       name, role, tier: "primario"|"secundario", color: "#hex",
       bio, apodo, frase, habilidad, destino,   // cualquiera puede ser null
-      photo: "images/characters/id-slug/avatar.jpg", // avatar chico circular (opcional)
+      thumb: "images/characters/id-slug/thumb.webp", // miniatura del círculo (elenco, foco 3D), generada con tools/make_thumbs.py
+      photo: "images/characters/id-slug/avatar.jpg", // avatar chico circular legacy (opcional; thumb y photos[0] le ganan)
       photoLarge: "images/characters/id-slug/1.png", // retrato grande, UNA foto (legacy, usar photos en su lugar)
       photos: ["images/characters/id-slug/1.png", ...], // retrato grande, VARIAS fotos con carrusel (preferido)
       tags: ["..."]
@@ -114,7 +115,8 @@ Proceso para agregar una foto de personaje:
 2. Verificar transparencia real: `Image.open(path).convert('RGBA').getchannel('A').getextrema()` — si da `(0,255)` hay canal alfa real; si no, es fondo blanco sólido y hay que removerlo (ver más abajo).
 3. Redimensionar a max width ~700px, guardar como PNG optimizado.
 4. Guardar el archivo en `/images/characters/<id-slug>/N.png` (o `.jpg`) — cada personaje tiene su propia carpeta, numerada desde 1; el avatar chico circular (si existe) va como `avatar.jpg`/`avatar.png` en la misma carpeta — y referenciarlo por ruta relativa dentro de `photos: [...]` (o `photoLarge` si es solo una). **No** convertir a base64 inline — eso es lo que hacía el `index.html` pesar varios MB.
-5. Si el fondo NO era transparente, removerlo con flood-fill desde las esquinas (tolerancia por distancia de color) + `scipy.ndimage.gaussian_filter` para suavizar el borde — ver conversación anterior para el script exacto (usa `skimage.segmentation.flood`).
+5. Regenerar la miniatura: `python3 tools/make_thumbs.py <id-slug>` (necesita Pillow) y agregar `thumb:"images/characters/<id-slug>/thumb.webp"` al personaje. Recorta de `photos[0]` un cuadrado de cabeza y hombros guiado por el canal alfa (por eso necesita fondo transparente) y lo guarda a 224px en WebP (~12KB). Es lo que muestran los círculos del elenco y del panel de foco del 3D; sin `thumb` caen al retrato grande entero (~350KB) con un zoom por CSS (`.is-full`). Si cambia la primera foto, hay que regenerarla.
+6. Si el fondo NO era transparente, removerlo con flood-fill desde las esquinas (tolerancia por distancia de color) + `scipy.ndimage.gaussian_filter` para suavizar el borde — ver conversación anterior para el script exacto (usa `skimage.segmentation.flood`).
 
 El carrusel de fotos (`cyclePhoto()`) cicla entre `photos[]` con una transición tipo "portal warp" (scale + rotateY + blur). Si un personaje solo tiene una foto, el click no hace nada (por diseño).
 
@@ -140,7 +142,7 @@ La fuente original del cielo (`images/sky/fondo_definitivo.jpg`, 3840×2160) se 
 
 ```
 images/
-  characters/<id-slug>/    # avatar.jpg + N.png por personaje (ver "Imágenes de personajes")
+  characters/<id-slug>/    # N.png + thumb.webp (+ avatar.jpg legacy) por personaje (ver "Imágenes de personajes")
   sky/                      # sky-wide.jpg, sky-tall.jpg, fondo_definitivo.jpg (fuente, nunca cargada)
   events/                   # fotos/videos sueltos de una historia puntual (no de un personaje)
   unused/                   # archivos que quedaron sin usar tras algún cambio de fondo; no referenciados desde el código
@@ -154,6 +156,7 @@ styles.css        # todo el CSS (incluye .home-sky / .solar-*)
 data.js           # DATA
 solar.js          # sistema solar 3D: solarCapable / mountSolar / unmountSolar
 app.js            # router, vistas, modo edición, cielo animado
+tools/            # make_thumbs.py: genera las miniaturas de personajes (Python + Pillow, se corre a mano)
 vendor/three/     # three.js r186 vendorizado y recortado a lo que se usa (ESM minificado) +
                   # postprocesado para el bloom; README.md dice cómo se regeneran. No se editan a mano.
 images/           # ver arriba

@@ -404,8 +404,9 @@ html.galaxy-lock .solar-canvas{touch-action:none;}
 .solar-ava{width:38px; height:38px; border-radius:50%; overflow:hidden; display:grid; place-items:center; flex:none;
   background:color-mix(in srgb, var(--acolor) 28%, #06142a); border:1.5px solid color-mix(in srgb, var(--acolor) 70%, transparent);
   font:600 .72rem/1 'Outfit',sans-serif; color:#fff;}
-/* same crop as the site's .avatar-img: big portrait, zoomed to head and shoulders */
-.solar-ava img{width:100%; height:100%; object-fit:cover; object-position:50% 0%; transform:scale(1.7); transform-origin:50% 0%; display:block;}
+/* same as the site's .avatar-img: the thumb as is, or the big portrait zoomed to head and shoulders */
+.solar-ava img{width:100%; height:100%; object-fit:cover; object-position:50% 0%; display:block;}
+.solar-ava img.is-full{transform:scale(1.7); transform-origin:50% 0%;}
 .solar-ava-more{background:rgba(255,255,255,.06); border-color:var(--line); color:var(--ink-dim); font-family:'JetBrains Mono',monospace; font-size:.66rem;}
 .solar-p-enter{display:flex; align-items:center; justify-content:center; gap:10px; padding:13px 18px; border-radius:999px;
   font:500 .95rem/1 'Outfit',sans-serif; color:#04101f; background:var(--pcolor);
@@ -593,14 +594,16 @@ body.edit-on .galaxy-return{bottom:72px;}
   transition:transform .5s var(--ease), box-shadow .5s var(--ease);
 }
 .cast-card:hover .cast-avatar{transform:scale(1.08) translateY(-2px); box-shadow:0 0 0 1px rgba(255,255,255,.2), 0 10px 26px rgba(0,4,14,.6), 0 0 26px rgba(120,200,255,.3);}
-/* the avatar circle borrows the first full-body portrait when there's no dedicated avatar
-   crop - object-position:top keeps the face in the visible slice instead of centering on
-   the torso, and the extra scale() (anchored at the top so it doesn't just re-center)
-   zooms in past a plain cover fit, onto roughly head-and-shoulders. */
+/* the avatar circle shows the character's `thumb` (already cut to head and shoulders).
+   Without one (.is-full) it borrows the first full-body portrait - object-position:top
+   keeps the face in the visible slice instead of centering on the torso, and the extra
+   scale() (anchored at the top so it doesn't just re-center) zooms in past a plain cover
+   fit, onto roughly head-and-shoulders. */
 .avatar-img{
   width:100%; height:100%; object-fit:cover; object-position:50% 0%;
-  border-radius:50%; display:block; transform:scale(1.7); transform-origin:50% 0%;
+  border-radius:50%; display:block;
 }
+.avatar-img.is-full{transform:scale(1.7); transform-origin:50% 0%;}
 .cast-card .cname{font-family:'Cormorant Garamond',Georgia,serif; font-size:1.42rem; font-weight:600; line-height:1.15;}
 .cast-card .crole{color:var(--ink-dim); font-size:.8rem; margin-top:4px; font-weight:300;}
 .tier-badge{display:inline-block; margin-top:12px; font-family:'JetBrains Mono',monospace; font-size:.58rem; letter-spacing:.14em; text-transform:uppercase; padding:4px 10px; border-radius:999px; border:1px solid var(--line);}

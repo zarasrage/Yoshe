@@ -374,17 +374,17 @@ function getPhotos(c){
   if(c.photoLarge) return [c.photoLarge];
   return [];
 }
-/* The small circular avatar prefers the first large portrait over the dedicated `photo`
-   thumbnail (only Hugo and Gerardo have one). Those large portraits are transparent-
-   background PNGs the pan/zoom crop reads correctly; the two legacy `photo` avatars are
-   flat JPGs with an opaque light background baked in, which showed as a mismatched white
-   disc once zoomed instead of blending into the sky like everyone else's. `photo` still
-   falls back for a character with only a small avatar and no large carousel at all. */
-function avatarSrc(c){ return getPhotos(c)[0] || c.photo || null; }
+/* The small circular avatar uses `thumb` when there is one: a 224px head-and-shoulders
+   WebP pre-cut from the first portrait by tools/make_thumbs.py (~12KB instead of the
+   ~350KB full portrait). Without it, it falls back to the first large portrait and
+   .avatar-img.is-full zooms the CSS crop onto roughly the same region. The large
+   portraits beat the legacy `photo` avatars (Hugo and Gerardo): those are flat JPGs
+   with an opaque light background that showed as a white disc against the sky.
+   `photo` is still the last resort for a character with only a small avatar. */
+function avatarSrc(c){ return c.thumb || getPhotos(c)[0] || c.photo || null; }
 function avatarInner(c){
   const src = avatarSrc(c);
-  // lazy: the cast grid sits below the hero, and these are full portraits (~350KB each)
-  if(src) return `<img src="${src}" alt="${escapeHtml(c.name)}" class="avatar-img" loading="lazy" decoding="async">`;
+  if(src) return `<img src="${src}" alt="${escapeHtml(c.name)}" class="avatar-img${c.thumb?'':' is-full'}" loading="lazy" decoding="async">`;
   return initials(c.name);
 }
 function cyclePhoto(imgEl){
