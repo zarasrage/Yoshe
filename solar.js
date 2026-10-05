@@ -1602,8 +1602,8 @@
           if(Math.abs(velYaw) < 0.004 && Math.abs(velPitch) < 0.004) velYaw = velPitch = 0;
         }
         if(!reduced && !tween){
-          // quieto unos segundos: el giro propio vuelve a entrar, de a poco
-          const idle = clamp01((now - lastInteract - 2500)/3000);
+          // quieto 0.2s: el giro propio vuelve a entrar, de a poco (en 3s)
+          const idle = clamp01((now - lastInteract - 200)/3000);
           if(idle > 0) yaw += 0.05*idle*idle*dt;
         }
       }
