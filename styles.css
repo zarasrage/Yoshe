@@ -30,7 +30,12 @@ body{
   background:var(--void);
   color:var(--ink);
   font-family:'Outfit',system-ui,sans-serif;
-  overflow-x:hidden;
+  /* clip, not hidden: with html at overflow-x:clip, a hidden body becomes its OWN scroll
+     container (overflow-y computes to auto). Then, while the reveal cards slide in from below
+     (translateY), they poke out of it for a moment and the first swipe on a new screen scrolled
+     that inner body - a few px, or nothing - instead of the page: "stuck at the top, works on
+     the second try". clip cuts the same horizontal bleed without creating a scroller. */
+  overflow-x:clip;
   -webkit-font-smoothing:antialiased;
 }
 @media (prefers-reduced-motion: reduce){
@@ -139,10 +144,15 @@ nav.seasons-strip button.active{
 
 /* every route change replays this, so navigating anywhere feels like arriving rather than
    cutting (see render()) */
-#app.route-in{animation:routeIn .62s var(--ease) both;}
+/* Only opacity + a short translate, on purpose: this runs on ALL of #app, which on Elenco or a
+   season is several thousand px tall. It used to also animate filter:blur() and scale(), which
+   forces the whole page to re-rasterize every frame of the entrance - and while that ran, the
+   first scroll on the new screen was swallowed (phones felt "stuck at the top" until the second
+   swipe). Opacity/translate stay on the compositor and the page scrolls from the first frame. */
+#app.route-in{animation:routeIn .42s var(--ease) both;}
 @keyframes routeIn{
-  from{opacity:0; transform:translateY(16px) scale(.994); filter:blur(3px);}
-  to  {opacity:1; transform:translateY(0) scale(1); filter:blur(0);}
+  from{opacity:0; transform:translateY(10px);}
+  to  {opacity:1; transform:none;}
 }
 
 /* ===== HOME / PORTAL ===== */
@@ -160,7 +170,13 @@ nav.seasons-strip button.active{
   display:flex; flex-direction:column; align-items:center; justify-content:center;
   text-align:center; padding:16px 20px 10px; position:relative;
 }
-html.galaxy-lock, html.galaxy-lock body{overflow:hidden; overscroll-behavior:none;}
+/* The galaxy doesn't scroll, but the lock must NOT touch overflow on html/body: those are the
+   page's scroller, and iOS Safari, after overflow:hidden is removed from them, swallows the
+   first swipe on the next screen (you'd land on Elenco or the Mapa from the galaxy and the
+   first scroll did nothing, the second worked). So the root scroller is left alone: the
+   non-passive touchmove/wheel listeners (setGalaxyLock in app.js) keep gestures on the
+   scene, and #app is clipped to exactly one screen so there's never anything to scroll. */
+html.galaxy-lock #app{height:calc(100vh - var(--nav-h, 64px)); height:calc(100svh - var(--nav-h, 64px)); overflow:hidden;}
 html.galaxy-lock .solar-canvas{touch-action:none;}
 /* Readability pocket behind the headline: the photo behind it is busy, this keeps a
    consistent ground under the copy without dimming the sky anywhere else.
