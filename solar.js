@@ -573,7 +573,7 @@
     varying float vAng;
     void main(){
       // distancia angular hacia atrás desde el planeta (el planeta "avanza" en +ángulo)
-      float d = mod(uHead - vAng, 6.2831853);
+      float d = mod(vAng - uHead, 6.2831853);
       float k = d / uLen;
       if(k > 1.0) discard;
       float a = pow(1.0 - k, 2.3) * smoothstep(0.0, uGap, d) * uAlpha;
@@ -585,17 +585,44 @@
   // mínimo en píxeles de pantalla (uMinPx, con uPxK = unidades de mundo por píxel por unidad de
   // profundidad): donde el tubo se ensancha para llegar a ese mínimo, se atenúa en la misma
   // proporción (vThin), así el brillo total no cambia y la línea queda continua y suave.
+  // Además, el tubo no es una geometría fija: los planetas avanzan por sus órbitas, así que la
+  // curva (Catmull-Rom por las posiciones de los planetas, uPts) se calcula acá en cada cuadro.
+  // La geometría solo trae uv: u a lo largo del hilo (0..1) y v alrededor del tubo (0..1).
   const THREAD_VERT = `
+    uniform vec3 uPts[6];
+    uniform float uN;
     uniform float uSoft, uRadius, uMinPx, uPxK;
     varying float vU; varying float vFacing; varying float vThin;
+    vec3 crPos(vec3 p0, vec3 p1, vec3 p2, vec3 p3, float t){
+      return 0.5*(2.0*p1 + (p2 - p0)*t + (2.0*p0 - 5.0*p1 + 4.0*p2 - p3)*t*t + (3.0*p1 - p0 - 3.0*p2 + p3)*t*t*t);
+    }
+    vec3 crTan(vec3 p0, vec3 p1, vec3 p2, vec3 p3, float t){
+      return 0.5*((p2 - p0) + 2.0*(2.0*p0 - 5.0*p1 + 4.0*p2 - p3)*t + 3.0*(3.0*p1 - p0 - 3.0*p2 + p3)*t*t);
+    }
+    vec3 pt(int i){
+      // fuera de los extremos se extrapola, para que el primer y el último tramo no se doblen
+      if(i < 0) return 2.0*uPts[0] - uPts[1];
+      int last = int(uN) - 1;
+      if(i > last) return 2.0*uPts[last] - uPts[last - 1];
+      return uPts[i];
+    }
     void main(){
       vU = uv.x;
-      vec3 axis = position - normal*uRadius;
+      float f = uv.x*(uN - 1.0);
+      int i = int(min(floor(f), uN - 2.0));
+      float t = f - float(i);
+      vec3 p0 = pt(i - 1), p1 = pt(i), p2 = pt(i + 1), p3 = pt(i + 2);
+      vec3 axis = crPos(p0, p1, p2, p3, t);
+      vec3 tg = normalize(crTan(p0, p1, p2, p3, t) + vec3(1e-5));
+      vec3 up = abs(tg.y) < 0.95 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+      vec3 na = normalize(cross(tg, up)), nb = cross(tg, na);
+      float th = uv.y*6.2831853;
+      vec3 nrm = cos(th)*na + sin(th)*nb;
       float depth = max(1e-3, -(modelViewMatrix * vec4(axis, 1.0)).z);
       float r = max(uRadius, depth*uPxK*uMinPx);
       vThin = uRadius / r;
-      vec4 mv = modelViewMatrix * vec4(axis + normal*r, 1.0);
-      vec3 n = normalize(normalMatrix * normal);
+      vec4 mv = modelViewMatrix * vec4(axis + nrm*r, 1.0);
+      vec3 n = normalize(normalMatrix * nrm);
       vFacing = pow(abs(dot(n, normalize(-mv.xyz))), uSoft);
       gl_Position = projectionMatrix * mv;
     }`;
@@ -874,7 +901,7 @@
       label.setAttribute("aria-label", `${s.code || "S"+s.id}, ${s.title || "temporada"}: ${nEv} ${nEv === 1 ? "historia" : "historias"}. Enter para ver la temporada en detalle.`);
       labelsLayer.appendChild(label);
 
-      planets.push({ kind:"planet", index:i, season:s, group, sphere, r, ringed:!!look.ring, label, planetU, atmoU, ringU, trailU, glow,
+      planets.push({ kind:"planet", index:i, season:s, group, sphere, r, ringed:!!look.ring, label, planetU, atmoU, ringU, trailU, glow, R, a0, orbit,
         world:new THREE.Vector3(), hover:false, hoverK:0, appear:0, lw:0, lh:0, cw:0 });
     });
 
@@ -885,21 +912,46 @@
       uColors:{ value: seasons.map(s=> paletteFor(THREE, s.color || CYAN).atmo) }
     };
     while(threadU.uColors.value.length < 6) threadU.uColors.value.push(C(CYAN));
+    // posiciones de los planetas en el espacio de `world` (lo que lee el shader del hilo)
+    const threadPts = { value: Array.from({ length:6 }, ()=> new THREE.Vector3()) };
     if(planets.length >= 2){
-      world.updateMatrixWorld(true);
-      const inv = new THREE.Matrix4().copy(world.matrixWorld).invert();
-      const pts = planets.map(p=> p.group.getWorldPosition(new THREE.Vector3()).applyMatrix4(inv));
-      const curve = new THREE.CatmullRomCurve3(pts, false, "centripetal");
-      const mk = (radius, alpha, soft, minPx)=> new THREE.Mesh(
-        new THREE.TubeGeometry(curve, 480, radius, 10, false),
-        new THREE.ShaderMaterial({
+      // la malla del hilo: una grilla de uv (u a lo largo, v alrededor); la forma la pone el shader
+      const SEG = 480, RAD = 10;
+      const uvs = new Float32Array((SEG + 1)*(RAD + 1)*2), idx = [];
+      for(let a=0; a<=SEG; a++) for(let b=0; b<=RAD; b++){ const k = (a*(RAD + 1) + b)*2; uvs[k] = a/SEG; uvs[k + 1] = b/RAD; }
+      for(let a=0; a<SEG; a++) for(let b=0; b<RAD; b++){
+        const v0 = a*(RAD + 1) + b, v1 = v0 + RAD + 1;
+        idx.push(v0, v1, v0 + 1, v1, v1 + 1, v0 + 1);
+      }
+      const threadGeo = new THREE.BufferGeometry();
+      threadGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(uvs.length/2*3), 3));   // three la exige; no se usa
+      threadGeo.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
+      threadGeo.setIndex(idx);
+      const mk = (radius, alpha, soft, minPx)=>{
+        const m = new THREE.Mesh(threadGeo, new THREE.ShaderMaterial({
           uniforms:{ uTime:threadU.uTime, uReveal:threadU.uReveal, uColors:threadU.uColors, uAlpha:{ value:alpha }, uSoft:{ value:soft },
-            uRadius:{ value:radius }, uMinPx:{ value:minPx }, uPxK:threadPxK },
+            uRadius:{ value:radius }, uMinPx:{ value:minPx }, uPxK:threadPxK, uPts:threadPts, uN:{ value:planets.length } },
           vertexShader:THREAD_VERT, fragmentShader:THREAD_FRAG, ...additive
-        })
-      );
+        }));
+        m.frustumCulled = false;   // la geometría "real" la arma el shader: three no conoce sus límites
+        return m;
+      };
       world.add(mk(0.011, 1.0, 0.4, 0.8));    // núcleo: al menos ~1.6px de ancho
       world.add(mk(0.05, 0.22, 2.4, 2.2));    // halo suave
+    }
+    // los planetas avanzan por sus órbitas, todos a la misma velocidad angular: así el hilo
+    // conserva la espiral dibujada (la distancia angular entre temporadas no cambia). Van hacia
+    // -ángulo, el sentido contrario al giro automático del sistema: si fueran a favor, en
+    // pantalla se compensarían y parecerían quietos
+    const ORBIT_SPEED = 0.05;   // rad/s: una vuelta cada ~2 minutos
+    let orbitT = 0;
+    function placePlanets(){
+      planets.forEach((p, k)=>{
+        const a = p.a0 - ORBIT_SPEED*orbitT;
+        p.group.position.set(Math.cos(a)*p.R, 0, Math.sin(a)*p.R);
+        p.trailU.uHead.value = ((a % TAU) + TAU) % TAU;
+        threadPts.value[k].copy(p.group.position).applyEuler(p.orbit.rotation);
+      });
     }
 
     // ---- bloom (solo desktop) ----
@@ -1153,7 +1205,7 @@
     const VIEW_KEY = "ychSolarView";
     function saveView(){
       try{
-        sessionStorage.setItem(VIEW_KEY, JSON.stringify({ yaw: ((yaw % TAU) + TAU) % TAU, pitch, zoom:zoomTarget, t: Date.now() }));
+        sessionStorage.setItem(VIEW_KEY, JSON.stringify({ yaw: ((yaw % TAU) + TAU) % TAU, pitch, zoom:zoomTarget, orbitT, t: Date.now() }));
       }catch(e){ /* sin storage (vista previa, modo privado estricto): no se recuerda, y listo */ }
     }
     let restored = false;
@@ -1162,6 +1214,7 @@
       if(v && isFinite(v.yaw) && isFinite(v.pitch) && Date.now() - (v.t || 0) < 6*3600*1000){
         yaw = v.yaw; pitch = wrapAngle(v.pitch);
         if(isFinite(v.zoom)) zoom = zoomTarget = clampZoom(v.zoom);
+        if(isFinite(v.orbitT)) orbitT = v.orbitT;
         restored = true;
       }
     }catch(e){ /* storage bloqueado o JSON roto: vista por defecto */ }
@@ -1615,7 +1668,8 @@
       const doomT = doomTarget();
       if(Math.abs(doomT - doomK) > 0.001 || reduced){ doomK = reduced ? doomT : doomK + (doomT - doomK)*kM; applyDoom(); }
 
-      if(!reduced) simTime += dt;
+      if(!reduced){ simTime += dt; orbitT += dt; }
+      placePlanets();
       discU.uTime.value = simTime;
       lensU.uTime.value = simTime;
       threadU.uTime.value = simTime;
