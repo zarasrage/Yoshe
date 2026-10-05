@@ -1294,6 +1294,12 @@ function render(){
     else if(parts[0]==="elenco") viewCast();
     else viewHome();
     window.scrollTo({top: restoreY!==undefined ? restoreY : 0, behavior:"instant"});
+    // #/season/N/M: enlace directo a una historia (las lunas del 3D, el buscador, las fichas).
+    // Al volver con "atrás" manda la posición recordada, no el salto a la historia.
+    if(parts[0]==="season" && parts[2]!==undefined && restoreY===undefined){
+      const sid = parts[1], idx = parts[2];
+      setTimeout(()=>flashEvent(sid, idx), 90);
+    }
     // la home es solo la galaxia: sin scroll
     if(document.querySelector(".hero .home-sky")) setGalaxyLock(true);
     replayRouteAnimation();

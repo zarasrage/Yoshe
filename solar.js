@@ -534,6 +534,31 @@
       gl_FragColor = vec4(uAtmo, clamp(a, 0.0, 1.0));
       #include <colorspace_fragment>
     }`;
+  // lunas: una por historia. Roca chica teñida con el color de la temporada, iluminada desde el
+  // Hoyo como los planetas; en pantalla miden pocos píxeles, así que el shader es barato igual
+  const MOON_FRAG = NOISE + `
+    uniform float uSeed, uHover;
+    uniform vec3 uTint, uLightPos, uLightCol;
+    varying vec3 vObj; varying vec3 vN; varying vec3 vView;
+    void main(){
+      vec3 p = normalize(vObj);
+      vec3 sp = p*2.6 + vec3(uSeed*3.7, uSeed*1.3, uSeed*2.9);
+      float h = fbm3(sp);
+      vec3 col = mix(vec3(0.46, 0.5, 0.56), uTint, 0.42) * (0.78 + 0.4*h);
+      vec2 w = worley(sp*1.6);
+      col *= 1.0 - smoothstep(0.38, 0.12, w.x)*0.32;              // cráteres
+      col += vec3(0.08)*exp(-pow((w.x - 0.4)/0.05, 2.0));          // borde de cráter
+      vec3 N = normalize(vN), L = normalize(uLightPos - vView), V = normalize(-vView);
+      float ndl = dot(N, L);
+      vec3 lit = col * (uLightCol*smoothstep(-0.1, 0.6, ndl)*1.25 + vec3(0.14, 0.16, 0.22));
+      // sin un piso de luz y un borde, la cara de noche se leía como un agujero negro chico
+      float fr = pow(1.0 - max(dot(N, V), 0.0), 2.2);
+      lit += uTint * fr * (0.45 + 0.6*uHover);
+      lit += mix(uTint, vec3(1.0), 0.4) * uHover * 0.35;
+      gl_FragColor = vec4(lit, 1.0);
+      #include <colorspace_fragment>
+    }`;
+
   const RING_VERT = `
     varying vec2 vP; varying vec3 vW;
     void main(){
@@ -891,6 +916,45 @@
       glow.scale.setScalar(r*5);
       group.add(glow);
 
+      // ---- lunas: una por historia de la temporada ----
+      // Cada una en su propia órbita alrededor del planeta (inclinada distinto, más lenta
+      // mientras más lejos), con una estela corta como la de los planetas. Viven dentro de
+      // `group`, así que crecen con el hover y aparecen con el planeta. La primera órbita parte
+      // por fuera de los anillos, si hay.
+      const moons = [];
+      const moonStart = r*(look.ring ? 2.7 : 1.75), moonStep = r*0.34;
+      (s.events || []).forEach((ev, j)=>{
+        const mR = moonStart + j*moonStep;
+        const mr = Math.min(0.085, 0.05 + 0.012*((i*7 + j*3) % 4) + r*0.03);
+        const mOrbit = new THREE.Group();
+        mOrbit.rotation.set(0.55*Math.sin(j*2.1 + i*1.3), 0, 0.45*Math.cos(j*1.7 + i*0.9));
+        group.add(mOrbit);
+        const MSEG = 96, mpos = new Float32Array((MSEG+1)*3), mangs = new Float32Array(MSEG+1);
+        for(let k=0;k<=MSEG;k++){
+          const a = k/MSEG*TAU;
+          mpos[k*3] = Math.cos(a)*mR; mpos[k*3+1] = 0; mpos[k*3+2] = Math.sin(a)*mR;
+          mangs[k] = a;
+        }
+        const mGeo = new THREE.BufferGeometry();
+        mGeo.setAttribute("position", new THREE.BufferAttribute(mpos, 3));
+        mGeo.setAttribute("aAng", new THREE.BufferAttribute(mangs, 1));
+        const mTrailU = { uHead:{ value:0 }, uLen:{ value:Math.PI*1.1 }, uGap:{ value:(mr*1.6)/mR }, uAlpha:{ value:0 }, uColor:{ value:pal.atmo } };
+        mOrbit.add(new THREE.Line(mGeo, new THREE.ShaderMaterial({ uniforms:mTrailU, vertexShader:TRAIL_VERT, fragmentShader:TRAIL_FRAG, ...additive })));
+        const moonU = { uSeed:{ value:i*3.1 + j*1.7 }, uHover:{ value:0 }, uTint:{ value:pal.atmo },
+          uLightPos:lightUniforms.uLightPos, uLightCol:lightUniforms.uLightCol };
+        const mesh = new THREE.Mesh(new THREE.SphereGeometry(mr, 20, 14),
+          detailed(new THREE.ShaderMaterial({ uniforms:moonU, vertexShader:PLANET_VERT, fragmentShader:MOON_FRAG })));
+        mOrbit.add(mesh);
+        const mGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTex, color:C(color), opacity:0, ...additive }));
+        mGlow.scale.setScalar(mr*6);
+        mOrbit.add(mGlow);
+        // velocidad tipo Kepler (más lejos, más lenta), y fases repartidas para que no salgan en fila
+        const omega = 0.32*Math.pow(moonStart/mR, 1.5);
+        const theta0 = j*2.399 + i*0.7;   // ángulo dorado: quedan bien repartidas
+        moons.push({ kind:"moon", index:j, event:ev, mesh, glow:mGlow, trailU:mTrailU, moonU, mR, mr, omega, theta0,
+          world:new THREE.Vector3(), hover:false, hoverK:0, appear:0, label:null, planet:null });
+      });
+
       const label = document.createElement("a");
       label.className = "solar-label";
       label.href = hrefFor(s.id);
@@ -903,8 +967,11 @@
       label.setAttribute("aria-label", `${s.code || "S"+s.id}, ${s.title || "temporada"}: ${nEv} ${nEv === 1 ? "historia" : "historias"}. Enter para ver la temporada en detalle.`);
       labelsLayer.appendChild(label);
 
-      planets.push({ kind:"planet", index:i, season:s, group, sphere, r, ringed:!!look.ring, label, planetU, atmoU, ringU, trailU, glow, R, a0, orbit,
-        world:new THREE.Vector3(), hover:false, hoverK:0, appear:0, lw:0, lh:0, cw:0 });
+      const planet = { kind:"planet", index:i, season:s, group, sphere, r, ringed:!!look.ring, label, planetU, atmoU, ringU, trailU, glow, R, a0, orbit, moons,
+        moonMax: moons.length ? moonStart + (moons.length - 1)*moonStep + 0.1 : 0,
+        world:new THREE.Vector3(), hover:false, hoverK:0, appear:0, lw:0, lh:0, cw:0 };
+      moons.forEach(m=>{ m.planet = planet; });
+      planets.push(planet);
     });
 
     // ---- hilo del tiempo ----
@@ -1075,6 +1142,35 @@
     }
     const items = planets.concat([holeItem]);
 
+    // ---- lunas: etiquetas y destino ----
+    // Cada luna es una historia: en el foco de su planeta muestra su número (el mismo de la lista
+    // del panel) y, al pasar encima, el título. Clic = ir a esa historia en la temporada. No
+    // entran al Tab: para el teclado está la lista del panel, que lleva a los mismos lugares.
+    const storyHref = opts.storyHref || ((sid, idx)=> `#/season/${sid}/${idx}`);
+    const allMoons = [];
+    planets.forEach(p=> p.moons.forEach(m=>{
+      const a = document.createElement("a");
+      a.className = "solar-moon";
+      a.href = storyHref(p.season.id, m.index);
+      a.tabIndex = -1;
+      a.setAttribute("aria-hidden", "true");
+      a.style.setProperty("--pcolor", p.season.color || CYAN);
+      a.style.opacity = "0";
+      a.innerHTML = `<span class="solar-moon-n"></span><span class="solar-moon-t"></span>`;
+      a.firstChild.textContent = String(m.index + 1);
+      a.lastChild.textContent = m.event.title || "";
+      labelsLayer.appendChild(a);
+      m.label = a;
+      allMoons.push(m);
+    }));
+    function goStory(m){ saveView(); location.href = m.label.href; }
+    allMoons.forEach(m=>{
+      on(m.label, "click", ()=> saveView());
+      on(m.label, "mouseenter", ()=>setHover(m));
+      on(m.label, "mouseleave", ()=>setHover(null));
+    });
+    const hoverables = items.concat(allMoons);
+
     // ---- panel del foco ----
     const panelId = "solarPanel" + Math.random().toString(36).slice(2, 8);
     const panel = document.createElement("aside");
@@ -1090,6 +1186,8 @@
       <p class="solar-p-text"></p>
       <div class="solar-p-stats"></div>
       <div class="solar-p-avatars" role="list"></div>
+      <div class="solar-p-sub">Historias <span>· cada luna es una</span></div>
+      <ol class="solar-p-stories"></ol>
       <a class="solar-p-enter" href="#"></a>`;
     root.appendChild(panel);
     const $p = sel => panel.querySelector(sel);
@@ -1162,6 +1260,26 @@
         const people = charsOf(ids);
         stats.innerHTML = `<span><b>${evs.length}</b> ${evs.length === 1 ? "historia" : "historias"}</span><span><b>${people.length}</b> ${people.length === 1 ? "personaje" : "personajes"}</span>`;
         fillAvatars(people);
+        // la lista de historias: una fila por luna, con su número; pasar encima enciende la luna
+        const list = $p(".solar-p-stories");
+        list.textContent = "";
+        item.moons.forEach(m=>{
+          const li = document.createElement("li");
+          const a = document.createElement("a");
+          a.href = m.label.href;
+          a.innerHTML = `<span class="solar-st-n"></span><span class="solar-st-tx"><span class="solar-st-t"></span><span class="solar-st-d"></span></span>`;
+          a.querySelector(".solar-st-n").textContent = String(m.index + 1);
+          a.querySelector(".solar-st-t").textContent = m.event.title || "Historia sin título";
+          a.querySelector(".solar-st-d").textContent = isPending(m.event.date) ? "fecha pendiente" : (m.event.date || "");
+          a.addEventListener("mouseenter", ()=>setHover(m));
+          a.addEventListener("mouseleave", ()=>setHover(null));
+          a.addEventListener("focus", ()=>setHover(m));
+          a.addEventListener("blur", ()=>setHover(null));
+          a.addEventListener("click", saveView);
+          li.appendChild(a);
+          list.appendChild(li);
+        });
+        list.hidden = $p(".solar-p-sub").hidden = !item.moons.length;
         enter.href = hrefFor(s.id);
         enter.innerHTML = `Entrar a la temporada <span aria-hidden="true">→</span>`;
       } else {
@@ -1178,6 +1296,7 @@
         const written = core.filter(x=> x.c.destino && !isPending(x.c.destino)).length;
         stats.innerHTML = `<span><b>${core.length}</b> en el grupo</span><span><b>${written}</b> ${written === 1 ? "destino escrito" : "destinos escritos"}</span>`;
         fillAvatars(core);
+        $p(".solar-p-stories").hidden = $p(".solar-p-sub").hidden = true;
         enter.href = armHref;
         enter.innerHTML = `Ir al Armagedón <span aria-hidden="true">→</span>`;
       }
@@ -1247,7 +1366,8 @@
       dest.target.copy(center);
       dest.k = 1;
       if(it.kind === "hole"){ dest.pos.copy(center).addScaledVector(focus.dir, holeFocusDist()); return; }
-      const rEff = it.r * (it.ringed ? 2.35 : 1.2), frac = 0.36;
+      // el planeta con sus lunas: el encuadre abarca la órbita de la más lejana
+      const rEff = Math.max(it.r * (it.ringed ? 2.35 : 1.2), it.moonMax*0.92), frac = 0.36;
       // en horizontal el objeto vive en la mitad izquierda; en vertical, en el tercio de arriba
       // (la hoja del panel ocupa el resto)
       const usableW = sheet ? 1 : 0.55, usableH = sheet ? 0.36 : 1;
@@ -1385,6 +1505,17 @@
       // radio mínimo en pantalla: generoso para el dedo, sobre todo con planetas chicos
       const minPx = isTouch ? 26 : 14;
       let best = null, bestD = Infinity;
+      // en el foco de un planeta, sus lunas también se eligen (en la vista general son puntitos y
+      // le robarían el clic a los planetas)
+      if(focus && focus.item.kind === "planet"){
+        focus.item.moons.forEach(m=>{
+          if(m.appear < 0.5) return;
+          const d = ray.origin.distanceTo(m.world);
+          const hitR = Math.max(m.mr*m.mesh.scale.x*1.8, (isTouch ? 22 : 12)*2*d*tanV/H);
+          if(ray.distanceSqToPoint(m.world) > hitR*hitR) return;
+          if(d < bestD){ bestD = d; best = m; }
+        });
+      }
       items.forEach(it=>{
         if(it.appear < 0.5) return;
         const d = ray.origin.distanceTo(it.world);
@@ -1482,7 +1613,8 @@
       if(!wasDrag && !cancelled && now > noPickUntil){
         velYaw = velPitch = 0;
         const it = pick(e.clientX, e.clientY, type === "touch");
-        if(it) openFocus(it, false);
+        if(it && it.kind === "moon") goStory(it);
+        else if(it) openFocus(it, false);
         else if(focus) closeFocus();     // clic en el vacío: vuelve a la vista general
       }
       const MAX = 5;   // tope de inercia, para que un latigazo no lo deje como trompo
@@ -1550,6 +1682,7 @@
       const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov/2));
       // en foco las etiquetas se van (el panel ya dice todo) y vuelven al salir
       const labelK = 1 - cam.k;
+      updateMoonLabels(camPos, tanV);
       if(labelK < 0.05){ items.forEach(it=>hideLabel(it.label)); return; }
 
       placed.length = 0;
@@ -1605,9 +1738,34 @@
       });
     }
 
+    // números de las lunas del planeta en foco (y el título de la que está bajo el puntero)
+    function updateMoonLabels(camPos, tanV){
+      allMoons.forEach(m=>{
+        const p = m.planet;
+        const show = focus && focus.item === p && cam.k > 0.3 && m.appear > 0.5;
+        if(!show){ if(m.label.style.visibility !== "hidden") hideLabel(m.label); return; }
+        vTmp.copy(m.world).project(camera);
+        const x = (vTmp.x*0.5+0.5)*W, y = (-vTmp.y*0.5+0.5)*H;
+        // detrás de su planeta: no se ve, no se rotula
+        vSeg.copy(m.world).sub(camPos);
+        const segLen = vSeg.length(); vSeg.divideScalar(segLen);
+        const tProj = vClosest.copy(p.world).sub(camPos).dot(vSeg);
+        let hidden = false;
+        if(tProj > 0 && tProj < segLen){
+          vClosest.copy(camPos).addScaledVector(vSeg, tProj);
+          if(vClosest.distanceTo(p.world) < p.r*p.group.scale.x) hidden = true;
+        }
+        const rpx = m.mr*m.mesh.scale.x*p.group.scale.x*(H/2)/(camPos.distanceTo(m.world)*tanV);
+        m.label.style.visibility = hidden ? "hidden" : "visible";
+        m.label.style.opacity = hidden ? "0" : ((cam.k - 0.3)/0.7).toFixed(2);
+        m.label.style.transform = `translate(${(x + rpx + 3).toFixed(1)}px, ${(y - rpx - 3).toFixed(1)}px) translate(0, -100%)`;
+        m.label.style.zIndex = m.hover ? "2100" : "1500";
+      });
+    }
+
     function busy(){
       return drag || pinch || velYaw || velPitch || tween || Math.abs(zoomTarget - zoom) > 0.0005 || introT < INTRO || Math.abs(doomTarget() - doomK) > 0.001 ||
-        items.some(it=> Math.abs(((it.hover || (focus && focus.item === it))?1:0) - it.hoverK) > 0.01);
+        hoverables.some(it=> Math.abs(((it.hover || (focus && focus.item === it))?1:0) - it.hoverK) > 0.01);
     }
     function doomTarget(){ return focus && focus.item.kind === "hole" ? 1 : 0; }
     function pace(now){
@@ -1693,13 +1851,29 @@
         p.trailU.uAlpha.value = (0.65 + 0.35*p.hoverK) * p.appear;
         p.glow.material.opacity = (0.45 + 0.5*p.hoverK) * p.appear * spriteK();
         if(!reduced) p.sphere.rotation.y += dt*(0.15 + i*0.027);
+        // lunas: aparecen después de su planeta, una tras otra, y giran (hacia -ángulo, como
+        // los planetas, así la estela queda detrás)
+        const inFocus = focus && focus.item === p ? cam.k : 0;
+        p.moons.forEach((m, j)=>{
+          m.appear = clamp01((introT - 1.25 - i*0.22 - j*0.12)/0.6);
+          m.hoverK += ((m.hover ? 1 : 0) - m.hoverK) * (dt ? k : 1);
+          const th = m.theta0 - m.omega*simTime;
+          m.mesh.position.set(Math.cos(th)*m.mR, 0, Math.sin(th)*m.mR);
+          m.glow.position.copy(m.mesh.position);
+          m.mesh.scale.setScalar(Math.max(0.0001, easeOutBack(m.appear)*(1 + 0.6*m.hoverK)));
+          if(!reduced) m.mesh.rotation.y += dt*0.4;
+          m.trailU.uHead.value = ((th % TAU) + TAU) % TAU;
+          m.trailU.uAlpha.value = (0.22 + 0.5*inFocus + 0.35*m.hoverK) * m.appear;
+          m.moonU.uHover.value = m.hoverK;
+          m.glow.material.opacity = (0.3 + 0.25*inFocus + 0.6*m.hoverK) * m.appear * spriteK();
+        });
       });
 
       holeItem.hoverK += (((holeItem.hover || (focus && focus.item === holeItem)) ? 1 : 0) - holeItem.hoverK) * (dt ? 1 - Math.exp(-dt*12) : 1);
 
       stage.updateMatrixWorld(true);
       holeItem.world.setFromMatrixPosition(world.matrixWorld);
-      planets.forEach(p=> p.group.getWorldPosition(p.world));
+      planets.forEach(p=>{ p.group.getWorldPosition(p.world); p.moons.forEach(m=> m.mesh.getWorldPosition(m.world)); });
 
       // --- cámara: vista general o foco, con vuelo suave entre ambas ---
       if(focus) focusDest(); else overviewDest(camE);

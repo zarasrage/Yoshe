@@ -367,6 +367,19 @@ html.galaxy-lock .solar-canvas{touch-action:none;}
 .solar-label-hole .solar-code{color:#ff8a8a; letter-spacing:.3em; font-size:.56rem;}
 .solar-label-hole .solar-title{font-size:.86rem; color:var(--ink-dim);}
 
+/* moons (one per story): in the focus of their planet they carry their number, and the title
+   on hover. A small glass pill, same family as the planet labels. */
+.solar-moon{position:absolute; left:0; top:0; pointer-events:auto; display:flex; align-items:center; gap:6px;
+  padding:2px; border-radius:999px; white-space:nowrap; will-change:transform; transition:opacity .25s linear, background .2s;}
+.solar-moon-n{display:grid; place-items:center; width:18px; height:18px; border-radius:50%;
+  font:500 .6rem/1 'JetBrains Mono',monospace; color:#fff; background:rgba(3,12,28,.7);
+  border:1px solid color-mix(in srgb, var(--pcolor) 70%, transparent); box-shadow:0 0 10px color-mix(in srgb, var(--pcolor) 40%, transparent);}
+.solar-moon-t{max-width:0; overflow:hidden; opacity:0; font-family:'Cormorant Garamond',Georgia,serif; font-style:italic; font-weight:600;
+  font-size:.98rem; color:#fff; text-shadow:0 1px 3px #000; transition:max-width .35s var(--ease), opacity .2s, padding .2s;}
+.solar-moon.is-hover, .solar-moon:hover{background:rgba(3,12,28,.72); box-shadow:0 0 0 1px color-mix(in srgb, var(--pcolor) 45%, transparent);}
+.solar-moon.is-hover .solar-moon-t, .solar-moon:hover .solar-moon-t{max-width:300px; opacity:1; padding-right:8px;}
+.solar-moon.is-hover .solar-moon-n, .solar-moon:hover .solar-moon-n{background:var(--pcolor); color:#04101f; border-color:transparent;}
+
 /* the hint and the 2D/3D variants of the tagline follow .solar-on */
 .solar-hint{position:absolute; left:0; right:0; bottom:4px; z-index:2; text-align:center; pointer-events:none;
   font-family:'JetBrains Mono',monospace; font-size:.64rem; letter-spacing:.1em; color:var(--ink-faint);
@@ -408,6 +421,20 @@ html.galaxy-lock .solar-canvas{touch-action:none;}
 .solar-ava img{width:100%; height:100%; object-fit:cover; object-position:50% 0%; display:block;}
 .solar-ava img.is-full{transform:scale(1.7); transform-origin:50% 0%;}
 .solar-ava-more{background:rgba(255,255,255,.06); border-color:var(--line); color:var(--ink-dim); font-family:'JetBrains Mono',monospace; font-size:.66rem;}
+/* the season's stories, one row per moon (same number as the moon in the scene) */
+.solar-p-sub{font-family:'JetBrains Mono',monospace; font-size:.62rem; letter-spacing:.18em; text-transform:uppercase; color:var(--ink-faint); margin:0 0 8px;}
+.solar-p-sub span{letter-spacing:.08em; text-transform:none; opacity:.8;}
+.solar-p-stories{list-style:none; margin:0 0 18px; padding:0; display:flex; flex-direction:column; gap:2px; text-align:left;}
+.solar-p-stories a{display:flex; align-items:center; gap:10px; padding:7px 8px; border-radius:10px; transition:background .2s;}
+.solar-p-stories a:hover, .solar-p-stories a:focus-visible{background:color-mix(in srgb, var(--pcolor) 14%, transparent); outline:none;}
+.solar-st-n{flex:none; display:grid; place-items:center; width:20px; height:20px; border-radius:50%;
+  font:500 .62rem/1 'JetBrains Mono',monospace; color:var(--pcolor); border:1px solid color-mix(in srgb, var(--pcolor) 55%, transparent);}
+.solar-p-stories a:hover .solar-st-n, .solar-p-stories a:focus-visible .solar-st-n{background:var(--pcolor); color:#04101f;}
+.solar-st-tx{display:flex; flex-direction:column; min-width:0;}
+.solar-st-t{font-family:'Cormorant Garamond',Georgia,serif; font-weight:600; font-size:1.05rem; line-height:1.15; color:var(--ink);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.solar-st-d{font-family:'JetBrains Mono',monospace; font-size:.6rem; letter-spacing:.06em; color:var(--ink-faint);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 .solar-p-enter{display:flex; align-items:center; justify-content:center; gap:10px; padding:13px 18px; border-radius:999px;
   font:500 .95rem/1 'Outfit',sans-serif; color:#04101f; background:var(--pcolor);
   box-shadow:0 0 0 1px rgba(255,255,255,.12) inset, 0 10px 30px color-mix(in srgb, var(--pcolor) 35%, transparent);
@@ -427,6 +454,8 @@ html.galaxy-lock .solar-canvas{touch-action:none;}
   .solar-p-stats b{font-size:1.5rem;}
   .solar-p-avatars{margin-bottom:12px;}
   .solar-ava{width:30px; height:30px;}
+  .solar-p-stories{margin-bottom:12px;}
+  .solar-p-stories a{padding:4px 8px;}
   .solar-p-enter{padding:10px 16px;}
 }
 /* portrait (phone): the object sits on top and the panel is a sheet at the bottom */
@@ -443,6 +472,8 @@ html.galaxy-lock .solar-canvas{touch-action:none;}
 .solar-root.is-portrait .solar-p-avatars{flex-wrap:nowrap; gap:0; margin-bottom:12px; padding-left:4px;}
 .solar-root.is-portrait .solar-ava{width:30px; height:30px; margin-left:-4px; box-shadow:0 0 0 2px #04101f;}
 .solar-root.is-portrait .solar-p-enter{padding:11px 16px;}
+.solar-root.is-portrait .solar-p-stories{margin-bottom:10px;}
+.solar-root.is-portrait .solar-p-stories a{padding:5px 6px;}
 @media (max-width:600px){
   .solar-title{font-size:.95rem;} .solar-code{font-size:.56rem;}
   .solar-hint{font-size:.58rem;}
