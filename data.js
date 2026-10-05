@@ -39,6 +39,7 @@ const DATA = {
     "connie":             {name:"Connie",                  role:"— rol pendiente —", tier:"secundario", color:"#d9748a", bio:"Cuéntame más sobre Connie: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
     "daniela":            {name:"Daniela",                 role:"— rol pendiente —", tier:"secundario", color:"#f2a65a", bio:"Amiga de Connie. Cristóbal Jones la conoció en un carrete en casa de Heidi — tenía pololo y él no lo sabía.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
     "blanca":             {name:"Blanca",                  role:"— rol pendiente —", tier:"secundario", color:"#8b6bf2", bio:"Cuéntame más sobre Blanca: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
+    "jao-diaz":           {name:"Jao Díaz",                role:"— rol pendiente —", tier:"secundario", color:"#3f8c82", bio:"Cuéntame más sobre Jao Díaz: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
   },
   places: {
 
@@ -338,6 +339,41 @@ const DATA = {
             {t:"text",v:" llevaban ahorrando desde marzo solo para esa fiesta.\n\nLa noche terminó como pocas: "},
             {t:"char",id:"brenda"},
             {t:"text",v:" se hizo mierda, tomó demasiado, y terminó siendo echada de Vrava. Motivo de risa asegurada para el grupo. Después de eso, se fueron."}
+          ]
+        },
+        {
+          date:"Viernes 18 de septiembre de 2026", title:"La fonda del Dieciocho en Chapultepec",
+          place:"chapultepec", chars:["gerardo-cortes","paula-jara","andres","hernan-suarez","maca-hermantraut","valeria-dassori","maria-ignacia-demandes","sofia-yanez","jao-diaz"],
+          content:[
+            {t:"text",v:"Para el 18 de septiembre el grupo armó su propia fonda en "},
+            {t:"place",id:"chapultepec"},
+            {t:"text",v:". Esta vez hubo organizadores designados de antemano para que ayudaran — "},
+            {t:"char",id:"gerardo-cortes"},
+            {t:"text",v:", "},
+            {t:"char",id:"paula-jara"},
+            {t:"text",v:" y "},
+            {t:"char",id:"andres"},
+            {t:"text",v:" — y en la práctica hicieron todo: "},
+            {t:"char",id:"gerardo-cortes"},
+            {t:"text",v:" fue a comprar a la feria, "},
+            {t:"char",id:"andres"},
+            {t:"text",v:" compró la carne y se hizo cargo del asado, y "},
+            {t:"char",id:"paula-jara"},
+            {t:"text",v:" hizo cosas de Paula: las tablas, las preparaciones y todo lo demás. Llegaron temprano y armaron algo bestial.\n\nDespués empezó a llegar la gente — llegaron casi todos los del Yoshe — y estuvo muy simpático. Se bailó harto. Se intentó una gincana, pero salió pésima: la carrera de huevos en cuchara resultó más difícil de lo esperado, nadie la pescó y terminó cancelada.\n\n"},
+            {t:"char",id:"hernan-suarez"},
+            {t:"text",v:" se sacó una foto con todas sus ex: "},
+            {t:"char",id:"maca-hermantraut"},
+            {t:"text",v:", "},
+            {t:"char",id:"valeria-dassori"},
+            {t:"text",v:" y "},
+            {t:"char",id:"maria-ignacia-demandes"},
+            {t:"text",v:". "},
+            {t:"char",id:"gerardo-cortes"},
+            {t:"text",v:" se agarró a la MILF, y la cosa llegó hasta el final. "},
+            {t:"char",id:"sofia-yanez"},
+            {t:"text",v:", en cambio, murió por ese curao raja: terminó vomitando, y quien escribe esta crónica le ayudó a pasarla.\n\n"},
+            {t:"char",id:"jao-diaz"},
+            {t:"text",v:" llegó con un amigo — Ferrán, o algo así — y estuvo como cinco minutos. Lo amenazaron con el cuadro y lo sacaron a tomarse un copete al seco mientras le cantaban el cumpleaños; poco después, se fueron los dos.\n\nLa gente lo pasó muy bien y se quedó hasta tarde. Una muy buena fonda. — Cuéntame más: ¿qué es \"el cuadro\"? ¿Quién era la MILF?"}
           ]
         },
         {
