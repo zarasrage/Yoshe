@@ -1604,7 +1604,7 @@
         if(!reduced && !tween){
           // quieto 0.2s: el giro propio vuelve a entrar, de a poco (en 2s)
           const idle = clamp01((now - lastInteract - 200)/2000);
-          if(idle > 0) yaw += 0.05*idle*idle*dt;
+          if(idle > 0) yaw += 0.075*idle*idle*dt;
         }
       }
       world.rotation.set(pitch, yaw + introYaw, 0);
@@ -1634,7 +1634,7 @@
         if(p.ringU) p.ringU.uReveal.value = p.appear;
         p.trailU.uAlpha.value = (0.65 + 0.35*p.hoverK) * p.appear;
         p.glow.material.opacity = (0.45 + 0.5*p.hoverK) * p.appear * spriteK();
-        if(!reduced) p.sphere.rotation.y += dt*(0.1 + i*0.018);
+        if(!reduced) p.sphere.rotation.y += dt*(0.15 + i*0.027);
       });
 
       holeItem.hoverK += (((holeItem.hover || (focus && focus.item === holeItem)) ? 1 : 0) - holeItem.hoverK) * (dt ? 1 - Math.exp(-dt*12) : 1);
