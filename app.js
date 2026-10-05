@@ -499,6 +499,7 @@ function navigateTo(view,id){ location.hash = `#/${view}/${id}`; }
 function renderSeasonsStrip(activeId){
   const strip=document.getElementById("seasonsStrip");
   let html = `<button data-s="home" class="${activeId===undefined?'active':''}" onclick="location.hash='#/home'">Inicio</button>`;
+  html += `<button data-s="elenco" class="${activeId==='elenco'?'active':''}" onclick="location.hash='#/elenco'">Elenco</button>`;
   DATA.seasons.forEach(s=>{
     html+=`<button data-s="${s.id}" class="${activeId===s.id?'active':''}" onclick="location.hash='#/season/${s.id}'">${s.code}</button>`;
   });
@@ -590,24 +591,6 @@ function viewHome(){
   renderSeasonsStrip(undefined);
   const app=document.getElementById("app");
 
-  const castCard = ([id,c])=>`
-    <div class="cast-card" onclick="navigateTo('character','${id}')">
-      <div class="cast-avatar" style="background:${avatarSrc(c)?'transparent':c.color}; overflow:hidden;">${avatarInner(c)}</div>
-      <div class="cname">${escapeHtml(c.name)}</div>
-      <div class="crole">${escapeHtml(c.role)}</div>
-      <div class="tier-badge tier-${c.tier==='secundario'?'sec':'pri'}">${c.tier==='secundario'?'Secundario':'Primario'}</div>
-    </div>`;
-  const entries = Object.entries(DATA.characters);
-  const primaryHtml = entries.filter(([,c])=>c.tier!=='secundario').map(castCard).join("");
-  const secondaryHtml = entries.filter(([,c])=>c.tier==='secundario').map(castCard).join("");
-
-  const placesHtml = Object.entries(DATA.places).map(([id,p])=>`
-    <div class="place-card" onclick="navigateTo('place','${id}')">
-      <span class="picon">${p.icon}</span>
-      <div class="pname">${escapeHtml(p.name)}</div>
-      <div class="pdesc">${escapeHtml(p.desc)}</div>
-    </div>`).join("");
-
   // the hero's "ignite" entrance only plays once per browser session, and never under
   // prefers-reduced-motion - a returning visit (or a second trip back to #/home) just
   // renders the final state directly instead of replaying the reveal
@@ -630,10 +613,46 @@ function viewHome(){
       <div class="solar-stage" id="solarStage"></div>
       <div class="solar-hint" aria-hidden="true"><span class="hint-desk">arrastra para girar · rueda para acercar · clic en un planeta o el Hoyo</span><span class="hint-touch">gira con el dedo · pellizca · toca un planeta</span></div>
     </div>
-    <button type="button" class="explore-tab" onclick="goExplore()">Personajes y lugares<span class="chevron" aria-hidden="true"></span></button>
+    <a class="explore-tab" href="#/elenco">Personajes y lugares<span class="chevron" aria-hidden="true"></span></a>
   </section>
+  `;
 
-  <section class="section-wrap" id="elenco">
+
+  if(playIntro){ try{ sessionStorage.setItem(INTRO_KEY, "1"); }catch(e){} }
+  setupConstellationFX();
+  // la entrada del 3D (cámara desde lejos) va con la del hero: una vez por sesión
+  mountHomeSolar({ intro: playIntro, restoreView: routeFromHistory });
+}
+
+/* =========================== render: ELENCO (personajes y lugares) =========================== */
+// Pantalla propia, separada de la galaxia: la home no scrollea nunca (es solo la galaxia) y
+// acá el scroll es el normal de la página. Se entra con la pestaña "Personajes y lugares" de
+// la home y se vuelve con "← Galaxia".
+function viewCast(){
+  renderSeasonsStrip("elenco");
+  const app=document.getElementById("app");
+
+  const castCard = ([id,c])=>`
+    <div class="cast-card" onclick="navigateTo('character','${id}')">
+      <div class="cast-avatar" style="background:${avatarSrc(c)?'transparent':c.color}; overflow:hidden;">${avatarInner(c)}</div>
+      <div class="cname">${escapeHtml(c.name)}</div>
+      <div class="crole">${escapeHtml(c.role)}</div>
+      <div class="tier-badge tier-${c.tier==='secundario'?'sec':'pri'}">${c.tier==='secundario'?'Secundario':'Primario'}</div>
+    </div>`;
+  const entries = Object.entries(DATA.characters);
+  const primaryHtml = entries.filter(([,c])=>c.tier!=='secundario').map(castCard).join("");
+  const secondaryHtml = entries.filter(([,c])=>c.tier==='secundario').map(castCard).join("");
+
+  const placesHtml = Object.entries(DATA.places).map(([id,p])=>`
+    <div class="place-card" onclick="navigateTo('place','${id}')">
+      <span class="picon">${p.icon}</span>
+      <div class="pname">${escapeHtml(p.name)}</div>
+      <div class="pdesc">${escapeHtml(p.desc)}</div>
+    </div>`).join("");
+
+  app.innerHTML = `
+  <div class="cast-topbar"><a class="back-btn" href="#/home"><span aria-hidden="true">←</span> Galaxia</a></div>
+  <section class="section-wrap cast-page">
     <div class="section-head">
       <div class="eyebrow">Elenco · principales</div>
       <h2>Los personajes</h2>
@@ -660,89 +679,41 @@ function viewHome(){
   <footer class="site-footer reveal">Yoshe con Hoyo · una crónica en construcción · S0 → S5</footer>
   `;
 
-  if(playIntro){ try{ sessionStorage.setItem(INTRO_KEY, "1"); }catch(e){} }
-  setupConstellationFX();
   setupReveals();
-  // la entrada del 3D (cámara desde lejos) va con la del hero: una vez por sesión
-  mountHomeSolar({ intro: playIntro, restoreView: routeFromHistory });
 }
-
-// ---- la home en dos modos: "galaxy" y "explore" ----
-// galaxy: el hero es una pantalla fija; la página NO scrollea (html.galaxy-lock). La rueda y
-//   el pellizco hacen zoom en la galaxia y el dedo la gira en cualquier dirección (solar.js,
-//   vía ownsGestures). Para bajar al elenco está la pestaña "Personajes y lugares" (o
-//   AvPág / flecha abajo / espacio); con la 2D de respaldo, la rueda hacia abajo también baja.
-// explore: scroll normal. Volver arriba del todo re-bloquea la galaxia; el botón flotante
-//   "↑ Galaxia" sube hasta ahí.
-// Fuera de la home, homeMode es null y no se bloquea nada.
-let homeMode = null, homeModeSince = 0, galaxyGrace = 0, wheel2d = 0;
+// ---- la home: la galaxia, a pantalla completa y sin scroll ----
+// En la home la página no scrollea nunca (html.galaxy-lock): la rueda (y el pinch del
+// trackpad) y el pellizco hacen zoom en la galaxia, y el dedo la gira en cualquier dirección
+// (solar.js, vía ownsGestures). Personajes y lugares viven en otra pantalla (#/elenco), a la
+// que se va con la pestaña de abajo; así los dos scroll nunca se mezclan.
+// Fuera de la home, galaxyOn es false y no se bloquea nada.
+let galaxyOn = false, galaxyListening = false;
 const overlayOpen = ()=> !!document.querySelector(".modal-overlay.active, .search-overlay.active");
-// los gestos son de la escena: en modo galaxia, sin un modal/buscador encima, y no justo
-// después de re-bloquear (la inercia de la rueda que subió la página no debe hacer zoom)
-function galaxyOwnsGestures(){ return homeMode === "galaxy" && !overlayOpen() && performance.now() > galaxyGrace; }
-function setHomeMode(mode){
-  homeMode = mode;
-  homeModeSince = performance.now();
-  wheel2d = 0;
-  const html = document.documentElement;
-  html.classList.toggle("galaxy-lock", mode === "galaxy");
-  // los listeners no-pasivos (que pueden cancelar el scroll) existen solo en modo galaxia: en
-  // el resto del sitio el navegador scrollea sin esperar a ningún JS
-  const lock = mode === "galaxy";
-  if(lock !== galaxyListening){
-    const f = lock ? "addEventListener" : "removeEventListener";
+// los gestos son de la escena mientras no haya un modal o el buscador encima
+function galaxyOwnsGestures(){ return galaxyOn && !overlayOpen(); }
+function setGalaxyLock(on){
+  galaxyOn = on;
+  document.documentElement.classList.toggle("galaxy-lock", on);
+  // los listeners no-pasivos (que pueden cancelar el scroll) existen solo en la home: en el
+  // resto del sitio el navegador scrollea sin esperar a ningún JS
+  if(on !== galaxyListening){
+    const f = on ? "addEventListener" : "removeEventListener";
     window[f]("wheel", onGalaxyWheel, { passive:false });
     window[f]("touchmove", onGalaxyTouchMove, { passive:false });
-    galaxyListening = lock;
+    galaxyListening = on;
   }
-  if(mode === "galaxy") galaxyGrace = performance.now() + 450;
-  if(mode !== "explore") html.classList.remove("galaxy-return-on");
 }
-const smoothScroll = ()=> window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
-function goExplore(){
-  if(!document.querySelector(".hero .home-sky")) return;
-  setHomeMode("explore");
-  const target = document.getElementById("elenco");
-  const nav = document.querySelector("header.topnav");
-  const top = target ? target.getBoundingClientRect().top + window.scrollY + 40 - (nav ? nav.offsetHeight : 0) : window.innerHeight;
-  window.scrollTo({ top, behavior:smoothScroll() });
-}
-// sube a la galaxia; al llegar arriba del todo el listener de scroll la re-bloquea
-function goGalaxy(){ window.scrollTo({ top:0, behavior:smoothScroll() }); }
-// los elementos con scroll propio que siguen funcionando con la galaxia bloqueada
+// lo que tiene scroll propio y debe seguir funcionando sobre la galaxia
 const OWN_SCROLL = ".solar-panel, .modal-overlay, .search-overlay";
 const inOwnScroll = t=> !!(t && t.closest && t.closest(OWN_SCROLL));
-window.addEventListener("scroll", ()=>{
-  if(!homeMode) return;
-  const y = window.scrollY;
-  // algo movió la página estando bloqueada (foco del teclado, buscar en la página): se
-  // respeta y pasa a modo elenco en vez de pelear con eso
-  if(homeMode === "galaxy"){ if(y > 4) setHomeMode("explore"); return; }
-  if(y <= 1 && performance.now() - homeModeSince > 700) setHomeMode("galaxy");
-}, { passive:true });
-let galaxyListening = false;
 function onGalaxyWheel(e){
-  if(homeMode !== "galaxy" || inOwnScroll(e.target)) return;
-  e.preventDefault();
-  const hero = document.querySelector(".hero");
-  if(hero && hero.classList.contains("solar-on")){
-    if(galaxyOwnsGestures() && typeof solarWheel === "function") solarWheel(e);   // zoom
-    return;
-  }
-  // 2D de respaldo: no hay zoom, así que la rueda hacia abajo baja al elenco
-  wheel2d = Math.max(0, wheel2d + e.deltaY);
-  if(wheel2d > 160) goExplore();
+  if(!galaxyOn || inOwnScroll(e.target)) return;
+  e.preventDefault();   // la rueda nunca mueve la página acá
+  if(galaxyOwnsGestures() && typeof solarWheel === "function") solarWheel(e);   // zoom (sin 3D, nada)
 }
 function onGalaxyTouchMove(e){
-  if(homeMode === "galaxy" && !inOwnScroll(e.target)) e.preventDefault();
+  if(galaxyOn && !inOwnScroll(e.target)) e.preventDefault();
 }
-document.addEventListener("keydown", e=>{
-  if(homeMode !== "galaxy" || e.defaultPrevented || overlayOpen()) return;
-  const t = e.target;
-  if(t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
-  const space = e.key === " " && !(t && t.closest && t.closest("button, a"));
-  if(space || e.key === "PageDown" || e.key === "ArrowDown" || e.key === "End"){ e.preventDefault(); goExplore(); }
-});
 // --nav-h: el alto real del nav (sin condensar), para que el hero mida justo una pantalla
 (function(){
   const nav = document.querySelector("header.topnav");
@@ -893,7 +864,7 @@ function viewSeason(id){
       <p>No hay historias cargadas para ${escapeHtml(s.code)} — ${escapeHtml(s.title)}.
          Cuéntamelas y las agrego al timeline.</p>
       <div class="empty-actions">
-        <div class="back-btn" style="margin:0;" onclick="location.hash='#/'">← Volver a la constelación</div>
+        <div class="back-btn" style="margin:0;" onclick="location.hash='#/'">← Volver a la galaxia</div>
       </div>
     </div>`;
     setupReveals();
@@ -1307,7 +1278,7 @@ function render(){
     // it may have set. viewHome() mounts a fresh one.
     unmountHomeSolar();
     viewCleanups.splice(0).forEach(fn=>{ try{ fn(); }catch(e){} });
-    setHomeMode(null);
+    setGalaxyLock(false);
     setStarDensityFor("high");
 
     const hash = location.hash.replace(/^#\/?/,"");
@@ -1320,10 +1291,11 @@ function render(){
     else if(parts[0]==="place" && parts[1]!==undefined) viewPlace(parts[1]);
     else if(parts[0]==="map") viewMap();
     else if(parts[0]==="armageddon") viewArmageddon();
+    else if(parts[0]==="elenco") viewCast();
     else viewHome();
     window.scrollTo({top: restoreY!==undefined ? restoreY : 0, behavior:"instant"});
-    // la home parte en modo galaxia, salvo al volver con "atrás" a una posición más abajo
-    if(document.querySelector(".hero .home-sky")) setHomeMode(window.scrollY > 4 ? "explore" : "galaxy");
+    // la home es solo la galaxia: sin scroll
+    if(document.querySelector(".hero .home-sky")) setGalaxyLock(true);
     replayRouteAnimation();
   }catch(err){
     const app = document.getElementById("app");
@@ -1587,44 +1559,18 @@ try{
 })();
 }catch(e){ /* decorative starfield failing should never block the app */ }
 
-// Scroll driven chrome: nav condensing and the hero receding as it scrolls away. All cheap
-// transform / class writes, no layout thrash. It runs one rAF per scroll (or resize / route
-// change) instead of a loop on every frame: with nothing scrolling, nothing runs. The star
-// canvas is fixed and handles its own parallax internally, and the 3D scene runs its own
-// loop (which sleeps when the hero is out of view), so neither needs anything here.
+// Scroll driven chrome: the nav condenses once you leave the top of the page. One rAF per
+// scroll (or resize / route change), not a loop on every frame: with nothing scrolling,
+// nothing runs.
 try{
-  const heroReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   let rafId = null;
   let navCondensed = false;
-
   function tick(){
     const sy = window.scrollY || 0;
-
-    document.documentElement.classList.toggle("galaxy-return-on", homeMode === "explore" && sy > window.innerHeight*0.6);
     const nav = document.querySelector("header.topnav");
     if(nav){
       const should = sy > 40;
       if(should !== navCondensed){ nav.classList.toggle("condensed", should); navCondensed = should; }
-    }
-
-    if(!heroReduced){
-      const hero = document.querySelector(".hero");
-      if(hero){
-        const rect = hero.getBoundingClientRect();
-        const span = rect.height || window.innerHeight;
-        const progress = Math.min(1, Math.max(0, -rect.top/span));
-        // .home-sky holds both the 2D constellation and the 3D stage, so both recede together
-        const wrap = hero.querySelector(".home-sky");
-        if(wrap){
-          wrap.style.transform = `translateY(${(progress*54).toFixed(1)}px) scale(${(1-progress*0.07).toFixed(3)})`;
-          wrap.style.opacity = (1 - progress*0.6).toFixed(3);
-        }
-        const copy = hero.querySelector(".hero-copy");
-        if(copy){
-          copy.style.transform = `translateY(${(progress*-26).toFixed(1)}px)`;
-          copy.style.opacity = (1 - progress*0.85).toFixed(3);
-        }
-      }
     }
     rafId = null;
   }
@@ -1633,6 +1579,6 @@ try{
   window.addEventListener("resize", schedule);
   window.addEventListener("hashchange", ()=>setTimeout(schedule, 0));   // after render()
   schedule();
-}catch(e){ /* decorative depth effects failing should never block the app */ }
+}catch(e){ /* decorative chrome failing should never block the app */ }
 
 render();

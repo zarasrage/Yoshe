@@ -20,8 +20,8 @@
      restoreView      true: retomar el ángulo guardado en sessionStorage (volver con "atrás")
      intro            false: sin la entrada (cámara desde lejos, planetas en orden)
      keysBlocked()    true mientras otra capa (modal, buscador) es dueña del teclado
-     ownsGestures()   true mientras la escena es dueña de los gestos (la home en "modo galaxia",
-                      con el scroll de la página bloqueado): la rueda y el pellizco hacen zoom y
+     ownsGestures()   true mientras la escena es dueña de los gestos (la home, que no scrollea:
+                      la rueda y el pellizco hacen zoom y
                       el dedo gira en cualquier dirección. false: la rueda y el swipe vertical
                       son del scroll, como una página normal
      force            no apagarse por lento (pruebas con ?3d=1); igual puede bajar de nivel

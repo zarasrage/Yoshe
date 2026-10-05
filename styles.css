@@ -502,10 +502,9 @@ body.mood-doom .section-head .eyebrow{color:#ff6a6a; text-shadow:0 0 16px rgba(2
 body.mood-doom .section-head::after{background:linear-gradient(to right, #ff5252, rgba(255,82,82,.12) 45%, transparent);}
 body.mood-doom .back-btn:hover{border-color:rgba(255,110,110,.6); color:#ff9a9a; background:rgba(60,10,14,.7);}
 
-/* the tab at the bottom of the galaxy screen: slides the page down to the cast and unlocks
-   the scroll (goExplore in app.js) */
+/* the tab at the bottom of the galaxy screen: goes to the cast & places screen (#/elenco) */
 .explore-tab{
-  position:relative; z-index:3; flex:none; margin-top:4px; cursor:pointer;
+  position:relative; z-index:3; flex:none; margin-top:4px; cursor:pointer; text-decoration:none;
   display:flex; flex-direction:column; align-items:center; gap:7px;
   padding:9px 22px 10px; border-radius:16px 16px 0 0; border:1px solid var(--line); border-bottom:none;
   background:linear-gradient(to bottom, rgba(4,16,36,.72), rgba(4,16,36,.25));
@@ -514,18 +513,12 @@ body.mood-doom .back-btn:hover{border-color:rgba(255,110,110,.6); color:#ff9a9a;
 }
 .explore-tab:hover, .explore-tab:focus-visible{color:var(--ink); border-color:rgba(104,216,255,.45); outline:none;
   background:linear-gradient(to bottom, rgba(8,30,62,.85), rgba(4,16,36,.3));}
-/* floating way back up to the galaxy, once you're down in the cast (outside #app: #app carries
-   a transform, which would break position:fixed inside it) */
-.galaxy-return{
-  position:fixed; right:18px; bottom:18px; z-index:45; display:flex; align-items:center; gap:8px;
-  padding:10px 16px; border-radius:999px; border:1px solid rgba(104,216,255,.4); cursor:pointer;
-  background:rgba(4,16,36,.86); color:var(--amber); font:500 .7rem/1 'JetBrains Mono',monospace;
-  letter-spacing:.14em; text-transform:uppercase; box-shadow:0 8px 28px rgba(0,0,0,.45);
-  opacity:0; transform:translateY(12px); pointer-events:none; transition:opacity .35s var(--ease), transform .35s var(--ease);
-}
-html.galaxy-return-on .galaxy-return{opacity:1; transform:none; pointer-events:auto;}
-.galaxy-return:hover, .galaxy-return:focus-visible{border-color:var(--amber); outline:none;}
-body.edit-on .galaxy-return{bottom:72px;}
+/* the cast & places screen (#/elenco): its own page, so the galaxy's no-scroll home and this
+   page's normal scroll never mix */
+.cast-topbar{max-width:1160px; margin:0 auto; padding:0 28px;}
+.cast-topbar .back-btn{margin:26px 0 0; text-decoration:none;}
+.section-wrap.cast-page{padding-top:48px;}
+@media (max-width:600px){ .cast-topbar{padding:0 16px;} .section-wrap.cast-page{padding-top:32px;} }
 .explore-tab .chevron{width:9px;height:9px;border-right:1.5px solid var(--amber); border-bottom:1.5px solid var(--amber); transform:rotate(45deg); animation:bob 1.9s infinite;}
 @keyframes bob{0%,100%{transform:rotate(45deg) translate(0,0); opacity:.5;}50%{transform:rotate(45deg) translate(5px,5px); opacity:1;}}
 
