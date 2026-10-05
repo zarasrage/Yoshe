@@ -1056,37 +1056,6 @@ footer.site-footer{
 .search-result-item .srd{font-size:.8rem; color:var(--ink-dim); margin-top:3px; font-weight:300;}
 .search-empty{color:var(--ink-faint); text-align:center; margin-top:46px; font-weight:300;}
 
-/* ===== RELATIONSHIP MAP ===== */
-
-.map-legend{
-  text-align:center; color:var(--ink-faint); font-size:.7rem; margin-top:26px;
-  font-family:'JetBrains Mono',monospace; letter-spacing:.12em;
-}
-.map-node-label{
-  fill:#dbe8fa; font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.08em;
-  text-anchor:middle; pointer-events:none; text-transform:uppercase;
-  paint-order:stroke; stroke:rgba(1,6,15,.95); stroke-width:3px; stroke-linejoin:round;
-  transition:fill .35s var(--ease);
-}
-/* each node breathes on its own offset, so the whole web has a slow living pulse */
-.map-node{cursor:pointer;}
-.map-node-circle{transition:filter .35s var(--ease); filter:drop-shadow(0 0 7px color-mix(in srgb, var(--ncolor) 60%, transparent));}
-.map-node-halo{opacity:.16; filter:blur(9px); transition:opacity .4s var(--ease);}
-.map-node-shine{opacity:.4; pointer-events:none;}
-.map-node, .map-node-halo, .map-node-circle, .map-node-label{transition:opacity .4s var(--ease), filter .4s var(--ease), fill .35s var(--ease);}
-.map-node:hover .map-node-circle{filter:brightness(1.35) drop-shadow(0 0 18px var(--ncolor));}
-.map-node:hover .map-node-halo{opacity:.42;}
-.map-node:hover .map-node-label{fill:#fff;}
-.map-node.node-dim{opacity:.2;}
-
-.map-edge{
-  stroke:var(--amber); stroke-linecap:round;
-  transition:stroke-opacity .35s var(--ease), stroke .35s var(--ease);
-}
-.map-edge.edge-hot{stroke:#d6f2ff; stroke-opacity:.9 !important;}
-.map-edge.edge-dim{stroke-opacity:.05 !important;}
-
-
 /* ===== EDIT MODE ===== */
 .edit-field{position:relative;}
 .edit-pencil{
@@ -1436,48 +1405,70 @@ a.stat-cell:hover{background:color-mix(in srgb, var(--pcolor) 12%, transparent);
 .ep-body{min-width:0;}
 .epitaph-card .edestino{margin-top:6px;}
 
-/* ---- mapa de relaciones ---- */
-.map-hero{padding-bottom:30px;}
+/* ---- mapa de relaciones (3D, net3d.js) ----
+   A fixed full screen like the galaxy (html.galaxy-lock clips #app to one screen): the canvas
+   fills it, the title floats top-left and #mapInfo is a right column on desktop / a fixed-height
+   bottom sheet on phones. net3d centres the cloud in what those leave free (insets in viewMap).
+   The sheet has a FIXED height so picking someone doesn't make the cloud jump. */
+.net-page{position:relative; height:100%; overflow:hidden;}
+.net-stage{position:absolute; inset:0; z-index:0;}
+.net-canvas{display:block; width:100%; height:100%; touch-action:none; user-select:none; -webkit-user-select:none;
+  -webkit-tap-highlight-color:transparent;}
+.net-head{position:absolute; z-index:2; top:0; left:0; right:0; padding:22px 28px 0; pointer-events:none;}
+.net-head > *{pointer-events:auto;}
+.net-eyebrow{font-family:'JetBrains Mono',monospace; font-size:.66rem; letter-spacing:.32em; text-transform:uppercase; color:var(--violet);}
+.net-head h1{font-family:'Cormorant Garamond',Georgia,serif; font-weight:500; font-size:clamp(1.9rem, 3.4vw, 2.9rem); line-height:1.05; margin:4px 0 0;
+  text-shadow:0 2px 18px rgba(0,0,0,.6); width:max-content; max-width:100%;}
+.net-head-row{display:flex; align-items:center; flex-wrap:wrap; gap:8px 16px; margin-top:14px; width:max-content; max-width:100%;}
+.net-head .map-modes{margin-top:0;}
+.net-hint{font-family:'JetBrains Mono',monospace; font-size:.6rem; letter-spacing:.12em; color:var(--ink-faint); pointer-events:none;}
 .map-modes{display:inline-flex; gap:4px; margin-top:26px; padding:4px; border-radius:999px; border:1px solid var(--line); background:rgba(4,14,32,.6);}
 .map-modes button{font-family:'JetBrains Mono',monospace; font-size:.66rem; letter-spacing:.1em; padding:8px 16px; border-radius:999px; border:0;
   background:transparent; color:var(--ink-dim); cursor:pointer; transition:background .25s, color .25s;}
 .map-modes button.active{background:linear-gradient(160deg, var(--amber), #3aa9dd); color:#03121f; font-weight:700;}
-.map-layout{max-width:1240px; margin:0 auto; padding:10px 24px 80px; display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:24px; align-items:start;}
-.map-svg-wrap{width:100%; max-width:none; margin:0;}
-.map-svg-wrap svg{display:block; width:100%; height:auto; max-height:78vh; overflow:visible;}
-.map-node-ring{stroke-width:2; opacity:.9; transition:stroke-width .3s, opacity .3s;}
-.map-node.is-sec .map-node-ring{stroke-width:1.5; opacity:.7;}
-.map-node-ini{fill:#04101f; font-family:'Outfit',sans-serif; font-weight:700; text-anchor:middle; pointer-events:none;}
-.map-node.is-sec .map-node-label{font-size:10px; fill:#a9bfdc;}
-.map-node.node-hot .map-node-ring{stroke:#fff; stroke-width:3; opacity:1;}
-.map-node.node-hot .map-node-halo{opacity:.5;}
-.map-node:focus{outline:none;}
-.map-node:focus-visible .map-node-ring{stroke:#fff; stroke-width:3;}
-.map-info{position:sticky; top:90px; padding:20px 22px; border-radius:18px; border:1px solid var(--line); background:rgba(4,14,32,.72);
-  backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); min-height:180px;}
+.map-info{position:absolute; z-index:2; top:22px; right:24px; width:300px; max-height:calc(100% - 44px); overflow-y:auto; overscroll-behavior:contain;
+  padding:20px 22px; border-radius:18px; border:1px solid var(--line); background:rgba(4,14,32,.74);
+  backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); scrollbar-width:thin;}
 .mi-eyebrow, .mi-sub{font-family:'JetBrains Mono',monospace; font-size:.6rem; letter-spacing:.2em; text-transform:uppercase; color:var(--ink-faint);}
 .mi-big{font-family:'Cormorant Garamond',Georgia,serif; font-size:1.4rem; margin:6px 0 18px;}
 .mi-big b{font-size:1.9rem; color:var(--amber); font-weight:600;}
-.mi-pair{display:flex; align-items:center; gap:4px; margin:10px 0 16px; padding-left:8px;}
+.mi-pair{display:flex; align-items:center; gap:4px; margin:10px 0 16px; padding:0 0 0 8px; border:0; background:none; color:inherit; cursor:pointer; text-align:left; font:inherit;}
 .mi-pair .face{width:40px; height:40px; margin-left:-8px;}
-.mi-pair span{margin-left:10px; font-family:'Cormorant Garamond',Georgia,serif; font-size:1.15rem; display:flex; flex-direction:column;}
+.mi-pair .mi-pn{margin-left:10px; font-family:'Cormorant Garamond',Georgia,serif; font-size:1.15rem; display:flex; flex-direction:column;}
 .mi-pair em{font-style:normal; font-family:'JetBrains Mono',monospace; font-size:.6rem; letter-spacing:.06em; color:var(--ink-faint);}
 .mi-hint{color:var(--ink-faint); font-size:.82rem; line-height:1.5; margin:0;}
-.mi-head{display:flex; align-items:center; gap:12px; margin-bottom:14px;}
+.mi-head{display:flex; align-items:center; gap:12px; margin-bottom:14px; flex-wrap:wrap;}
 .mi-head .face{width:52px; height:52px; margin:0;}
+.mi-who{flex:1; min-width:0;}
 .mi-name{font-family:'Cormorant Garamond',Georgia,serif; font-size:1.5rem; font-weight:600; line-height:1.1;}
 .mi-sub2{font-family:'JetBrains Mono',monospace; font-size:.6rem; letter-spacing:.08em; color:var(--ink-faint); margin-top:3px;}
-.mi-links{list-style:none; margin:0 0 10px; padding:0; display:flex; flex-direction:column; gap:6px;}
-.mi-links li{display:flex; align-items:center; gap:10px; font-size:.9rem;}
-.mi-links .face{width:26px; height:26px; margin:0;}
-.mi-links span{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ink-dim);}
+.mi-go{flex-basis:100%; font-family:'JetBrains Mono',monospace; font-size:.68rem; letter-spacing:.1em; color:var(--amber); text-decoration:none;}
+.mi-links{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:2px;}
+.mi-links button{display:flex; align-items:center; gap:10px; width:100%; padding:4px 6px; margin:0 -6px; border:0; border-radius:10px;
+  background:none; color:inherit; font:inherit; font-size:.9rem; text-align:left; cursor:pointer; transition:background .2s;}
+.mi-links button:hover, .mi-links button:focus-visible{background:rgba(120,200,255,.1);}
+.mi-links .face{width:26px; height:26px; margin:0; flex:none;}
+.mi-links .mi-ln{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ink-dim);}
 .mi-links b{font-family:'JetBrains Mono',monospace; font-size:.7rem; color:var(--amber);}
-.mi-more{font-family:'JetBrains Mono',monospace; font-size:.6rem; color:var(--ink-faint); margin-bottom:12px;}
-.mi-go{display:inline-block; margin-top:6px; font-family:'JetBrains Mono',monospace; font-size:.68rem; letter-spacing:.1em; color:var(--amber); text-decoration:none;}
 @media (max-width:900px){
-  .map-layout{grid-template-columns:1fr; padding:0 12px 60px;}
-  .map-info{position:static;}
-  .map-svg-wrap svg{max-height:none;}
+  .net-head{padding:12px 16px 0;}
+  .net-eyebrow{display:none;}
+  .net-head h1{font-size:1.6rem; margin:0;}
+  .net-head-row{margin-top:8px;}
+  .map-modes button{padding:6px 12px; font-size:.6rem;}
+  /* the bottom sheet: fixed height, the planet-style "the scene rules" split (~30% of the screen) */
+  .map-info{top:auto; right:10px; left:10px; bottom:10px; width:auto; height:min(30%, 250px); max-height:none; padding:14px 16px;}
+  .mi-big{font-size:1.15rem; margin:2px 0 8px;}
+  .mi-big b{font-size:1.5rem;}
+  .mi-pair{margin:6px 0 8px;}
+  .mi-pair .face{width:32px; height:32px;}
+  .mi-hint{font-size:.76rem;}
+  .mi-head{margin-bottom:8px; gap:10px; flex-wrap:nowrap;}
+  .mi-head .face{width:40px; height:40px;}
+  .mi-name{font-size:1.25rem;}
+  .mi-go{flex-basis:auto; flex-shrink:0; padding:7px 12px; border:1px solid color-mix(in srgb, var(--amber) 50%, transparent); border-radius:999px;}
+  .mi-links{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:0 10px;}
+  .mi-links button{font-size:.82rem; margin:0; padding:4px;}
 }
 
 /* ---- récords ---- */
@@ -1570,3 +1561,6 @@ a.stat-cell:hover{background:color-mix(in srgb, var(--pcolor) 12%, transparent);
 .solar-panel{width:min(380px, 34vw);}
 .solar-root:not(.is-portrait) .solar-ava{width:32px; height:32px;}
 .solar-root:not(.is-portrait) .solar-p-title{font-size:clamp(1.9rem,3vw,2.5rem);}
+
+/* only for screen readers (the 3D map is a canvas: this list is its accessible version) */
+.sr-only{position:absolute !important; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;}

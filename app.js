@@ -682,6 +682,7 @@ function constellationHtml(){
 
 function viewHome(){
   renderSeasonsStrip(undefined);
+  lockWheel = e=>{ if(typeof solarWheel === "function") solarWheel(e); };
   const app=document.getElementById("app");
 
   // the hero's "ignite" entrance only plays once per browser session, and never under
@@ -803,8 +804,11 @@ function viewCast(){
 // trackpad) y el pellizco hacen zoom en la galaxia, y el dedo la gira en cualquier dirección
 // (solar.js, vía ownsGestures). Personajes y lugares viven en otra pantalla (#/elenco), a la
 // que se va con la pestaña de abajo; así los dos scroll nunca se mezclan.
-// Fuera de la home, galaxyOn es false y no se bloquea nada.
-let galaxyOn = false, galaxyListening = false;
+// El mapa de relaciones (#/map) usa el mismo bloqueo: también es una escena a pantalla
+// completa que se gira con el dedo y se acerca con la rueda. `lockWheel` es a quién le llega la
+// rueda (la galaxia o la red); render() lo vacía antes de cada vista.
+// Fuera de esas dos pantallas, galaxyOn es false y no se bloquea nada.
+let galaxyOn = false, galaxyListening = false, lockWheel = null;
 const overlayOpen = ()=> !!document.querySelector(".modal-overlay.active, .search-overlay.active");
 // los gestos son de la escena mientras no haya un modal o el buscador encima
 function galaxyOwnsGestures(){ return galaxyOn && !overlayOpen(); }
@@ -821,12 +825,12 @@ function setGalaxyLock(on){
   }
 }
 // lo que tiene scroll propio y debe seguir funcionando sobre la galaxia
-const OWN_SCROLL = ".solar-panel, .modal-overlay, .search-overlay";
+const OWN_SCROLL = ".solar-panel, .map-info, .modal-overlay, .search-overlay";
 const inOwnScroll = t=> !!(t && t.closest && t.closest(OWN_SCROLL));
 function onGalaxyWheel(e){
   if(!galaxyOn || inOwnScroll(e.target)) return;
   e.preventDefault();   // la rueda nunca mueve la página acá
-  if(galaxyOwnsGestures() && typeof solarWheel === "function") solarWheel(e);   // zoom (sin 3D, nada)
+  if(galaxyOwnsGestures() && lockWheel) lockWheel(e);   // zoom (la galaxia 2D de respaldo no hace nada)
 }
 function onGalaxyTouchMove(e){
   if(galaxyOn && !inOwnScroll(e.target)) e.preventDefault();
@@ -1344,12 +1348,15 @@ function submitArmageddonEdit(){
   closeModal(); render();
 }
 
-// ---- el mapa de relaciones ----
-// Un grafo de fuerzas (calculado una vez, determinista: siempre sale igual): cada persona es un
-// nodo del tamaño de cuántas historias tiene, con su foto; las líneas unen a quienes comparten
-// historias, más gruesas mientras más compartan. Los que más se cruzan quedan cerca.
+// ---- el mapa de relaciones (3D) ----
+// Una nube 3D de personas (net3d.js): cada una del tamaño de cuántas historias tiene, con su
+// foto; las líneas unen a quienes comparten historias, más gruesas mientras más compartan, y
+// los que más se cruzan quedan cerca. Es una pantalla fija, como la galaxia (html.galaxy-lock,
+// ver setGalaxyLock): el dedo la gira, la rueda y el pellizco acercan, y la página no scrollea.
+// El panel #mapInfo (a la derecha en desktop, hoja abajo en el teléfono) muestra el resumen
+// o a la persona encendida.
 let mapMode = "all";   // "all" | "group" (solo el núcleo)
-function mapGraph(mode, tall){
+function mapData(mode){
   const count = {};
   allEventsFlat().forEach(r=> r.event.chars.forEach(id=>{ count[id] = (count[id]||0) + 1; }));
   const ids = Object.keys(DATA.characters).filter(id=> (mode !== "group" || DATA.characters[id].tier !== "secundario") && (count[id]||0) > 0);
@@ -1363,165 +1370,95 @@ function mapGraph(mode, tall){
     }
   });
   const edges = Object.entries(weights).map(([k,w])=>{ const [a,b] = k.split("|"); return {a,b,w}; });
-  const deg = {}; edges.forEach(e=>{ deg[e.a]=(deg[e.a]||0)+e.w; deg[e.b]=(deg[e.b]||0)+e.w; });
-  const nodes = ids.sort((a,b)=> (deg[b]||0)-(deg[a]||0) || a.localeCompare(b)).map((id,i)=>{
-    const c = DATA.characters[id];
-    const r = c.tier === "secundario" ? 9 + 3.2*Math.sqrt(count[id]) : 15 + 5*Math.sqrt(count[id]);
-    // espiral dorada: los más conectados parten al centro
-    const ang = i*2.39996, rad = 26*Math.sqrt(i+0.5);
-    return { id, c, r, n:count[id], x:Math.cos(ang)*rad, y:Math.sin(ang)*rad, vx:0, vy:0 };
+  const nodes = ids.map(id=>{
+    const c = DATA.characters[id], img = avatarSrc(c);
+    return { id, name:c.name, label:shortName(id), color:c.color || "#7fb8ff", img, imgFull: !!img && !c.thumb,
+      initials:initials(c.name), n:count[id], primary: c.tier !== "secundario" };
   });
-  const byId = {}; nodes.forEach(n=> byId[n.id] = n);
-  // simulación: repulsión entre todos, resortes en las aristas, gravedad suave y colisión
-  const ITER = 520;
-  for(let it=0; it<ITER; it++){
-    const cool = 1 - it/ITER;
-    for(let i=0;i<nodes.length;i++){
-      const a = nodes[i];
-      for(let j=i+1;j<nodes.length;j++){
-        const b = nodes[j];
-        let dx = b.x-a.x, dy = b.y-a.y, d2 = dx*dx+dy*dy;
-        if(d2 < 0.01){ dx = 0.1*(i-j); dy = 0.1; d2 = dx*dx+dy*dy; }
-        const d = Math.sqrt(d2);
-        let f = 6400/d2;
-        const minD = a.r + b.r + 34;   // deja aire para las etiquetas
-        if(d < minD) f += (minD - d)*0.5;
-        const fx = dx/d*f, fy = dy/d*f;
-        a.vx -= fx; a.vy -= fy; b.vx += fx; b.vy += fy;
-      }
-    }
-    edges.forEach(e=>{
-      const a = byId[e.a], b = byId[e.b];
-      const dx = b.x-a.x, dy = b.y-a.y, d = Math.sqrt(dx*dx+dy*dy) || 1;
-      const L = a.r + b.r + Math.max(40, 120 - 16*e.w);
-      const f = (d - L)*0.012*Math.sqrt(e.w);
-      a.vx += dx/d*f; a.vy += dy/d*f; b.vx -= dx/d*f; b.vy -= dy/d*f;
-    });
-    nodes.forEach(n=>{
-      // en desktop un poco más ancho que alto; en el teléfono al revés, para que llene la pantalla
-      n.vx -= n.x*(tall ? 0.011 : 0.006); n.vy -= n.y*(tall ? 0.0045 : 0.0085);
-      const sp = Math.hypot(n.vx, n.vy), max = 24*cool + 1;
-      if(sp > max){ n.vx *= max/sp; n.vy *= max/sp; }
-      n.x += n.vx; n.y += n.vy;
-      n.vx *= 0.6; n.vy *= 0.6;
-    });
-  }
-  let x0=Infinity, y0=Infinity, x1=-Infinity, y1=-Infinity;
-  nodes.forEach(n=>{ x0=Math.min(x0,n.x-n.r-40); x1=Math.max(x1,n.x+n.r+40); y0=Math.min(y0,n.y-n.r-12); y1=Math.max(y1,n.y+n.r+30); });
-  return { nodes, edges, byId, box:{x:x0, y:y0, w:x1-x0, h:y1-y0}, maxW: Math.max(1, ...edges.map(e=>e.w)) };
+  return { nodes, edges };
 }
 
 function viewMap(){
   renderSeasonsStrip(null);
-  const app=document.getElementById("app");
+  const app = document.getElementById("app");
+  const canHover = matchMedia("(hover:hover) and (pointer:fine)").matches;
+  const wide = ()=> matchMedia("(min-width:901px)").matches;
   app.innerHTML = `
-    <section class="season-hero map-hero" style="--scolor:var(--violet); border-bottom:none;">
-      <div class="scode-big">Mapa</div>
-      <h1>Red de relaciones</h1>
-      <p class="hito">Quiénes han compartido historias. Cada persona es del tamaño de cuántas historias tiene; mientras más gruesa la línea, más historias comparten.</p>
-      <div class="map-modes" role="group" aria-label="Quiénes mostrar">
-        <button type="button" data-mode="all" class="${mapMode==='all'?'active':''}">Todos</button>
-        <button type="button" data-mode="group" class="${mapMode==='group'?'active':''}">Solo el grupo</button>
+    <section class="net-page">
+      <div class="net-stage" id="netStage" aria-hidden="true"></div>
+      <div class="net-head">
+        <div class="net-eyebrow">Mapa</div>
+        <h1>Red de relaciones</h1>
+        <div class="net-head-row">
+          <div class="map-modes" role="group" aria-label="Quiénes mostrar">
+            <button type="button" data-mode="all" class="${mapMode==='all'?'active':''}">Todos</button>
+            <button type="button" data-mode="group" class="${mapMode==='group'?'active':''}">Solo el grupo</button>
+          </div>
+          <div class="net-hint">${canHover ? "arrastra para girar · rueda para acercar" : "desliza para girar · pellizca para acercar"}</div>
+        </div>
       </div>
-    </section>
-    <div class="map-layout reveal">
-      <div class="map-svg-wrap" id="mapSvgWrap"></div>
       <aside class="map-info" id="mapInfo" aria-live="polite"></aside>
-    </div>
-    ${siteFooter()}
+      <ul class="sr-only" id="netList" aria-label="Personas de la red"></ul>
+    </section>
   `;
-  app.querySelectorAll(".map-modes button").forEach(b=> b.addEventListener("click", ()=>{
-    mapMode = b.dataset.mode;
-    app.querySelectorAll(".map-modes button").forEach(x=> x.classList.toggle("active", x === b));
-    drawMap();
-  }));
-  drawMap();
-  setupReveals();
-}
-
-function drawMap(){
-  const wrap = document.getElementById("mapSvgWrap");
+  const stage = document.getElementById("netStage");
   const info = document.getElementById("mapInfo");
-  if(!wrap || !info) return;
-  const g = mapGraph(mapMode, window.innerWidth < 700);
-  const { nodes, edges, byId, box, maxW } = g;
-  const uid = "m" + Math.random().toString(36).slice(2,7);
+  const head = app.querySelector(".net-head");
+  let g = null, net = null, selected = null;
 
-  const edgesSvg = edges.sort((a,b)=> a.w-b.w).map(e=>{
-    const a = byId[e.a], b = byId[e.b], k = e.w/maxW;
-    return `<line class="map-edge" data-a="${e.a}" data-b="${e.b}" x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}"
-      stroke-width="${(1 + k*5).toFixed(2)}" style="stroke-opacity:${(0.16 + k*0.5).toFixed(2)}"></line>`;
-  }).join("");
-  const nodesSvg = nodes.map((n,i)=>{
-    const src = avatarSrc(n.c);
-    const x = n.x.toFixed(1), y = n.y.toFixed(1);
-    const face = src
-      ? `<clipPath id="${uid}c${i}"><circle cx="${x}" cy="${y}" r="${n.r}"/></clipPath>
-         <circle cx="${x}" cy="${y}" r="${n.r}" fill="${n.c.color}" opacity=".35"/>
-         <image href="${src}" x="${(n.x-n.r).toFixed(1)}" y="${(n.y-n.r).toFixed(1)}" width="${n.r*2}" height="${n.r*2}" preserveAspectRatio="xMidYMin slice" clip-path="url(#${uid}c${i})"/>`
-      : `<circle cx="${x}" cy="${y}" r="${n.r}" fill="${n.c.color}"/>
-         <text class="map-node-ini" x="${x}" y="${(n.y + n.r*0.36).toFixed(1)}" font-size="${(n.r*0.95).toFixed(1)}">${escapeHtml(initials(n.c.name))}</text>`;
-    return `
-      <a class="map-node${n.c.tier==='secundario'?' is-sec':''}" data-id="${n.id}" href="#/character/${n.id}" style="--ncolor:${n.c.color}" aria-label="${escapeHtml(n.c.name)}, ${n.n} historias">
-        <circle class="map-node-halo" cx="${x}" cy="${y}" r="${n.r+10}" fill="${n.c.color}"/>
-        ${face}
-        <circle class="map-node-ring" cx="${x}" cy="${y}" r="${n.r}" fill="none" stroke="${n.c.color}"/>
-        <text class="map-node-label" x="${x}" y="${(n.y+n.r+15).toFixed(1)}">${escapeHtml(shortName(n.id))}</text>
-      </a>`;
-  }).join("");
-
-  wrap.innerHTML = `<svg viewBox="${box.x.toFixed(0)} ${box.y.toFixed(0)} ${box.w.toFixed(0)} ${box.h.toFixed(0)}" role="img" aria-label="Red de relaciones">
-      <g class="map-edges">${edgesSvg}</g><g class="map-nodes">${nodesSvg}</g></svg>`;
-
-  // el panel lateral: por defecto un resumen; al pasar (o tocar) a alguien, sus conexiones
-  const strongest = edges.slice().sort((a,b)=> b.w-a.w)[0];
   const idleInfo = ()=>{
+    const strongest = g.edges.slice().sort((a,b)=> b.w-a.w)[0];
     info.innerHTML = `
       <div class="mi-eyebrow">La red</div>
-      <div class="mi-big"><b>${nodes.length}</b> personas · <b>${edges.length}</b> conexiones</div>
+      <div class="mi-big"><b>${g.nodes.length}</b> personas · <b>${g.edges.length}</b> conexiones</div>
       ${strongest ? `<div class="mi-sub">El lazo más fuerte</div>
-      <div class="mi-pair">${faceHtml(strongest.a)}${faceHtml(strongest.b)}<span>${escapeHtml(shortName(strongest.a))} y ${escapeHtml(shortName(strongest.b))}<em>${strongest.w} historias en común</em></span></div>` : ""}
-      <p class="mi-hint">${matchMedia("(hover:hover)").matches ? "Pasa sobre alguien para ver sus conexiones; clic para abrir su ficha." : "Toca a alguien para ver sus conexiones; tócalo de nuevo para abrir su ficha."}</p>`;
+      <button type="button" class="mi-pair" data-pick="${strongest.a}">${faceHtml(strongest.a,{static:true})}${faceHtml(strongest.b,{static:true})}<span class="mi-pn">${escapeHtml(shortName(strongest.a))} y ${escapeHtml(shortName(strongest.b))}<em>${strongest.w} historias en común</em></span></button>` : ""}
+      <p class="mi-hint">${canHover ? "Pasa sobre alguien para ver sus conexiones; clic para abrir su ficha." : "Toca a alguien para ver sus conexiones; tócalo de nuevo para abrir su ficha."}</p>`;
   };
   const nodeInfo = id=>{
-    const n = byId[id];
-    const links = edges.filter(e=> e.a===id || e.b===id).map(e=> [e.a===id?e.b:e.a, e.w]).sort((a,b)=> b[1]-a[1]);
+    const n = g.nodes.find(x=> x.id === id); if(!n) return idleInfo();
+    const links = g.edges.filter(e=> e.a===id || e.b===id).map(e=> [e.a===id?e.b:e.a, e.w]).sort((a,b)=> b[1]-a[1]);
     info.innerHTML = `
-      <div class="mi-head">${faceHtml(id)}<div><div class="mi-name">${escapeHtml(n.c.name)}</div><div class="mi-sub2">${n.n} ${n.n===1?"historia":"historias"} · ${links.length} ${links.length===1?"conexión":"conexiones"}</div></div></div>
-      <ol class="mi-links">${links.slice(0,8).map(([o,w])=>`<li>${faceHtml(o)}<span>${escapeHtml(DATA.characters[o].name)}</span><b>${w}</b></li>`).join("")}</ol>
-      ${links.length > 8 ? `<div class="mi-more">y ${links.length-8} más</div>` : ""}
-      <a class="mi-go" href="#/character/${id}">Ver ficha →</a>`;
+      <div class="mi-head">${faceHtml(id)}<div class="mi-who"><div class="mi-name">${escapeHtml(n.name)}</div><div class="mi-sub2">${n.n} ${n.n===1?"historia":"historias"} · ${links.length} ${links.length===1?"conexión":"conexiones"}</div></div>
+        <a class="mi-go" href="#/character/${id}">Ver ficha →</a></div>
+      <ol class="mi-links">${links.map(([o,w])=>`<li><button type="button" data-pick="${o}">${faceHtml(o,{static:true})}<span class="mi-ln">${escapeHtml(DATA.characters[o].name)}</span><b>${w}</b></button></li>`).join("")}</ol>`;
   };
-  idleInfo();
-
-  const svg = wrap.querySelector("svg");
-  const allEdges = Array.from(svg.querySelectorAll(".map-edge"));
-  const allNodes = Array.from(svg.querySelectorAll(".map-node"));
-  let selected = null;
-  function highlight(id){
-    svg.classList.toggle("focusing", !!id);
-    if(!id){ allEdges.forEach(e=>e.classList.remove("edge-hot","edge-dim")); allNodes.forEach(n=>n.classList.remove("node-dim","node-hot")); idleInfo(); return; }
-    const linked = new Set([id]);
-    allEdges.forEach(e=>{
-      const on = e.dataset.a===id || e.dataset.b===id;
-      e.classList.toggle("edge-hot", on); e.classList.toggle("edge-dim", !on);
-      if(on){ linked.add(e.dataset.a); linked.add(e.dataset.b); }
-    });
-    allNodes.forEach(n=>{ n.classList.toggle("node-dim", !linked.has(n.dataset.id)); n.classList.toggle("node-hot", n.dataset.id===id); });
-    nodeInfo(id);
-  }
-  const canHover = matchMedia("(hover:hover)").matches;
-  allNodes.forEach(node=>{
-    const id = node.dataset.id;
-    node.addEventListener("mouseenter", ()=>{ if(canHover) highlight(id); });
-    node.addEventListener("mouseleave", ()=>{ if(canHover) highlight(selected); });
-    node.addEventListener("focus", ()=> highlight(id));
-    node.addEventListener("click", e=>{
-      // en touch: el primer toque muestra las conexiones, el segundo abre la ficha
-      if(!canHover && selected !== id){ e.preventDefault(); selected = id; highlight(id); }
-    });
+  const showInfo = id=> id ? nodeInfo(id) : idleInfo();
+  // tocar a alguien en el panel lo elige en la red (gira hasta dejarlo al frente)
+  info.addEventListener("click", e=>{
+    const b = e.target.closest("[data-pick]");
+    if(b && net) net.select(b.dataset.pick);
   });
-  svg.addEventListener("click", e=>{ if(!e.target.closest(".map-node")){ selected = null; highlight(null); } });
+
+  function mount(){
+    g = mapData(mapMode);
+    selected = null;
+    showInfo(null);
+    document.getElementById("netList").innerHTML = g.nodes.slice().sort((a,b)=> b.n-a.n).map(n=>
+      `<li><a href="#/character/${n.id}">${escapeHtml(n.name)}, ${n.n} ${n.n===1?"historia":"historias"}</a></li>`).join("");
+    if(typeof mountNet3D !== "function") return;
+    net = mountNet3D(stage, {
+      nodes: g.nodes, edges: g.edges, canHover,
+      // lo que tapan el título y el panel: la nube se centra en lo que queda libre
+      insets: ()=> wide()
+        ? { top: head.offsetHeight*0.5, right: info.offsetWidth + 28, bottom: 0 }
+        : { top: head.offsetHeight, right: 0, bottom: info.offsetHeight + 10 },
+      onHover: id=> showInfo(id || selected),
+      onSelect: id=>{ selected = id; showInfo(id); },
+      onOpen: id=>{ location.hash = `#/character/${id}`; }
+    });
+  }
+  app.querySelectorAll(".map-modes button").forEach(b=> b.addEventListener("click", ()=>{
+    if(mapMode === b.dataset.mode) return;
+    mapMode = b.dataset.mode;
+    app.querySelectorAll(".map-modes button").forEach(x=> x.classList.toggle("active", x === b));
+    mount();
+  }));
+  mount();
+  lockWheel = e=>{ if(typeof net3dWheel === "function") net3dWheel(e); };
+  const onKey = e=>{ if(e.key === "Escape" && selected && net && !overlayOpen()) net.select(null); };
+  document.addEventListener("keydown", onKey);
+  viewCleanups.push(()=>{ document.removeEventListener("keydown", onKey); if(typeof unmountNet3D === "function") unmountNet3D(); net = null; });
 }
 
 /* =========================== render: RÉCORDS =========================== */
@@ -1682,6 +1619,7 @@ function render(){
     unmountHomeSolar();
     viewCleanups.splice(0).forEach(fn=>{ try{ fn(); }catch(e){} });
     setGalaxyLock(false);
+    lockWheel = null;
     setStarDensityFor("high");
 
     const hash = location.hash.replace(/^#\/?/,"");
@@ -1705,8 +1643,8 @@ function render(){
       const sid = parts[1], idx = parts[2];
       setTimeout(()=>flashEvent(sid, idx), 90);
     }
-    // la home es solo la galaxia: sin scroll
-    if(document.querySelector(".hero .home-sky")) setGalaxyLock(true);
+    // la home (solo la galaxia) y el mapa de relaciones: sin scroll, los gestos son de la escena
+    if(document.querySelector(".hero .home-sky, .net-page")) setGalaxyLock(true);
     // el título de la pestaña dice dónde estás (y es lo que se ve al compartir el enlace)
     const h1 = document.querySelector("#app h1");
     const isHome = !parts[0] || parts[0]==="home";
