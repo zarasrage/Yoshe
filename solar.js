@@ -761,7 +761,9 @@
     const wrapAngle = a=> a - TAU*Math.floor((a + Math.PI)/TAU);
     // zoom de la vista general: multiplica la distancia de la cámara (menos = más cerca)
     const ZOOM_MIN = 0.4, ZOOM_MAX = 1.45;
-    let zoom = 1, zoomTarget = 1;
+    // zoom inicial: un poco más cerca que el encuadre que muestra el sistema entero
+    const ZOOM_START = 0.78;
+    let zoom = ZOOM_START, zoomTarget = ZOOM_START;
     const clampZoom = z=> Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
     stage.add(world);
 

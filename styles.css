@@ -158,7 +158,7 @@ nav.seasons-strip button.active{
 .hero{
   height:calc(100vh - var(--nav-h, 64px)); height:calc(100svh - var(--nav-h, 64px));
   display:flex; flex-direction:column; align-items:center; justify-content:center;
-  text-align:center; padding:24px 20px 10px; position:relative;
+  text-align:center; padding:16px 20px 10px; position:relative;
 }
 html.galaxy-lock, html.galaxy-lock body{overflow:hidden; overscroll-behavior:none;}
 html.galaxy-lock .solar-canvas{touch-action:none;}
@@ -176,11 +176,11 @@ html.galaxy-lock .solar-canvas{touch-action:none;}
 }
 .hero .eyebrow{
   font-family:'JetBrains Mono',monospace; color:var(--amber); font-size:.72rem;
-  letter-spacing:.34em; text-transform:uppercase; margin-bottom:22px;
+  letter-spacing:.34em; text-transform:uppercase; margin-bottom:12px;
   text-shadow:0 0 18px rgba(104,216,255,.5);
 }
 .hero h1{
-  font-size:clamp(3rem,8.4vw,6.4rem); line-height:1.0; margin:0; font-weight:500;
+  font-size:clamp(2.6rem,4.6vw,4.2rem); line-height:1.0; margin:0; font-weight:500;
   letter-spacing:-.005em;
   text-shadow:0 2px 40px rgba(1,8,20,.9), 0 0 70px rgba(104,216,255,.16);
 }
@@ -194,7 +194,7 @@ html.galaxy-lock .solar-canvas{touch-action:none;}
   50%    {text-shadow:0 0 52px rgba(104,216,255,.8), 0 2px 30px rgba(1,8,20,.9);}
 }
 .hero p.tag{
-  max-width:520px; color:var(--ink-dim); font-size:.98rem; margin:20px auto 0; line-height:1.65;
+  max-width:520px; color:var(--ink-dim); font-size:.9rem; margin:12px auto 0; line-height:1.6;
   font-weight:300; text-shadow:0 1px 16px rgba(1,8,20,.95);
 }
 .hero-copy{position:relative; z-index:3; will-change:transform,opacity;}
@@ -229,10 +229,10 @@ html.galaxy-lock .solar-canvas{touch-action:none;}
 /* short laptop screens (1280x720, 1366x768): trim the copy so the hero still lands the
    tab above the fold instead of squeezing the galaxy */
 @media (min-width:601px) and (max-height:800px){
-  .hero{padding-top:14px; padding-bottom:16px;}
-  .hero h1{font-size:clamp(2.4rem,5.6vw,3.9rem);}
-  .hero .eyebrow{margin-bottom:14px; font-size:.66rem;}
-  .hero p.tag{margin-top:14px; font-size:.9rem;}
+  .hero{padding-top:10px; padding-bottom:10px;}
+  .hero h1{font-size:clamp(2.2rem,4vw,3.2rem);}
+  .hero .eyebrow{margin-bottom:8px; font-size:.62rem;}
+  .hero p.tag{margin-top:8px; font-size:.84rem;}
   .home-sky{margin-top:12px;}
 }
 /* .home-sky carries the scroll-recede transform (the shared rAF loop at the end of app.js) */
