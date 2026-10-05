@@ -1180,7 +1180,7 @@ function viewCharacter(id){
         return `<a class="co-card" href="#/character/${cid}" style="--fcolor:${p.color}">
           ${faceHtml(cid, {static:true})}
           <span class="co-name">${escapeHtml(p.name)}</span>
-          <span class="co-n">${n} ${n===1?"historia":"historias"} juntos</span>
+          <span class="co-n">${n} ${n===1?"historia":"historias"} en común</span>
         </a>`;
       }).join("")}</div>
     </section>` : "";
@@ -1480,7 +1480,7 @@ function drawMap(){
       <div class="mi-eyebrow">La red</div>
       <div class="mi-big"><b>${nodes.length}</b> personas · <b>${edges.length}</b> conexiones</div>
       ${strongest ? `<div class="mi-sub">El lazo más fuerte</div>
-      <div class="mi-pair">${faceHtml(strongest.a)}${faceHtml(strongest.b)}<span>${escapeHtml(shortName(strongest.a))} y ${escapeHtml(shortName(strongest.b))}<em>${strongest.w} historias juntos</em></span></div>` : ""}
+      <div class="mi-pair">${faceHtml(strongest.a)}${faceHtml(strongest.b)}<span>${escapeHtml(shortName(strongest.a))} y ${escapeHtml(shortName(strongest.b))}<em>${strongest.w} historias en común</em></span></div>` : ""}
       <p class="mi-hint">${matchMedia("(hover:hover)").matches ? "Pasa sobre alguien para ver sus conexiones; clic para abrir su ficha." : "Toca a alguien para ver sus conexiones; tócalo de nuevo para abrir su ficha."}</p>`;
   };
   const nodeInfo = id=>{
@@ -1589,7 +1589,7 @@ function viewRecords(){
           <div class="rec-eyebrow">Dúo inseparable</div>
           <div class="rec-duo">${faceHtml(a)}<span class="rec-amp">&</span>${faceHtml(b)}</div>
           <h3>${escapeHtml(chars[a].name.split(" ")[0])} y ${escapeHtml(chars[b].name.split(" ")[0])}</h3>
-          <p>${duo[1]} historias juntos: la pareja que más se repite en la crónica.</p>
+          <p>${duo[1]} historias en común: la pareja que más se repite en la crónica.</p>
         </section>`; })() : ""}
 
         ${places.length ? `
