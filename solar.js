@@ -960,9 +960,9 @@
       label.href = hrefFor(s.id);
       label.style.setProperty("--pcolor", color);
       label.style.opacity = "0";
-      label.innerHTML = `<span class="solar-code"></span><span class="solar-title"></span>`;
+      // solo el código (S0, S1...): el nombre de la temporada está en el panel del foco
+      label.innerHTML = `<span class="solar-code"></span>`;
       label.firstChild.textContent = s.code || `S${s.id}`;
-      label.lastChild.textContent = s.title || "";
       const nEv = (s.events || []).length;
       label.setAttribute("aria-label", `${s.code || "S"+s.id}, ${s.title || "temporada"}: ${nEv} ${nEv === 1 ? "historia" : "historias"}. Enter para ver la temporada en detalle.`);
       labelsLayer.appendChild(label);
@@ -1135,7 +1135,7 @@
       hl.href = armHref;
       hl.style.setProperty("--pcolor", "#ff6a6a");
       hl.style.opacity = "0";
-      hl.innerHTML = `<span class="solar-code">el hoyo</span><span class="solar-title">Armagedón</span>`;
+      hl.innerHTML = `<span class="solar-code">el hoyo</span>`;
       hl.setAttribute("aria-label", "El Hoyo: el Armagedón. Enter para verlo en detalle.");
       labelsLayer.appendChild(hl);   // después de S0..S5: el Tab llega al Hoyo al final
       holeItem.label = hl;

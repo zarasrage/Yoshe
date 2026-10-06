@@ -314,21 +314,12 @@ html.galaxy-lock .solar-canvas{touch-action:none;}
   text-shadow:0 1px 10px rgba(1,6,15,1), 0 0 22px rgba(1,6,15,.9);
   transition:letter-spacing .35s var(--ease), color .35s var(--ease);
 }
-.star-node .star-label{
-  font-family:'Cormorant Garamond',Georgia,serif; font-style:italic; font-weight:500;
-  font-size:1rem; color:#cfe2fa; margin-top:2px; max-width:150px; text-align:center;
-  line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-  text-shadow:0 1px 10px rgba(1,6,15,1), 0 0 20px rgba(1,6,15,.95);
-  transition:color .35s var(--ease), transform .35s var(--ease);
-}
 .star-node:hover .star-code{letter-spacing:.26em; color:#fff;}
-.star-node:hover .star-label{color:#fff; transform:translateY(1px);}
 .star-node.s0 .star-dot{--pcolor:var(--violet);}
 .star-node.armageddon-node{opacity:.42; transition:opacity .4s var(--ease);}
 .star-node.armageddon-node .star-dot{width:7px; height:7px; animation:none;}
 .star-node.armageddon-node .star-dot .core{background:rgba(255,190,190,.45); box-shadow:0 0 10px rgba(255,110,110,.3);}
 .star-node.armageddon-node .star-code{color:rgba(255,190,190,.6); font-size:.66rem; letter-spacing:.1em;}
-.star-node.armageddon-node .star-label{color:rgba(255,200,200,.45); font-size:.62rem; font-style:normal; font-family:'JetBrains Mono',monospace; letter-spacing:.14em;}
 .star-node.armageddon-node:hover{opacity:1;}
 .star-node.armageddon-node:hover .star-dot .core{background:rgba(255,150,150,.9); box-shadow:0 0 18px rgba(255,80,80,.8);}
 @media (max-width:600px){
@@ -343,7 +334,6 @@ html.galaxy-lock .solar-canvas{touch-action:none;}
   .star-node .star-dot{width:23px; height:23px;}
   .star-node{padding:8px; margin:-8px;} /* larger invisible tap area */
   .star-node .star-code{font-size:.8rem; margin-top:8px;}
-  .star-node .star-label{font-size:.92rem; max-width:110px;}
   .star-node.armageddon-node .star-dot{width:9px; height:9px;}
 }
 
@@ -367,21 +357,14 @@ html.galaxy-lock .solar-canvas{touch-action:none;}
 .solar-label{position:absolute; left:0; top:0; pointer-events:auto; display:flex; flex-direction:column; align-items:center;
   gap:2px; padding:4px 10px 5px; border-radius:12px; white-space:nowrap; text-align:center;
   transition:opacity .25s linear, background .25s var(--ease), box-shadow .25s var(--ease); will-change:transform;}
-.solar-code{font-family:'JetBrains Mono',monospace; font-size:.62rem; font-weight:500; letter-spacing:.22em; padding-left:.22em;
+.solar-code{font-family:'JetBrains Mono',monospace; font-size:.8rem; font-weight:600; letter-spacing:.22em; padding-left:.22em;
   color:var(--pcolor); text-shadow:0 0 8px rgba(0,0,0,.95), 0 0 14px rgba(0,0,0,.7); transition:color .25s;}
-.solar-title{font-family:'Cormorant Garamond',Georgia,serif; font-size:1.12rem; font-weight:600; font-style:italic; letter-spacing:.01em;
-  color:var(--ink); text-shadow:0 1px 3px rgba(0,0,0,.95), 0 0 16px rgba(1,10,20,.95);
-  transition:color .25s, text-shadow .25s, max-height .3s var(--ease), opacity .2s; max-height:2em; overflow:hidden;}
-/* covered by a label nearer the camera: only the code stays */
-.solar-label.is-compact .solar-title{max-height:0; opacity:0;}
 .solar-label:hover, .solar-label.is-hover{background:rgba(3,12,28,.55);
   box-shadow:0 0 0 1px color-mix(in srgb, var(--pcolor) 45%, transparent), 0 0 24px color-mix(in srgb, var(--pcolor) 30%, transparent);}
 .solar-label:hover .solar-code, .solar-label.is-hover .solar-code{color:#fff;}
-.solar-label:hover .solar-title, .solar-label.is-hover .solar-title{color:#fff; text-shadow:0 0 14px var(--pcolor), 0 1px 3px #000;}
 .solar-label:focus-visible{outline:1px solid var(--pcolor); outline-offset:3px;}
 /* the Hoyo: quiet and dim under the shadow, like the 2D armagedón node */
 .solar-label-hole .solar-code{color:#ff8a8a; letter-spacing:.3em; font-size:.56rem;}
-.solar-label-hole .solar-title{font-size:.86rem; color:var(--ink-dim);}
 
 /* moons (one per story): in the focus of their planet they carry their number, and the title
    on hover. A small glass pill, same family as the planet labels. */
@@ -491,7 +474,7 @@ html.galaxy-lock .solar-canvas{touch-action:none;}
 .solar-root.is-portrait .solar-p-stories{margin-bottom:10px;}
 .solar-root.is-portrait .solar-p-stories a{padding:5px 6px;}
 @media (max-width:600px){
-  .solar-title{font-size:.95rem;} .solar-code{font-size:.56rem;}
+  .solar-code{font-size:.72rem;}
   .solar-hint{font-size:.58rem;}
 }
 

@@ -665,7 +665,6 @@ function constellationHtml(){
     return `<div class="star-node ${s.id===0?'s0':''}" data-nodeidx="${i}" style="left:${p.x}%; top:${p.y}%; --pcolor:${s.color}; --bdelay:${bdelay}s; --idelay:${idelay}s" onclick="location.hash='#/season/${s.id}'">
       <div class="star-dot"><i class="ray ray-h"></i><i class="ray ray-v"></i><i class="core"></i></div>
       <div class="star-code" style="color:${s.color}">${s.code}</div>
-      <div class="star-label">${escapeHtml(s.title)}</div>
     </div>`;
   }).join("");
 
@@ -673,7 +672,6 @@ function constellationHtml(){
   const armageddonNode = `<div class="star-node armageddon-node" style="left:${ARMAGEDDON_POS.x}%; top:${ARMAGEDDON_POS.y}%; --idelay:${armageddonIdelay}s" onclick="location.hash='#/armageddon'">
     <div class="star-dot"><i class="core"></i></div>
     <div class="star-code">†</div>
-    <div class="star-label">armagedón</div>
   </div>`;
 
   return `<svg id="constellationSvg" viewBox="0 0 100 ${vbH.toFixed(3)}" preserveAspectRatio="none">${linesSvg}</svg>
