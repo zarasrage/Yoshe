@@ -319,7 +319,6 @@ html.galaxy-lock .solar-canvas{touch-action:none;}
 .star-node.armageddon-node{opacity:.42; transition:opacity .4s var(--ease);}
 .star-node.armageddon-node .star-dot{width:7px; height:7px; animation:none;}
 .star-node.armageddon-node .star-dot .core{background:rgba(255,190,190,.45); box-shadow:0 0 10px rgba(255,110,110,.3);}
-.star-node.armageddon-node .star-code{color:rgba(255,190,190,.6); font-size:.66rem; letter-spacing:.1em;}
 .star-node.armageddon-node:hover{opacity:1;}
 .star-node.armageddon-node:hover .star-dot .core{background:rgba(255,150,150,.9); box-shadow:0 0 18px rgba(255,80,80,.8);}
 @media (max-width:600px){
@@ -363,8 +362,9 @@ html.galaxy-lock .solar-canvas{touch-action:none;}
   box-shadow:0 0 0 1px color-mix(in srgb, var(--pcolor) 45%, transparent), 0 0 24px color-mix(in srgb, var(--pcolor) 30%, transparent);}
 .solar-label:hover .solar-code, .solar-label.is-hover .solar-code{color:#fff;}
 .solar-label:focus-visible{outline:1px solid var(--pcolor); outline-offset:3px;}
-/* the Hoyo: quiet and dim under the shadow, like the 2D armagedón node */
-.solar-label-hole .solar-code{color:#ff8a8a; letter-spacing:.3em; font-size:.56rem;}
+/* the Hoyo says nothing: its label is an empty link (keyboard + aria-label only) */
+.solar-label-hole{padding:0; width:24px; height:8px;}
+.solar-label-hole:hover, .solar-label-hole.is-hover{background:none; box-shadow:none;}
 
 /* moons (one per story): in the focus of their planet they carry their number, and the title
    on hover. A small glass pill, same family as the planet labels. */

@@ -786,8 +786,9 @@
     const wrapAngle = a=> a - TAU*Math.floor((a + Math.PI)/TAU);
     // zoom de la vista general: multiplica la distancia de la cámara (menos = más cerca)
     const ZOOM_MIN = 0.4, ZOOM_MAX = 1.45;
-    // zoom inicial: un poco más cerca que el encuadre que muestra el sistema entero
-    const ZOOM_START = 0.78;
+    // zoom inicial: bastante más cerca que el encuadre que muestra el sistema entero (las
+    // órbitas de afuera pueden salirse de la caja; con la rueda o el pellizco se aleja)
+    const ZOOM_START = 0.64;
     let zoom = ZOOM_START, zoomTarget = ZOOM_START;
     const clampZoom = z=> Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
     stage.add(world);
@@ -1135,7 +1136,9 @@
       hl.href = armHref;
       hl.style.setProperty("--pcolor", "#ff6a6a");
       hl.style.opacity = "0";
-      hl.innerHTML = `<span class="solar-code">el hoyo</span>`;
+      // sin texto: el Hoyo no dice nada. El enlace sigue ahí para el teclado (Tab/Enter) y
+      // los lectores de pantalla (aria-label)
+      hl.innerHTML = "";
       hl.setAttribute("aria-label", "El Hoyo: el Armagedón. Enter para verlo en detalle.");
       labelsLayer.appendChild(hl);   // después de S0..S5: el Tab llega al Hoyo al final
       holeItem.label = hl;

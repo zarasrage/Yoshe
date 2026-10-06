@@ -671,7 +671,6 @@ function constellationHtml(){
   const armageddonIdelay = (0.55 + DATA.seasons.length*0.13 + 0.2).toFixed(2);
   const armageddonNode = `<div class="star-node armageddon-node" style="left:${ARMAGEDDON_POS.x}%; top:${ARMAGEDDON_POS.y}%; --idelay:${armageddonIdelay}s" onclick="location.hash='#/armageddon'">
     <div class="star-dot"><i class="core"></i></div>
-    <div class="star-code">†</div>
   </div>`;
 
   return `<svg id="constellationSvg" viewBox="0 0 100 ${vbH.toFixed(3)}" preserveAspectRatio="none">${linesSvg}</svg>
