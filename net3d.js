@@ -132,6 +132,12 @@
   function mountNet3D(container, opts){
     unmountNet3D();
     const o = opts || {};
+    // sin canvas 2D (visores raros, jsdom) no hay red: queda el panel. Se revisa antes de
+    // pintar los sprites, que también usan canvas
+    const canvas = document.createElement("canvas");
+    canvas.className = "net-canvas";
+    const ctx = canvas.getContext && canvas.getContext("2d");
+    if(!ctx) return null;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const nodes = o.nodes.map(n=> Object.assign({}, n, { size: n.primary ? 0.045 + 0.022*Math.sqrt(n.n) : 0.026 + 0.011*Math.sqrt(n.n) }));
     const edges = o.edges.slice();
@@ -152,10 +158,6 @@
       im.src = n.img;
     });
 
-    const canvas = document.createElement("canvas");
-    canvas.className = "net-canvas";
-    const ctx = canvas.getContext("2d");
-    if(!ctx){ alive = false; return null; }   // sin canvas (visores raros, jsdom): queda el panel
     container.appendChild(canvas);
     const cleanups = [()=>canvas.remove()];
     const on = (t, ev, fn, op)=>{ t.addEventListener(ev, fn, op); cleanups.push(()=>t.removeEventListener(ev, fn, op)); };
