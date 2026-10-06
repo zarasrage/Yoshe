@@ -49,8 +49,9 @@
 </div>
 
 <div class="edit-bar">
-  <span class="edit-tag">✏️ Modo edición activo — los cambios se guardan en este navegador</span>
+  <span class="edit-tag">✏️<span class="et-long"> Modo edición activo — los cambios se guardan en este navegador</span></span>
   <button onclick="openStoryEditor(currentSeasonId())">➕ Nueva historia</button>
+  <button onclick="copyForClaude()">📋 Copiar para Claude</button>
   <button onclick="exportOverrides()">⬇ Exportar cambios</button>
   <button onclick="document.getElementById('importFile').click()">⬆ Importar cambios</button>
   <input type="file" id="importFile" accept="application/json" style="display:none" onchange="importOverridesFile(this)">

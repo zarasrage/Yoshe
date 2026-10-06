@@ -510,6 +510,7 @@ body.mood-doom #skyPhoto{filter:saturate(.42) hue-rotate(-18deg) brightness(.72)
 }
 .armageddon-hero .prophecy{max-width:620px; margin:24px auto 0; color:#e0bcbc; line-height:1.85; font-size:1.02rem; font-style:italic; font-weight:300;}
 .armageddon-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:18px; max-width:1120px; margin:0 auto; padding:0 28px 120px;}
+@media (max-width:600px){ .armageddon-grid{padding:0 14px 90px; gap:12px;} }
 /* same reasoning as .cast-card: many of these on screen at once, so flat fill not blur */
 .epitaph-card{
   position:relative; border:1px solid rgba(220,50,50,.24); border-radius:16px; padding:22px;
@@ -1064,6 +1065,14 @@ body.edit-on .edit-bar{display:flex; animation:editBarIn .45s var(--ease);}
 .edit-bar button:hover{background:var(--amber); color:var(--hole); transform:translateY(-2px);}
 .edit-bar button:active{transform:translateY(0) scale(.96);}
 .edit-bar .edit-tag{color:var(--ink-faint);}
+/* phones: one row that slides sideways, the long label shrinks to its icon */
+@media (max-width:600px){
+  .edit-bar{flex-wrap:nowrap; justify-content:flex-start; overflow-x:auto; padding:10px 12px; gap:8px; scrollbar-width:none;}
+  .edit-bar::-webkit-scrollbar{display:none;}
+  .edit-bar button{flex:none; padding:8px 12px; font-size:.64rem;}
+  .edit-bar .edit-tag{flex:none;}
+  .edit-bar .et-long{display:none;}
+}
 .modal-overlay{
   position:fixed; inset:0; background:rgba(1,5,13,.82); z-index:70; display:none;
   align-items:center; justify-content:center; padding:20px;

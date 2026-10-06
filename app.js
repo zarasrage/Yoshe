@@ -81,6 +81,53 @@ function exportOverrides(){
   a.download = "yoshe-con-hoyo-cambios.json";
   a.click();
 }
+// Lo guardado en este navegador, como texto para pegarle a Claude en el chat y que quede en
+// data.js para todos (el JSON de "Exportar" sirve igual, pero esto se lee y se pega directo)
+function overridesAsText(){
+  const ov = loadOverrides();
+  const L = [];
+  const charName = id=> (DATA.characters[id]||{}).name || id;
+  const placeName = id=> (DATA.places[id]||{}).name || id;
+  const evs = [];
+  Object.entries(ov.extraEvents||{}).forEach(([sid, list])=> (list||[]).forEach(e=> evs.push([sid, e])));
+  if(evs.length){
+    L.push(`## Historias nuevas (${evs.length})`);
+    evs.forEach(([sid, e])=>{
+      const s = DATA.seasons.find(x=> String(x.id) === String(sid));
+      L.push("", `### ${e.title}`, `- Temporada: ${s ? s.code + " · " + s.title : sid}`, `- Fecha: ${e.date || "—"}`,
+        `- Lugar: ${e.place ? placeName(e.place) + " (" + e.place + ")" : "—"}`,
+        `- Quiénes: ${(e.chars||[]).map(id=> charName(id) + " (" + id + ")").join(", ") || "—"}`, "", plainText(e.content));
+    });
+  }
+  const nc = Object.entries(ov.extraCharacters||{}), np = Object.entries(ov.extraPlaces||{});
+  if(nc.length) L.push("", `## Personas nuevas`, ...nc.map(([id,c])=> `- ${c.name} (${id})`));
+  if(np.length) L.push("", `## Lugares nuevos`, ...np.map(([id,p])=> `- ${p.icon||""} ${p.name} (${id})`));
+  const fields = (title, obj, nameOf)=>{
+    const rows = Object.entries(obj||{}).filter(([,patch])=> patch && Object.keys(patch).length);
+    if(!rows.length) return;
+    L.push("", `## ${title}`);
+    rows.forEach(([id, patch])=>{
+      L.push(`- ${nameOf(id)} (${id}):`);
+      Object.entries(patch).forEach(([k,v])=>{ if(k === "photo" && String(v).startsWith("data:")) v = "[foto subida desde el navegador]"; L.push(`  - ${k}: ${v === null ? "—" : String(v)}`); });
+    });
+  };
+  fields("Cambios en personajes", ov.characters, charName);
+  fields("Cambios en lugares", ov.places, placeName);
+  fields("Cambios en temporadas", ov.seasonMeta, sid=>{ const s = DATA.seasons.find(x=> String(x.id) === String(sid)); return s ? s.code : sid; });
+  if(ov.armageddon && Object.keys(ov.armageddon).length) L.push("", "## Armagedón", ...Object.entries(ov.armageddon).map(([k,v])=> `- ${k}: ${v}`));
+  if(!L.length) return "";
+  return ["Cambios hechos en el sitio Yoshe con Hoyo (modo edición), para agregarlos a data.js:", ""].concat(L).join("\n");
+}
+function copyForClaude(){
+  const text = overridesAsText();
+  if(!text){ showToast("No hay cambios guardados en este navegador todavía."); return; }
+  const fallback = ()=> openModal(`<h3>Copiar para Claude</h3><p class="se-sub">Copia este texto y pégalo en el chat.</p>
+    <textarea readonly style="min-height:320px; font-family:'JetBrains Mono',monospace; font-size:.74rem;" onfocus="this.select()">${escapeHtml(text)}</textarea>
+    <div class="modal-actions"><button onclick="closeModal()">Listo</button></div>`);
+  try{
+    navigator.clipboard.writeText(text).then(()=> showToast("Copiado: pégalo en el chat con Claude."), fallback);
+  }catch(e){ fallback(); }
+}
 function importOverridesFile(input){
   const file = input.files[0]; if(!file) return;
   const reader = new FileReader();
@@ -576,7 +623,7 @@ function saveStoryEditor(){
   const href = storyHref(target.id, target.events.indexOf(ev));
   if(location.hash === href) render(); else location.hash = href;
   setTimeout(()=> flashEvent(target.id, target.events.indexOf(ev)), 140);
-  showToast(madeNew ? "Historia guardada. Completa después la ficha de lo nuevo (sale como pendiente)." : "Historia guardada en este navegador. Para que la vean todos: ⬇ Exportar cambios.");
+  showToast(madeNew ? "Historia guardada. Completa después la ficha de lo nuevo (sale como pendiente)." : "Historia guardada en este navegador. Para que la vean todos: 📋 Copiar para Claude, y pégalo en el chat.");
 }
 function deleteLocalStory(){
   if(!SE || !SE.uid) return;
@@ -1035,7 +1082,7 @@ function viewCast(){
   }).join("");
 
   app.innerHTML = `
-  <div class="page-topbar"><a class="back-btn" href="#/home"><span aria-hidden="true">←</span> Galaxia</a></div>
+  <div class="page-topbar"><a class="back-btn" href="#/home"><span aria-hidden="true">←</span> Galaxia</a><a class="back-btn recap-btn" href="#/resumen">▶ Resúmenes</a><a class="back-btn" href="#/juego">🎯 Juego</a></div>
   <section class="section-wrap cast-page">
     <div class="cast-intro">
       <div class="eyebrow">El elenco</div>
