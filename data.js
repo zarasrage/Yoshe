@@ -38,9 +38,10 @@ const DATA = {
     "aranza":             {name:"Aranza",                  role:"— rol pendiente —", tier:"secundario", color:"#c9853f", bio:"Cuéntame más sobre Aranza: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
     "connie":             {name:"Connie",                  role:"— rol pendiente —", tier:"secundario", color:"#d9748a", bio:"Cuéntame más sobre Connie: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
     "daniela":            {name:"Daniela",                 role:"— rol pendiente —", tier:"secundario", color:"#f2a65a", bio:"Amiga de Connie. Cristóbal Jones la conoció en un carrete en casa de Heidi — tenía pololo y él no lo sabía.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
-    "blanca":             {name:"Blanca",                  role:"— rol pendiente —", tier:"secundario", color:"#8b6bf2", bio:"Cuéntame más sobre Blanca: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
+    "blanca":             {name:"Blanca",                  role:"— rol pendiente —", tier:"secundario", color:"#8b6bf2", bio:"Estudiante de intercambio española. Se suponía que tenía novio allá en España, pero después se supo que eso no se lo contaba a todo el mundo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
     "javier-diaz":        {name:"Javier Díaz",             role:"— rol pendiente —", tier:"secundario", color:"#3f8c82", bio:"Cuéntame más sobre el Javo: quién es y cómo se relaciona con el grupo.", apodo:"Javo", frase:null, habilidad:null, destino:null, tags:[]},
     "milf":               {name:"Milf",                    role:"— rol pendiente —", tier:"secundario", color:"#d9748a", bio:"Cuéntame más sobre la Milf: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
+    "popo":               {name:"Felipe González",         role:"— rol pendiente —", tier:"secundario", color:"#6b9bf2", bio:"Hermano chico de Agustín. Se llama Felipe, pero todos le dicen Popo.", apodo:"Popo", frase:null, habilidad:null, destino:null, tags:[]},
   },
   places: {
 
@@ -73,6 +74,25 @@ const DATA = {
             {t:"text",v:", en los JIM, ya bastante curado y cansado. De la nada, apareció "},
             {t:"char",id:"hugo-demandes"},
             {t:"text",v:" y le ofreció unos lomitos. — Cuéntame el resto: ¿qué pasó después? ¿por qué es el punto de partida de la S0?"}
+          ]
+        },
+        {
+          date:"Del 15 al 18 de febrero de 2023", title:"Escapada a la playa en Costa Cachagua",
+          place:"costa-cachagua", chars:["agustin-gonzalez","sofia-yanez","popo","maria-ignacia-cardenas","blanca"],
+          content:[
+            {t:"text",v:"Del 15 al 18 de febrero de 2023, "},
+            {t:"char",id:"agustin-gonzalez"},
+            {t:"text",v:" y "},
+            {t:"char",id:"sofia-yanez"},
+            {t:"text",v:" se fueron a "},
+            {t:"place",id:"costa-cachagua"},
+            {t:"text",v:" con los padres de Agustín y su hermano chico, "},
+            {t:"char",id:"popo"},
+            {t:"text",v:" (Felipe, pero nadie le dice así). Ya estando allá se les unieron "},
+            {t:"char",id:"maria-ignacia-cardenas"},
+            {t:"text",v:" y "},
+            {t:"char",id:"blanca"},
+            {t:"text",v:", una estudiante de intercambio española que, se suponía, tenía novio allá en España — aunque después se supo que ese detalle no se lo contaba a todo el mundo.\n\nFueron a la playa, a la piscina, se sacaron fotos y compartieron con la familia. Una escapada tranquila y simpática, de las buenas."}
           ]
         }
       ]
