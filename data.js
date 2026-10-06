@@ -39,6 +39,9 @@ const DATA = {
     "maca-canistra":      {name:"Maca Canistra",           role:"— rol pendiente —", tier:"secundario", color:"#c9853f", bio:"Cuéntame más sobre la Maca Canistra: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
     "joseto-cardenas":    {name:"Joseto Cárdenas",         role:"— rol pendiente —", tier:"secundario", color:"#3f8c82", bio:"Hermano de María Ignacia Cárdenas. Cuéntame más sobre él: cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
     "isi-aleuanlli":      {name:"Isi Aleuanlli",           role:"— rol pendiente —", tier:"secundario", color:"#8b6bf2", bio:"Cuéntame más sobre la Isi: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
+    "roberto":            {name:"Roberto",                 role:"— rol pendiente —", tier:"secundario", color:"#7fae6f", bio:"Cuéntame más sobre Roberto: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
+    "gotica-culona":      {name:"Gótica Culona",           role:"— rol pendiente —", tier:"secundario", color:"#8b6bf2", bio:"La chica de estilo gótico que Cristóbal Jones se llevó en la noche de oro en Vrava. Cuéntame más sobre ella.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
+    "fran":               {name:"Fran",                    role:"— rol pendiente —", tier:"secundario", color:"#e07ab0", bio:"Cuéntame más sobre la Fran: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
     "hernan-miranda":     {name:"Hernán Miranda",          role:"— rol pendiente —", tier:"secundario", color:"#7fae6f", bio:"Cuéntame más sobre Hernán Miranda: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
     "jamil":              {name:"Jamil",                   role:"— rol pendiente —", tier:"secundario", color:"#e0b84f", bio:"Cuéntame más sobre Jamil: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
     "aranza":             {name:"Aranza",                  role:"— rol pendiente —", tier:"secundario", color:"#c9853f", bio:"Cuéntame más sobre Aranza: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
@@ -459,13 +462,15 @@ const DATA = {
     {a:"maria-ignacia-cardenas", b:"gaston", kind:"ex", story:null, note:null},
     {a:"paula-jara", b:"pezuna", kind:"pinche", story:null, note:null},
     {a:"maria-ignacia-demandes", b:"sebastian-cataldo", kind:"ex", story:null, note:null},
-    {a:"maria-ignacia-demandes", b:"andres", kind:"full", story:null, note:"Se lo tiró."},
+    {a:"maria-ignacia-demandes", b:"roberto", kind:"full", story:null, note:"Se lo tiró."},
     {a:"maria-ignacia-demandes", b:"pollo", kind:"full", story:null, note:"Se lo tiró."},
     {a:"fernanda-monsalve", b:"alfred", kind:"ex", story:null, note:null},
     {a:"hugo-demandes", b:"maca-canistra", kind:"beso", story:null, note:"Se la comía."},
     {a:"joseto-cardenas", b:"maca-canistra", kind:"ex", story:null, note:null},
     {a:"hernan-suarez", b:"isi-aleuanlli", kind:"pinche", story:null, note:"Se la tiraba."},
-    {a:"hugo-demandes", b:"isi-aleuanlli", kind:"pinche", story:null, note:null}
+    {a:"hugo-demandes", b:"isi-aleuanlli", kind:"pinche", story:null, note:null},
+    {a:"cristobal-jones", b:"gotica-culona", kind:"beso", story:{season:5, title:"La noche de oro en Vrava"}, note:"Se la llevó en la noche de oro."},
+    {a:"gerardo-cortes", b:"fran", kind:"beso", story:null, note:null}
   ],
   armageddon: {
     intro: "Cuéntame cómo termina la historia de Yoshe con Hoyo — el destino final del grupo. ¿Hay un evento que lo cierra todo, o simplemente el hoyo se los sigue tragando generación tras generación?"
