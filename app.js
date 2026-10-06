@@ -105,7 +105,7 @@ function overridesAsText(){
   if(nc.length) L.push("", `## Personas nuevas`, ...nc.map(([id,c])=> `- ${c.name} (${id})`));
   if(np.length) L.push("", `## Lugares nuevos`, ...np.map(([id,p])=> `- ${p.icon||""} ${p.name} (${id})`));
   const hk = ov.extraHookups||[];
-  if(hk.length) L.push("", `## Red de besos (agregados)`, ...hk.map(h=> `- ${charName(h.a)} (${h.a}) y ${charName(h.b)} (${h.b}): ${(HOOK_KINDS[h.kind]||HOOK_KINDS.beso).label}${h.story ? ` — historia: ${h.story.title}` : ""}${h.note ? ` — nota: ${h.note}` : ""}`));
+  if(hk.length) L.push("", `## Amoríos (agregados)`, ...hk.map(h=> `- ${charName(h.a)} (${h.a}) y ${charName(h.b)} (${h.b}): ${(HOOK_KINDS[h.kind]||HOOK_KINDS.beso).label}${h.story ? ` — historia: ${h.story.title}` : ""}${h.note ? ` — nota: ${h.note}` : ""}`));
   const fields = (title, obj, nameOf)=>{
     const rows = Object.entries(obj||{}).filter(([,patch])=> patch && Object.keys(patch).length);
     if(!rows.length) return;
@@ -1744,7 +1744,7 @@ function openHookupEditor(){
   const stories = `<option value="">— ninguna (lo cuento yo) —</option>` + allEventsFlat().map(r=> `<option value="${r.season.id}|${escapeHtml(r.event.title)}">${escapeHtml(r.season.code)} · ${escapeHtml(r.event.title)}</option>`).join("");
   const local = (loadOverrides().extraHookups||[]);
   openModal(`
-    <h3>Agregar a la red 💋</h3>
+    <h3>Agregar un amorío 💋</h3>
     <p class="se-sub">Queda en este navegador; pásalo al sitio de todos con 📋 Copiar para Claude.</p>
     <div class="se-grid">
       <div><label for="hk_a">Persona</label><select id="hk_a">${opts}</select></div>
@@ -1774,10 +1774,10 @@ function saveHookup(){
   saveOverrides(ov);
   DATA.hookups = (DATA.hookups||[]).concat([h]);
   closeModal(); render();
-  showToast("Agregado a la red. Para que lo vean todos: 📋 Copiar para Claude.");
+  showToast("Amorío agregado. Para que lo vean todos: 📋 Copiar para Claude.");
 }
 function deleteHookup(uid){
-  if(!confirm("¿Borrar esta línea de la red?")) return;
+  if(!confirm("¿Borrar este amorío?")) return;
   const ov = loadOverrides();
   ov.extraHookups = (ov.extraHookups||[]).filter(h=> h.uid !== uid);
   saveOverrides(ov);
@@ -1797,9 +1797,9 @@ function viewMap(which){
       <div class="net-head">
         <div class="map-nets" role="tablist" aria-label="Qué red mostrar">
           <a href="#/map" role="tab" aria-selected="${!besos}" class="${besos ? "" : "active"}">🕸️ Historias</a>
-          <a href="#/map/besos" role="tab" aria-selected="${besos}" class="${besos ? "active" : ""}">💋 Quién se comió a quién</a>
+          <a href="#/map/besos" role="tab" aria-selected="${besos}" class="${besos ? "active" : ""}">💋 Amoríos</a>
         </div>
-        <h1>${besos ? "Quién se comió a quién" : "Red de relaciones"}</h1>
+        <h1>${besos ? "Amoríos" : "Red de relaciones"}</h1>
         <div class="net-head-row">
           ${besos ? `<button type="button" class="map-add edit-only-btn" onclick="openHookupEditor()">➕ Agregar</button>` : `
           <div class="map-modes" role="group" aria-label="Quiénes mostrar">
@@ -1824,23 +1824,29 @@ function viewMap(which){
       const top = Object.entries(g.deg||{}).sort((x,y)=> y[1]-x[1]);
       const max = top.length ? top[0][1] : 0, leaders = top.filter(x=> x[1] === max).map(x=> x[0]);
       const used = [...new Set(g.edges.map(e=> e.h.kind in HOOK_KINDS ? e.h.kind : "beso"))];
+      // primero solo la leyenda de colores; lo demás, deslizando el panel hacia abajo
       info.innerHTML = g.edges.length ? `
-        <div class="mi-eyebrow">La red de besos</div>
-        <div class="mi-big"><b>${g.nodes.length}</b> personas · <b>${g.edges.length}</b> ${g.edges.length===1?"pareja":"parejas"}</div>
-        ${max > 1 ? `<div class="mi-sub">${leaders.length > 1 ? "Los que suman más" : "Quien suma más"}</div>
-        <div class="mi-leaders">${leaders.map(id=> `<button type="button" class="mi-pair" data-pick="${id}">${faceHtml(id,{static:true})}<span class="mi-pn">${escapeHtml(shortName(id))}<em>${max} en la red</em></span></button>`).join("")}</div>` : ""}
-        <div class="mi-legend">${used.map(k=> `<span style="--k:rgb(${HOOK_KINDS[k].rgb})"><i></i>${HOOK_KINDS[k].icon} ${escapeHtml(HOOK_KINDS[k].label)}</span>`).join("")}</div>
-        <p class="mi-hint">Solo lo que cuentan las historias o lo que se ha contado aparte, nada supuesto. ${hint}</p>`
-      : `<div class="mi-eyebrow">La red de besos</div><p class="mi-hint">Todavía no hay nadie en esta red.${isEditOn() ? " Agrega el primero con ➕." : ""}</p>`;
+        <div class="mi-legend mi-first">${used.map(k=> `<span style="--k:rgb(${HOOK_KINDS[k].rgb})"><i></i>${HOOK_KINDS[k].icon} ${escapeHtml(HOOK_KINDS[k].label)}</span>`).join("")}</div>
+        <div class="mi-rest">
+          <div class="mi-eyebrow">Amoríos</div>
+          <div class="mi-big"><b>${g.nodes.length}</b> personas · <b>${g.edges.length}</b> ${g.edges.length===1?"pareja":"parejas"}</div>
+          ${max > 1 ? `<div class="mi-sub">${leaders.length > 1 ? "Los que suman más" : "Quien suma más"}</div>
+          <div class="mi-leaders">${leaders.map(id=> `<button type="button" class="mi-pair" data-pick="${id}">${faceHtml(id,{static:true})}<span class="mi-pn">${escapeHtml(shortName(id))}<em>${max} en la red</em></span></button>`).join("")}</div>` : ""}
+          <p class="mi-hint">Solo lo que cuentan las historias o lo que se ha contado aparte, nada supuesto. ${hint}</p>
+        </div>`
+      : `<div class="mi-eyebrow">Amoríos</div><p class="mi-hint">Todavía no hay nadie en esta red.${isEditOn() ? " Agrega el primero con ➕." : ""}</p>`;
       return;
     }
     const strongest = g.edges.slice().sort((a,b)=> b.w-a.w)[0];
+    // primero solo cómo se usa; las cifras y el lazo más fuerte, deslizando el panel hacia abajo
     info.innerHTML = `
-      <div class="mi-eyebrow">La red</div>
-      <div class="mi-big"><b>${g.nodes.length}</b> personas · <b>${g.edges.length}</b> conexiones</div>
-      ${strongest ? `<div class="mi-sub">El lazo más fuerte</div>
-      <button type="button" class="mi-pair" data-pick="${strongest.a}">${faceHtml(strongest.a,{static:true})}${faceHtml(strongest.b,{static:true})}<span class="mi-pn">${escapeHtml(shortName(strongest.a))} y ${escapeHtml(shortName(strongest.b))}<em>${strongest.w} historias en común</em></span></button>` : ""}
-      <p class="mi-hint">${hint}</p>`;
+      <p class="mi-hint mi-first">${hint}</p>
+      <div class="mi-rest">
+        <div class="mi-eyebrow">La red</div>
+        <div class="mi-big"><b>${g.nodes.length}</b> personas · <b>${g.edges.length}</b> conexiones</div>
+        ${strongest ? `<div class="mi-sub">El lazo más fuerte</div>
+        <button type="button" class="mi-pair" data-pick="${strongest.a}">${faceHtml(strongest.a,{static:true})}${faceHtml(strongest.b,{static:true})}<span class="mi-pn">${escapeHtml(shortName(strongest.a))} y ${escapeHtml(shortName(strongest.b))}<em>${strongest.w} historias en común</em></span></button>` : ""}
+      </div>`;
   };
   const nodeInfo = id=>{
     const n = g.nodes.find(x=> x.id === id); if(!n) return idleInfo();
@@ -1862,7 +1868,7 @@ function viewMap(which){
         <a class="mi-go" href="#/character/${id}">Ver ficha →</a></div>
       <ol class="mi-links">${links.map(([o,w])=>`<li><button type="button" data-pick="${o}">${faceHtml(o,{static:true})}<span class="mi-ln">${escapeHtml(DATA.characters[o].name)}</span><b>${w}</b></button></li>`).join("")}</ol>`;
   };
-  const showInfo = id=> id ? nodeInfo(id) : idleInfo();
+  const showInfo = id=>{ if(id) nodeInfo(id); else idleInfo(); info.classList.toggle("is-person", !!id); info.scrollTop = 0; };
   // tocar a alguien en el panel lo elige en la red (gira hasta dejarlo al frente)
   info.addEventListener("click", e=>{
     const b = e.target.closest("[data-pick]");
@@ -2459,7 +2465,7 @@ function viewTogether(a, b){
       const hkSt = hk && hookStory(hk);
       body = `
         <div class="tg-num"><b>${n}</b><span>${n===1?"historia":"historias"} en común</span></div>
-        ${hk ? `<div class="tg-hook" style="--k:rgb(${hookKind(hk).rgb})"><span>${hookKind(hk).icon} ${escapeHtml(hookKind(hk).label)}${hkSt ? ` · <a href="${storyHref(hkSt.season.id, hkSt.index)}">${escapeHtml(hkSt.event.title)} →</a>` : ""} · <a href="#/map/besos">ver la red</a></span></div>` : ""}
+        ${hk ? `<div class="tg-hook" style="--k:rgb(${hookKind(hk).rgb})"><span>${hookKind(hk).icon} ${escapeHtml(hookKind(hk).label)}${hkSt ? ` · <a href="${storyHref(hkSt.season.id, hkSt.index)}">${escapeHtml(hkSt.event.title)} →</a>` : ""} · <a href="#/map/besos">ver los amoríos</a></span></div>` : ""}
         <div class="tg-bars">
           <div class="tg-bar" style="--fcolor:${A.color}"><span>${escapeHtml(fa)}</span><i><em style="width:${pct(a)}%"></em></i><b>${pct(a)}%</b><small>de sus ${counts[a]} historias son con ${escapeHtml(fb)}</small></div>
           <div class="tg-bar" style="--fcolor:${B.color}"><span>${escapeHtml(fb)}</span><i><em style="width:${pct(b)}%"></em></i><b>${pct(b)}%</b><small>de sus ${counts[b]} historias son con ${escapeHtml(fa)}</small></div>

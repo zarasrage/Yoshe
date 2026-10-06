@@ -1469,6 +1469,8 @@ a.stat-cell:hover{background:color-mix(in srgb, var(--pcolor) 12%, transparent);
 .net-page.is-besos .net-stage{background:radial-gradient(ellipse 60% 50% at 45% 50%, rgba(255,80,150,.07), transparent 70%);}
 .map-add{padding:7px 14px; border-radius:999px; border:1px dashed rgba(255,111,168,.6); background:rgba(255,111,168,.08); color:#ffb3d1; font-family:'JetBrains Mono',monospace; font-size:.62rem; cursor:pointer;}
 .mi-legend{display:flex; flex-direction:column; gap:6px; margin:4px 0 14px;}
+.mi-first{margin-top:0;}
+.mi-rest{margin-top:16px;}
 .mi-legend span{display:flex; align-items:center; gap:8px; font-size:.82rem; color:var(--ink-dim);}
 .mi-legend i{width:22px; height:3px; border-radius:3px; background:var(--k); box-shadow:0 0 8px var(--k);}
 .mi-leaders{display:flex; flex-wrap:wrap; gap:0 14px;}
@@ -1528,7 +1530,17 @@ a.stat-cell:hover{background:color-mix(in srgb, var(--pcolor) 12%, transparent);
   .net-head-row{margin-top:8px;}
   .map-modes button{padding:6px 12px; font-size:.6rem;}
   /* the bottom sheet: fixed height, the planet-style "the scene rules" split (~30% of the screen) */
-  .map-info{top:auto; right:10px; left:10px; bottom:10px; width:auto; height:min(30%, 250px); max-height:none; padding:14px 16px;}
+  /* a small sheet: at rest it shows only how to use it (or the colour legend); the rest is
+     below, scrolling inside it. The handle and the bottom fade say there's more */
+  .map-info{top:auto; right:10px; left:10px; bottom:10px; width:auto; height:96px; max-height:none; padding:16px 16px 18px; transition:height .35s var(--ease);
+    -webkit-mask-image:linear-gradient(to bottom, #000 calc(100% - 22px), transparent); mask-image:linear-gradient(to bottom, #000 calc(100% - 22px), transparent);}
+  .map-info::before{content:""; position:sticky; top:-10px; display:block; width:36px; height:4px; border-radius:4px; margin:-8px auto 8px; background:rgba(255,255,255,.22);}
+  .mi-first{min-height:42px; margin-bottom:26px; display:flex; align-items:center;}
+  /* someone picked: the sheet grows to show their list (net3d re-centres the cloud smoothly) */
+  .map-info.is-person{height:min(30%, 240px);}
+  .mi-legend.mi-first{flex-direction:row; flex-wrap:wrap; gap:6px 16px; margin-top:0;}
+  .mi-legend span{font-size:.8rem;}
+  .mi-rest{padding-top:12px; border-top:1px solid var(--line);}
   .mi-big{font-size:1.15rem; margin:2px 0 8px;}
   .mi-big b{font-size:1.5rem;}
   .mi-pair{margin:6px 0 8px;}
