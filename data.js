@@ -33,6 +33,7 @@ const DATA = {
     "nacho-periale":      {name:"Nacho Periale",           role:"— rol pendiente —", tier:"secundario", color:"#8b6bf2", bio:"Cuéntame más sobre Nacho: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
     "maca-hermantraut":   {name:"Maca Hermantraut",        role:"— rol pendiente —", tier:"secundario", color:"#3f8c82", bio:"Cuéntame más sobre Maca: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
     "juan-pablo-cisterna": {name:"Juan Pablo Cisterna",    role:"— rol pendiente —", tier:"secundario", color:"#6b9bf2", bio:"Cuéntame más sobre Juan Pablo (el Polilla): quién es y cómo se relaciona con el grupo.", apodo:"Polilla", frase:null, habilidad:null, destino:null, tags:[]},
+    "cote-demandes":      {name:"Cote Demandes",           role:"— rol pendiente —", tier:"secundario", color:"#e07ab0", bio:"Hermana de Hugo Demandes y de María Ignacia Demandes (la Nacha). Cuéntame más sobre ella: cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
     "hernan-miranda":     {name:"Hernán Miranda",          role:"— rol pendiente —", tier:"secundario", color:"#7fae6f", bio:"Cuéntame más sobre Hernán Miranda: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
     "jamil":              {name:"Jamil",                   role:"— rol pendiente —", tier:"secundario", color:"#e0b84f", bio:"Cuéntame más sobre Jamil: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
     "aranza":             {name:"Aranza",                  role:"— rol pendiente —", tier:"secundario", color:"#c9853f", bio:"Cuéntame más sobre Aranza: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
@@ -445,7 +446,11 @@ const DATA = {
     {a:"gerardo-cortes", b:"milf", kind:"full", story:{season:5, title:"La fonda del Dieciocho en Chapultepec"}, note:"Se la agarró, y la cosa llegó hasta el final."},
     {a:"hernan-suarez", b:"maca-hermantraut", kind:"ex", story:{season:5, title:"La fonda del Dieciocho en Chapultepec"}, note:"Su ex: se comieron."},
     {a:"hernan-suarez", b:"valeria-dassori", kind:"ex", story:{season:5, title:"La fonda del Dieciocho en Chapultepec"}, note:"Su ex: se comieron."},
-    {a:"hernan-suarez", b:"maria-ignacia-demandes", kind:"ex", story:{season:5, title:"La fonda del Dieciocho en Chapultepec"}, note:"Su ex: se comieron."}
+    {a:"hernan-suarez", b:"maria-ignacia-demandes", kind:"ex", story:{season:5, title:"La fonda del Dieciocho en Chapultepec"}, note:"Su ex: se comieron."},
+    {a:"cristobal-jones", b:"cote-demandes", kind:"beso", story:null, note:null},
+    {a:"hugo-demandes", b:"maria-ignacia-cardenas", kind:"beso", story:null, note:null},
+    {a:"hugo-demandes", b:"paula-jara", kind:"beso", story:null, note:null},
+    {a:"hugo-demandes", b:"fernanda-monsalve", kind:"beso", story:null, note:null}
   ],
   armageddon: {
     intro: "Cuéntame cómo termina la historia de Yoshe con Hoyo — el destino final del grupo. ¿Hay un evento que lo cierra todo, o simplemente el hoyo se los sigue tragando generación tras generación?"

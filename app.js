@@ -1830,7 +1830,7 @@ function viewMap(which){
         ${max > 1 ? `<div class="mi-sub">${leaders.length > 1 ? "Los que suman más" : "Quien suma más"}</div>
         <div class="mi-leaders">${leaders.map(id=> `<button type="button" class="mi-pair" data-pick="${id}">${faceHtml(id,{static:true})}<span class="mi-pn">${escapeHtml(shortName(id))}<em>${max} en la red</em></span></button>`).join("")}</div>` : ""}
         <div class="mi-legend">${used.map(k=> `<span style="--k:rgb(${HOOK_KINDS[k].rgb})"><i></i>${HOOK_KINDS[k].icon} ${escapeHtml(HOOK_KINDS[k].label)}</span>`).join("")}</div>
-        <p class="mi-hint">Solo lo que cuentan las historias. ${hint}</p>`
+        <p class="mi-hint">Solo lo que cuentan las historias o lo que se ha contado aparte, nada supuesto. ${hint}</p>`
       : `<div class="mi-eyebrow">La red de besos</div><p class="mi-hint">Todavía no hay nadie en esta red.${isEditOn() ? " Agrega el primero con ➕." : ""}</p>`;
       return;
     }
