@@ -803,7 +803,7 @@ function siteFooter(){
   return `<footer class="site-footer reveal">
     <div class="sf-brand">Yoshe con <em>Hoyo</em></div>
     <nav class="sf-links">
-      <a href="#/home">Galaxia</a><a href="#/elenco">Elenco</a><a href="#/map">Mapa</a><a href="#/records">Récords</a><a href="#/armageddon" class="sf-doom">Armagedón</a>
+      <a href="#/home">Galaxia</a><a href="#/elenco">Elenco</a><a href="#/map">Mapa</a><a href="#/records">Récords</a><a href="#/resumen">Resúmenes</a><a href="#/armageddon" class="sf-doom">Armagedón</a>
     </nav>
     <div class="sf-note">una crónica en construcción · S0 → S5</div>
   </footer>`;
@@ -1466,6 +1466,7 @@ function viewCharacter(id){
   app.innerHTML = `
     <div class="page-topbar">
       <div class="back-btn" onclick="history.length>1?history.back():location.hash='#/elenco'">← Volver</div>
+      ${related.length ? `<a class="back-btn recap-btn" href="#/resumen/${id}">▶ Ver su resumen</a>` : ""}
       <button class="back-btn edit-only-btn" onclick="openCharEditModal('${id}')">✏️ Editar personaje</button>
     </div>
     ${photos.length ? `
@@ -1733,6 +1734,254 @@ function viewMap(){
   viewCleanups.push(()=>{ document.removeEventListener("keydown", onKey); if(typeof unmountNet3D === "function") unmountNet3D(); net = null; });
 }
 
+/* =========================== render: RESÚMENES (#/resumen) =========================== */
+// El paso de cada persona por la crónica, en diapositivas a pantalla completa (como los
+// resúmenes del año de las apps de música): cuántas historias, su debut, su temporada, su
+// dupla, su lugar, la noche más concurrida... Todo sale de DATA: si una cifra no existe, la
+// diapositiva no sale (nada se inventa). La pantalla no scrollea (mismo bloqueo que la galaxia):
+// toque a la derecha avanza, a la izquierda vuelve, deslizar también, y las flechas del teclado.
+function personRecap(id){
+  const all = allEventsFlat();            // en orden: temporada por temporada, como la crónica
+  const mine = all.filter(r=> r.event.chars.includes(id));
+  const counts = {};
+  all.forEach(r=> r.event.chars.forEach(c=>{ if(DATA.characters[c]) counts[c] = (counts[c]||0) + 1; }));
+  const n = mine.length;
+  const ahead = Object.entries(counts).filter(([c,k])=> c !== id && k > n).length;
+  const tied = Object.entries(counts).filter(([c,k])=> c !== id && k === n).length;
+  const tally = list=>{ const m = {}; list.forEach(k=>{ if(k !== null && k !== undefined) m[k] = (m[k]||0) + 1; });
+    const arr = Object.entries(m).sort((a,b)=> b[1]-a[1]); const top = arr.length ? arr[0][1] : 0;
+    return { top, keys: arr.filter(x=> x[1] === top).map(x=> x[0]) }; };
+  const seasons = tally(mine.map(r=> r.season.id));
+  const places = tally(mine.map(r=> DATA.places[r.event.place] ? r.event.place : null));
+  const co = castOf(mine.map(r=> r.event)).filter(([c])=> c !== id);
+  const crowd = mine.slice().sort((a,b)=> b.event.chars.length - a.event.chars.length)[0] || null;
+  const seasonSet = [...new Set(mine.map(r=> r.season.code))];
+  return { n, total: all.length, ahead, tied, mine, seasons, places, co, crowd, seasonSet,
+    first: mine[0] || null, last: mine[mine.length-1] || null, people: Object.keys(counts).length };
+}
+const andList = arr=> arr.length <= 1 ? (arr[0]||"") : arr.slice(0,-1).join(", ") + " y " + arr[arr.length-1];
+
+function recapSlides(id){
+  const c = DATA.characters[id], R = personRecap(id);
+  const first = c.name.split(" ")[0];
+  const photo = getPhotos(c)[0] || avatarSrc(c);
+  const big = (cid, cls)=>{ const p = DATA.characters[cid], src = avatarSrc(p);
+    return `<span class="wr-face ${cls||""}" style="--fcolor:${p.color}">${src ? `<img src="${src}" alt="" class="${p.thumb?'':'is-full'}">` : `<b>${escapeHtml(initials(p.name))}</b>`}</span>`; };
+  const storyLink = (r, label)=> `<a class="wr-story" href="${storyHref(r.season.id, r.index)}" style="--scolor:${r.season.color}">
+      <span class="wr-story-meta">${escapeHtml(r.season.code)} · ${escapeHtml(isPending(r.event.date) ? "fecha pendiente" : r.event.date)}</span>
+      <span class="wr-story-title">${escapeHtml(r.event.title)}</span>
+      <span class="wr-story-ex">${escapeHtml(excerpt(r.event.content, 130))}</span>
+      <span class="wr-story-go">${label || "Leer la historia →"}</span></a>`;
+  const S = [];
+  S.push({ key:"intro", color:c.color, html:`
+    <div class="wr-eyebrow wr-a" style="--d:0">Yoshe con Hoyo · Resumen</div>
+    <div class="wr-portrait wr-a" style="--d:1">${photo ? `<img src="${photo}" alt="${escapeHtml(c.name)}">` : `<b>${escapeHtml(initials(c.name))}</b>`}</div>
+    <h1 class="wr-title wr-a" style="--d:2">La crónica de <em>${escapeHtml(first)}</em></h1>
+    <p class="wr-sub wr-a" style="--d:3">${R.n ? `${R.n} ${R.n===1?"historia":"historias"} · ${R.seasonSet.length} ${R.seasonSet.length===1?"temporada":"temporadas"}` : "Todavía sin historias"}</p>
+    <p class="wr-tip wr-a" style="--d:4">toca a la derecha para avanzar</p>` });
+  if(!R.n){
+    S.push({ key:"empty", color:c.color, html:`
+      <h2 class="wr-h wr-a" style="--d:0">La crónica de ${escapeHtml(first)} todavía no empieza</h2>
+      <p class="wr-sub wr-a" style="--d:1">Cuando aparezca en una historia, acá va a salir su resumen.</p>` });
+  } else {
+    const rankLine = R.ahead === 0 ? (R.tied ? `Nadie aparece más (empata con ${R.tied===1?"otra persona":`${R.tied} personas`}).` : "Nadie aparece más en toda la crónica.")
+      : R.ahead === 1 ? "Solo una persona aparece más." : `Solo ${R.ahead} personas aparecen más, de ${R.people}.`;
+    S.push({ key:"count", color:c.color, html:`
+      <div class="wr-eyebrow wr-a" style="--d:0">En la crónica</div>
+      <div class="wr-num wr-a" style="--d:1">${R.n}</div>
+      <p class="wr-big wr-a" style="--d:2">${R.n===1?"historia":"historias"} con ${escapeHtml(first)} adentro</p>
+      <p class="wr-sub wr-a" style="--d:3">de las ${R.total} que tiene la crónica. ${rankLine}</p>
+      <div class="wr-dots wr-a" style="--d:4">${DATA.seasons.map(s=> `<span class="${R.seasonSet.includes(s.code)?"on":""}" style="--scolor:${s.color}">${escapeHtml(s.code)}</span>`).join("")}</div>` });
+    S.push({ key:"debut", color:R.first.season.color, html:`
+      <div class="wr-eyebrow wr-a" style="--d:0">${R.n===1 ? "Su historia, hasta ahora" : "El debut"}</div>
+      <h2 class="wr-h wr-a" style="--d:1">${R.n===1 ? `Por ahora, ${escapeHtml(first)} aparece en una sola` : `Todo empezó en ${escapeHtml(R.first.season.code)}`}</h2>
+      <div class="wr-a" style="--d:2">${storyLink(R.first)}</div>` });
+    if(R.n >= 2){
+      const sids = R.seasons.keys, ss = sids.map(k=> DATA.seasons.find(s=> String(s.id) === String(k)));
+      const s0 = ss[0];
+      S.push({ key:"season", color:s0.color, html:`
+        <div class="wr-eyebrow wr-a" style="--d:0">${ss.length > 1 ? "Sus temporadas" : "Su temporada"}</div>
+        <div class="wr-code wr-a" style="--d:1">${ss.map(s=> `<span style="color:${s.color}">${escapeHtml(s.code)}</span>`).join(" · ")}</div>
+        <p class="wr-big wr-a" style="--d:2">${ss.map(s=> escapeHtml(s.title)).join(" y ")}</p>
+        <p class="wr-sub wr-a" style="--d:3">${ss.length > 1 ? `Empatadas: ${R.seasons.top} ${R.seasons.top===1?"historia":"historias"} en cada una.` : `${R.seasons.top} de sus ${R.n} historias pasaron ahí.`}</p>` });
+    }
+    if(R.co.length){
+      const top = R.co[0][1], duo = R.co.filter(x=> x[1] === top).map(x=> x[0]);
+      const rest = R.co.filter(x=> x[1] < top).slice(0, 4);
+      const names = duo.slice(0, 4).map(x=> escapeHtml(duo.length === 1 ? DATA.characters[x].name : shortName(x)));
+      S.push({ key:"duo", color:DATA.characters[duo[0]].color, html:`
+        <div class="wr-eyebrow wr-a" style="--d:0">${duo.length > 1 ? (top === 1 ? "Quiénes estuvieron" : "Sus duplas") : "Su dupla"}</div>
+        <div class="wr-duo wr-a" style="--d:1">${big(id, "is-me")}<span class="wr-plus">+</span>${duo.slice(0,4).map(x=> big(x)).join("")}</div>
+        <h2 class="wr-h wr-a" style="--d:2">${andList(names)}${duo.length > 4 ? ` y ${duo.length-4} más` : ""}</h2>
+        <p class="wr-sub wr-a" style="--d:3">${top === 1 && duo.length > 1 ? "Una historia en común con cada persona: la crónica todavía está repartida." : `${top} ${top===1?"historia":"historias"} en común${duo.length > 1 ? " con cada persona" : ""}.`}</p>
+        ${rest.length ? `<div class="wr-rest wr-a" style="--d:4">${rest.map(([x,k])=> `<span>${faceHtml(x,{static:true})}${escapeHtml(shortName(x))} <b>${k}</b></span>`).join("")}</div>` : ""}` });
+    }
+    if(R.places.keys.length){
+      const pl = R.places.keys.map(k=> DATA.places[k]);
+      S.push({ key:"place", color:"#5fd3c4", html:`
+        <div class="wr-eyebrow wr-a" style="--d:0">${pl.length > 1 ? "Sus lugares" : "Su lugar"}</div>
+        <div class="wr-icon wr-a" style="--d:1">${pl.slice(0,3).map(p=> p.icon || "📍").join(" ")}</div>
+        <h2 class="wr-h wr-a" style="--d:2">${andList(pl.slice(0,3).map(p=> escapeHtml(p.name)))}</h2>
+        <p class="wr-sub wr-a" style="--d:3">${R.places.top === 1 ? (pl.length > 1 ? "Una vez en cada uno." : "Una visita registrada, por ahora.") : `${R.places.top} historias ahí${pl.length > 1 ? ", en cada uno" : ""}.`}</p>` });
+    }
+    if(R.crowd && R.n >= 2 && R.crowd.event.chars.length >= 3){
+      const r = R.crowd;
+      S.push({ key:"crowd", color:r.season.color, html:`
+        <div class="wr-eyebrow wr-a" style="--d:0">La más concurrida</div>
+        <div class="wr-num wr-a" style="--d:1">${r.event.chars.length}</div>
+        <p class="wr-big wr-a" style="--d:2">personas en una misma historia</p>
+        <div class="wr-a" style="--d:3">${storyLink(r)}</div>
+        <div class="wr-crowd wr-a" style="--d:4">${facesHtml(r.event.chars.filter(x=> DATA.characters[x]), 14, "faces-sm", true)}</div>` });
+    }
+    const traits = [
+      c.apodo && !isPending(c.apodo) ? `<div class="wr-trait"><span>Le dicen</span><b>“${escapeHtml(c.apodo)}”</b></div>` : "",
+      c.habilidad && !isPending(c.habilidad) ? `<div class="wr-trait"><span>Habilidad especial</span><b>${escapeHtml(c.habilidad)}</b></div>` : "",
+      c.frase && !isPending(c.frase) ? `<div class="wr-trait"><span>Su frase</span><b>${escapeHtml(c.frase)}</b></div>` : ""
+    ].filter(Boolean);
+    if(traits.length) S.push({ key:"traits", color:c.color, html:`
+        <div class="wr-eyebrow wr-a" style="--d:0">Lo que la crónica dice</div>
+        <div class="wr-traits wr-a" style="--d:1">${traits.join("")}</div>` });
+  }
+  const destino = c.destino && !isPending(c.destino) ? c.destino : null;
+  S.push({ key:"outro", color: destino ? "#ff6a6a" : c.color, doom: !!destino, final:true, html:`
+    <div class="wr-eyebrow wr-a" style="--d:0">${destino ? "Y en el Armagedón…" : "Y la crónica sigue"}</div>
+    ${destino ? `<p class="wr-quote wr-a" style="--d:1">${escapeHtml(destino)}</p>`
+      : R.last && R.n > 1 ? `<h2 class="wr-h wr-a" style="--d:1">Su última aparición, por ahora</h2><div class="wr-a" style="--d:2">${storyLink(R.last)}</div>`
+      : `<h2 class="wr-h wr-a" style="--d:1">Lo que viene todavía no está escrito.</h2>`}
+    <div class="wr-actions wr-a" style="--d:3">
+      <a class="wr-btn primary" href="#/character/${id}">Ver la ficha de ${escapeHtml(first)}</a>
+      <button type="button" class="wr-btn" data-act="share">Compartir este resumen</button>
+      <button type="button" class="wr-btn" data-act="again">Ver de nuevo</button>
+      <a class="wr-btn" href="#/resumen">Ver otro resumen</a>
+    </div>` });
+  return S;
+}
+
+function viewRecap(id){
+  renderSeasonsStrip(null);
+  const app = document.getElementById("app");
+  const c = DATA.characters[id];
+  if(!c){ location.replace("#/resumen"); return; }
+  const slides = recapSlides(id);
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const DUR = 6500;
+  app.innerHTML = `
+    <section class="wr-page" style="--pcolor:${c.color}" aria-roledescription="presentación" aria-label="Resumen de ${escapeHtml(c.name)}">
+      <div class="wr-bars">${slides.map(()=> `<span><i></i></span>`).join("")}</div>
+      <div class="wr-top">
+        <a class="wr-who" href="#/character/${id}">${faceHtml(id,{static:true})}<span>${escapeHtml(c.name)}</span></a>
+        <button type="button" class="wr-x" aria-label="Pausar" data-act="pause">❚❚</button>
+        <a class="wr-x" href="#/resumen" aria-label="Cerrar">✕</a>
+      </div>
+      <div class="wr-stage">${slides.map((s,i)=> `<div class="wr-slide${s.doom?" is-doom":""}" data-i="${i}" style="--scolor:${s.color}" aria-hidden="true"><div class="wr-inner">${s.html}</div></div>`).join("")}</div>
+      <button type="button" class="wr-nav wr-prev" aria-label="Anterior">‹</button>
+      <button type="button" class="wr-nav wr-next" aria-label="Siguiente">›</button>
+    </section>`;
+  const page = app.querySelector(".wr-page");
+  const els = [...page.querySelectorAll(".wr-slide")], bars = [...page.querySelectorAll(".wr-bars i")];
+  const pauseBtn = page.querySelector('[data-act="pause"]');
+  let i = 0, t0 = 0, acc = 0, paused = reduced, raf = null, alive = true, held = false;
+  function show(k){
+    i = Math.max(0, Math.min(slides.length-1, k));
+    els.forEach((el,j)=>{ el.classList.toggle("is-on", j === i); el.classList.toggle("is-past", j < i); el.setAttribute("aria-hidden", j === i ? "false" : "true"); });
+    bars.forEach((b,j)=> b.style.transform = `scaleX(${j < i ? 1 : 0})`);
+    page.style.setProperty("--scolor", slides[i].color);
+    page.classList.toggle("is-doom", !!slides[i].doom);
+    acc = 0; t0 = performance.now();
+    loop();
+  }
+  function setPaused(p){ paused = p; pauseBtn.textContent = p ? "▶" : "❚❚"; pauseBtn.setAttribute("aria-label", p ? "Seguir" : "Pausar"); t0 = performance.now(); loop(); }
+  function loop(){
+    if(raf !== null || !alive) return;
+    raf = requestAnimationFrame(function tick(now){
+      raf = null; if(!alive) return;
+      const run = !paused && !held && !document.hidden && !slides[i].final;
+      if(run){ acc += now - t0; }
+      t0 = now;
+      const k = Math.min(1, acc / DUR);
+      if(bars[i]) bars[i].style.transform = `scaleX(${slides[i].final ? 1 : k})`;
+      if(k >= 1 && !slides[i].final){ show(i+1); return; }
+      if(run) raf = requestAnimationFrame(tick);
+    });
+  }
+  // toque: derecha avanza, izquierda vuelve; mantener apretado pausa; deslizar cambia
+  const stage = page.querySelector(".wr-stage");
+  let down = null, holdT = null;
+  stage.addEventListener("pointerdown", e=>{
+    if(e.target.closest("a, button")) return;
+    down = { x:e.clientX, y:e.clientY, t:performance.now() };
+    holdT = setTimeout(()=>{ held = true; page.classList.add("is-held"); }, 220);
+  });
+  const up = e=>{
+    clearTimeout(holdT);
+    const wasHeld = held; held = false; page.classList.remove("is-held");
+    if(!down) return;
+    const dx = e.clientX - down.x, dy = e.clientY - down.y; const d = down; down = null;
+    if(Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)){ show(i + (dx < 0 ? 1 : -1)); return; }
+    if(wasHeld || performance.now() - d.t > 400){ t0 = performance.now(); loop(); return; }
+    const r = stage.getBoundingClientRect();
+    show(i + (e.clientX - r.left < r.width*0.33 ? -1 : 1));
+  };
+  stage.addEventListener("pointerup", up);
+  stage.addEventListener("pointercancel", ()=>{ clearTimeout(holdT); held = false; down = null; page.classList.remove("is-held"); t0 = performance.now(); loop(); });
+  page.querySelector(".wr-prev").addEventListener("click", ()=> show(i-1));
+  page.querySelector(".wr-next").addEventListener("click", ()=> show(i+1));
+  pauseBtn.addEventListener("click", ()=> setPaused(!paused));
+  page.addEventListener("click", e=>{
+    const b = e.target.closest("[data-act]"); if(!b) return;
+    if(b.dataset.act === "again") show(0);
+    if(b.dataset.act === "share"){
+      const url = location.href.split("#")[0] + `#/resumen/${id}`;
+      try{
+        if(navigator.share && matchMedia("(pointer:coarse)").matches){ navigator.share({ title:`Resumen de ${c.name}`, url }).catch(()=>{}); return; }
+        navigator.clipboard.writeText(url).then(()=> showToast("Enlace del resumen copiado."), ()=> showToast("No se pudo copiar el enlace."));
+      }catch(err){ showToast("No se pudo copiar el enlace."); }
+    }
+  });
+  const onKey = e=>{
+    if(overlayOpen()) return;
+    if(e.key === "ArrowRight" || e.key === " "){ e.preventDefault(); show(i+1); }
+    else if(e.key === "ArrowLeft"){ e.preventDefault(); show(i-1); }
+    else if(e.key === "Escape") location.hash = "#/resumen";
+  };
+  const onVis = ()=>{ t0 = performance.now(); if(!document.hidden) loop(); };
+  document.addEventListener("keydown", onKey);
+  document.addEventListener("visibilitychange", onVis);
+  viewCleanups.push(()=>{ alive = false; if(raf !== null) cancelAnimationFrame(raf); clearTimeout(holdT);
+    document.removeEventListener("keydown", onKey); document.removeEventListener("visibilitychange", onVis); });
+  if(reduced) setPaused(true);
+  show(0);
+}
+
+// el índice: elegir de quién ver el resumen
+function viewRecapIndex(){
+  renderSeasonsStrip(null);
+  const app = document.getElementById("app");
+  const counts = {}; allEventsFlat().forEach(r=> r.event.chars.forEach(c=>{ counts[c] = (counts[c]||0) + 1; }));
+  const ids = Object.keys(DATA.characters).filter(id=> counts[id]);
+  const group = ids.filter(id=> DATA.characters[id].tier !== "secundario").sort((a,b)=> counts[b]-counts[a] || DATA.characters[a].name.localeCompare(DATA.characters[b].name));
+  const others = ids.filter(id=> DATA.characters[id].tier === "secundario").sort((a,b)=> counts[b]-counts[a] || DATA.characters[a].name.localeCompare(DATA.characters[b].name));
+  const card = id=>{ const c = DATA.characters[id], src = avatarSrc(c);
+    return `<a class="ri-card" href="#/resumen/${id}" style="--fcolor:${c.color}">
+      <span class="ri-face">${src ? `<img src="${src}" alt="" loading="lazy" class="${c.thumb?'':'is-full'}">` : `<b>${escapeHtml(initials(c.name))}</b>`}</span>
+      <span class="ri-name">${escapeHtml(c.name)}</span>
+      <span class="ri-n">${counts[id]} ${counts[id]===1?"historia":"historias"}</span>
+      <span class="ri-play" aria-hidden="true">▶</span></a>`; };
+  app.innerHTML = `
+    <section class="season-hero ri-hero" style="--scolor:var(--amber); border-bottom:none;">
+      <div class="scode-big">Resúmenes</div>
+      <h1>El paso de cada uno por la crónica</h1>
+      <p class="hito">Elige a alguien y mira su resumen en diapositivas: su debut, su temporada, su dupla, su lugar. Todo sale de las historias, nada inventado.</p>
+    </section>
+    <div class="ri-wrap">
+      <h2 class="ri-h">Del grupo</h2>
+      <div class="ri-grid reveal-stagger">${group.map(card).join("")}</div>
+      ${others.length ? `<h2 class="ri-h">Apariciones especiales</h2><div class="ri-grid ri-grid-sm reveal-stagger">${others.map(card).join("")}</div>` : ""}
+    </div>
+    ${siteFooter()}`;
+  setupReveals();
+}
+
 /* =========================== render: RÉCORDS =========================== */
 // El salón de la fama: todo calculado desde DATA (quién aparece más, el lugar más visitado, el
 // dúo inseparable, la noche más concurrida...). Nada inventado: si cambian las historias,
@@ -1900,6 +2149,8 @@ function render(){
     // (the home's Hoyo focus also sets it, see syncMood).
     syncMood(false);
     document.body.classList.toggle("route-home", !parts[0] || parts[0]==="home");
+    // pantallas inmersivas (sin la fila de temporadas en el teléfono): los resúmenes y el juego
+    document.body.classList.toggle("route-full", (parts[0]==="resumen" && !!parts[1]) || parts[0]==="juego");
     if(parts[0]==="season" && parts[1]!==undefined) viewSeason(parts[1]);
     else if(parts[0]==="character" && parts[1]!==undefined) viewCharacter(parts[1]);
     else if(parts[0]==="place" && parts[1]!==undefined) viewPlace(parts[1]);
@@ -1907,6 +2158,7 @@ function render(){
     else if(parts[0]==="armageddon") viewArmageddon();
     else if(parts[0]==="elenco") viewCast();
     else if(parts[0]==="records") viewRecords();
+    else if(parts[0]==="resumen") parts[1] ? viewRecap(parts[1]) : viewRecapIndex();
     else viewHome();
     window.scrollTo({top: restoreY!==undefined ? restoreY : 0, behavior:"instant"});
     // #/season/N/M: enlace directo a una historia (las lunas del 3D, el buscador, las fichas).
@@ -1916,7 +2168,7 @@ function render(){
       setTimeout(()=>flashEvent(sid, idx), 90);
     }
     // la home (solo la galaxia) y el mapa de relaciones: sin scroll, los gestos son de la escena
-    if(document.querySelector(".hero .home-sky, .net-page")) setGalaxyLock(true);
+    if(document.querySelector(".hero .home-sky, .net-page, .wr-page")) setGalaxyLock(true);
     // el título de la pestaña dice dónde estás (y es lo que se ve al compartir el enlace)
     const h1 = document.querySelector("#app h1");
     const isHome = !parts[0] || parts[0]==="home";
