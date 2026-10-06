@@ -445,13 +445,13 @@ const DATA = {
     }
   ],
   // Quién se comió a quién: solo lo que cuentan las historias o lo que contó el usuario.
-  // kind: "beso" (se comieron) | "pinche" | "ex" (fueron pareja) | "full" (llegaron hasta el final).
+  // kind: "beso" (se comieron) | "pinche" | "ex" (fueron pareja).
   // story: la historia que lo cuenta (temporada + título exacto), o null si lo contó el usuario aparte.
   hookups: [
     {a:"maca-hermantraut", b:"maria-ignacia-cardenas", kind:"beso", story:{season:1, title:"Año Nuevo en Bosque Luz"}, note:"Si la memoria no falla, esa noche se comieron."},
     {a:"maria-ignacia-demandes", b:"dawding", kind:"beso", story:{season:5, title:"La noche de oro en Vrava"}, note:"Lo conquistó en la noche de oro."},
     {a:"heidi-meyer", b:"tort", kind:"pinche", story:{season:5, title:"La noche de oro en Vrava"}, note:"Su pinche de ese entonces."},
-    {a:"gerardo-cortes", b:"milf", kind:"full", story:{season:5, title:"La fonda del Dieciocho en Chapultepec"}, note:"Se la agarró, y la cosa llegó hasta el final."},
+    {a:"gerardo-cortes", b:"milf", kind:"beso", story:{season:5, title:"La fonda del Dieciocho en Chapultepec"}, note:"Se la agarró en la fonda."},
     {a:"hernan-suarez", b:"maca-hermantraut", kind:"ex", story:{season:5, title:"La fonda del Dieciocho en Chapultepec"}, note:"Su ex: se comieron."},
     {a:"hernan-suarez", b:"valeria-dassori", kind:"ex", story:{season:5, title:"La fonda del Dieciocho en Chapultepec"}, note:"Su ex: se comieron."},
     {a:"hernan-suarez", b:"maria-ignacia-demandes", kind:"ex", story:{season:5, title:"La fonda del Dieciocho en Chapultepec"}, note:"Su ex: se tiraban."},
@@ -462,8 +462,8 @@ const DATA = {
     {a:"maria-ignacia-cardenas", b:"gaston", kind:"ex", story:null, note:null},
     {a:"paula-jara", b:"pezuna", kind:"pinche", story:null, note:null},
     {a:"maria-ignacia-demandes", b:"sebastian-cataldo", kind:"ex", story:null, note:null},
-    {a:"maria-ignacia-demandes", b:"roberto", kind:"full", story:null, note:"Se lo tiró."},
-    {a:"maria-ignacia-demandes", b:"pollo", kind:"full", story:null, note:"Se lo tiró."},
+    {a:"maria-ignacia-demandes", b:"roberto", kind:"beso", story:null, note:"Se lo tiró."},
+    {a:"maria-ignacia-demandes", b:"pollo", kind:"beso", story:null, note:"Se lo tiró."},
     {a:"fernanda-monsalve", b:"alfred", kind:"ex", story:null, note:null},
     {a:"hugo-demandes", b:"maca-canistra", kind:"beso", story:null, note:"Se la comía."},
     {a:"joseto-cardenas", b:"maca-canistra", kind:"ex", story:null, note:null},

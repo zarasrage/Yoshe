@@ -1710,9 +1710,9 @@ function mapData(mode){
 const HOOK_KINDS = {
   beso:   { label:"se comieron",            rgb:"255,111,168", icon:"💋" },
   pinche: { label:"pinches",                rgb:"255,179,92",  icon:"🔥" },
-  ex:     { label:"ex",                     rgb:"180,140,255", icon:"💔" },
-  full:   { label:"llegaron hasta el final", rgb:"255,77,94",  icon:"🌶️" }
+  ex:     { label:"ex",                     rgb:"180,140,255", icon:"💔" }
 };
+// un tipo que ya no existe (p. ej. "full", que se juntó con "se comieron") cuenta como beso
 function hookupsAll(){
   return (DATA.hookups||[]).filter(h=> DATA.characters[h.a] && DATA.characters[h.b] && h.a !== h.b);
 }
