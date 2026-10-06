@@ -803,7 +803,7 @@ function siteFooter(){
   return `<footer class="site-footer reveal">
     <div class="sf-brand">Yoshe con <em>Hoyo</em></div>
     <nav class="sf-links">
-      <a href="#/home">Galaxia</a><a href="#/elenco">Elenco</a><a href="#/map">Mapa</a><a href="#/records">Récords</a><a href="#/resumen">Resúmenes</a><a href="#/armageddon" class="sf-doom">Armagedón</a>
+      <a href="#/home">Galaxia</a><a href="#/elenco">Elenco</a><a href="#/map">Mapa</a><a href="#/records">Récords</a><a href="#/resumen">Resúmenes</a><a href="#/juego">Juego</a><a href="#/armageddon" class="sf-doom">Armagedón</a>
     </nav>
     <div class="sf-note">una crónica en construcción · S0 → S5</div>
   </footer>`;
@@ -1327,7 +1327,9 @@ function isPending(text){
 }
 function firstSentence(text){
   const t = String(text||"").trim();
-  const cut = t.split(/(?<=\.)\s/)[0] || t;
+  // sin lookbehind (/(?<=\.)\s/): Safari anterior a 16.4 no lo entiende y no carga app.js entero
+  const m = t.match(/^[\s\S]*?\.(?=\s)/);
+  const cut = m ? m[0] : t;
   return cut.length > 120 ? cut.slice(0,117)+"…" : cut;
 }
 
@@ -1982,6 +1984,280 @@ function viewRecapIndex(){
   setupReveals();
 }
 
+/* =========================== render: JUEGO (#/juego) =========================== */
+// "¿Cuánto sabes de la crónica?": 10 preguntas armadas al azar desde DATA (quién no estuvo,
+// de qué historia es este pedazo, dónde fue, en qué temporada, la dupla de alguien...). Nada
+// inventado: cada pregunta sale de una historia real y la respuesta enlaza a ella. El mejor
+// puntaje queda en este navegador (localStorage, con try/catch como todo lo demás).
+const QZ_BEST = "ychQuizBest_v1";
+const QZ_LEN = 10;
+const qzPick = arr=> arr[Math.floor(Math.random()*arr.length)];
+function qzShuffle(arr){ const a = arr.slice(); for(let i=a.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]] = [a[j],a[i]]; } return a; }
+const qzSample = (arr, n)=> qzShuffle(arr).slice(0, n);
+function qzPersonOpt(id){ const c = DATA.characters[id]; return { key:id, label:c.name, html:`${faceHtml(id,{static:true})}<span class="qz-l">${escapeHtml(c.name)}</span>` }; }
+function qzStoryRef(r){ return `«${escapeHtml(r.event.title)}» <span class="qz-code" style="color:${r.season.color}">${escapeHtml(r.season.code)}</span>`; }
+
+function quizGenerators(){
+  const all = allEventsFlat();
+  const counts = {}; all.forEach(r=> r.event.chars.forEach(c=>{ if(DATA.characters[c]) counts[c] = (counts[c]||0) + 1; }));
+  const people = Object.keys(counts);
+  const regular = people.filter(id=> counts[id] >= 2);
+  const valid = r=> r.event.chars.filter(c=> DATA.characters[c]);
+  return {
+    // quién NO estuvo en una historia
+    notThere(){
+      const r = qzPick(all.filter(x=> valid(x).length >= 3)); if(!r) return null;
+      const inIt = valid(r);
+      const pool = regular.filter(id=> !inIt.includes(id)); if(!pool.length) return null;
+      const odd = qzPick(pool);
+      const opts = qzShuffle(qzSample(inIt, 3).concat([odd])).map(qzPersonOpt);
+      return { kind:"¿Quién no estuvo?", key:"not:"+r.season.id+":"+r.index, r,
+        prompt:`¿Quién <b>no</b> estuvo en ${qzStoryRef(r)}?`, opts, answer:odd,
+        explain:`${escapeHtml(DATA.characters[odd].name)} no aparece en esa historia. Estuvieron: ${escapeHtml(andList(inIt.map(shortName)))}.` };
+    },
+    // de qué historia es este pedazo (con los nombres tapados)
+    whichStory(){
+      if(all.length < 4) return null;
+      const r = qzPick(all);
+      const masked = (r.event.content||[]).map(sg=> sg.t === "text" ? sg.v : "▁▁▁").join("").replace(ASK_RE, "");
+      // (sin lookbehind en la regex: un Safari viejo no la entiende y se caería todo app.js)
+      const sentences = masked.replace(/([.!?…])\s+/g, "$1\n").split(/\n+/).map(x=> x.trim()).filter(x=> x.length >= 45 && x.length <= 230 && (x.match(/▁▁▁/g)||[]).length <= 3);
+      if(!sentences.length) return null;
+      const snippet = qzPick(sentences);
+      const others = qzSample(all.filter(x=> x !== r), 3);
+      const opts = qzShuffle([r].concat(others)).map(x=> ({ key:x.season.id+":"+x.index, label:x.event.title, html:`<span class="qz-l">${escapeHtml(x.event.title)}</span><em style="color:${x.season.color}">${escapeHtml(x.season.code)}</em>` }));
+      return { kind:"¿De qué historia es?", key:"which:"+r.season.id+":"+r.index, r,
+        prompt:"¿De qué historia es este pedazo?", context:`<blockquote class="qz-quote">“${escapeHtml(snippet).replace(/▁▁▁/g, '<span class="qz-blank">▁▁▁</span>')}”</blockquote>`,
+        opts, answer:r.season.id+":"+r.index, explain:`Es de ${qzStoryRef(r)}.` };
+    },
+    // dónde fue
+    where(){
+      const r = qzPick(all.filter(x=> DATA.places[x.event.place])); if(!r) return null;
+      const placeIds = Object.keys(DATA.places).filter(p=> p !== r.event.place);
+      if(placeIds.length < 3) return null;
+      const opts = qzShuffle([r.event.place].concat(qzSample(placeIds, 3))).map(p=> ({ key:p, label:DATA.places[p].name, html:`<b class="qz-ico">${DATA.places[p].icon||"📍"}</b><span class="qz-l">${escapeHtml(DATA.places[p].name)}</span>` }));
+      return { kind:"¿Dónde fue?", key:"where:"+r.season.id+":"+r.index, r,
+        prompt:`¿Dónde pasó «${escapeHtml(r.event.title)}»?`, opts, answer:r.event.place,
+        explain:`Fue en ${DATA.places[r.event.place].icon||""} ${escapeHtml(DATA.places[r.event.place].name)}.` };
+    },
+    // en qué temporada
+    when(){
+      const r = qzPick(all); if(!r || DATA.seasons.length < 4) return null;
+      const opts = qzShuffle([r.season].concat(qzSample(DATA.seasons.filter(s=> s !== r.season), 3))).map(s=> ({ key:String(s.id), label:s.code, html:`<b class="qz-ico" style="color:${s.color}">${escapeHtml(s.code)}</b><span class="qz-l">${escapeHtml(s.title)}</span>` }));
+      return { kind:"¿En qué temporada?", key:"when:"+r.season.id+":"+r.index, r,
+        prompt:`¿En qué temporada pasó «${escapeHtml(r.event.title)}»?`, opts, answer:String(r.season.id),
+        explain:`Fue en ${escapeHtml(r.season.code)} · ${escapeHtml(r.season.title)}${isPending(r.event.date) ? "" : ` (${escapeHtml(r.event.date)})`}.` };
+    },
+    // quién estuvo en las dos
+    both(){
+      const id = qzPick(regular); if(!id) return null;
+      const mine = all.filter(r=> r.event.chars.includes(id)); if(mine.length < 2) return null;
+      const [a, b] = qzSample(mine, 2);
+      const inBoth = x=> a.event.chars.includes(x) && b.event.chars.includes(x);
+      const pool = people.filter(x=> !inBoth(x)); if(pool.length < 3) return null;
+      const opts = qzShuffle([id].concat(qzSample(pool, 3))).map(qzPersonOpt);
+      return { kind:"¿Quién estuvo en las dos?", key:"both:"+id, r:a,
+        prompt:`¿Quién estuvo en ${qzStoryRef(a)} <i>y también</i> en ${qzStoryRef(b)}?`, opts, answer:id,
+        explain:`${escapeHtml(DATA.characters[id].name)} estuvo en las dos${people.filter(inBoth).length > 1 ? ` (no fue la única persona: ${escapeHtml(andList(people.filter(inBoth).filter(x=> x !== id).map(shortName)))} también)` : ""}.` };
+    },
+    // la dupla de alguien
+    duo(){
+      const id = qzPick(regular.filter(x=> DATA.characters[x].tier !== "secundario")); if(!id) return null;
+      const co = castOf(all.filter(r=> r.event.chars.includes(id)).map(r=> r.event)).filter(([c])=> c !== id);
+      if(co.length < 2 || co[0][1] === co[1][1] || co[0][1] < 2) return null;   // sin empate en el primer lugar
+      const top = co[0][0];
+      const pool = people.filter(x=> x !== id && x !== top); if(pool.length < 3) return null;
+      const opts = qzShuffle([top].concat(qzSample(pool, 3))).map(qzPersonOpt);
+      return { kind:"Su dupla", key:"duo:"+id,
+        prompt:`¿Con quién ha compartido más historias ${escapeHtml(DATA.characters[id].name)}?`, opts, answer:top,
+        explain:`Con ${escapeHtml(DATA.characters[top].name)}: ${co[0][1]} historias en común.`, href:`#/resumen/${id}` };
+    },
+    // quién aparece más
+    most(){
+      const byN = {}; people.forEach(x=>{ (byN[counts[x]] = byN[counts[x]] || []).push(x); });
+      const ns = Object.keys(byN).map(Number).sort((a,b)=> b-a);
+      if(ns.length < 4) return null;
+      const picks = qzSample(ns.slice(0, 8), 4).map(n=> qzPick(byN[n]));
+      const top = picks.slice().sort((a,b)=> counts[b]-counts[a])[0];
+      return { kind:"¿Quién aparece más?", key:"most:"+picks.slice().sort().join(","),
+        prompt:"De estas cuatro personas, ¿quién aparece en más historias?", opts:qzShuffle(picks).map(qzPersonOpt), answer:top,
+        explain:picks.slice().sort((a,b)=> counts[b]-counts[a]).map(x=> `${escapeHtml(shortName(x))}: ${counts[x]}`).join(" · ") };
+    },
+    // a quién le dicen así
+    nickname(){
+      const withNick = people.filter(x=> DATA.characters[x].apodo && !isPending(DATA.characters[x].apodo));
+      const id = qzPick(withNick); if(!id) return null;
+      const pool = people.filter(x=> x !== id); if(pool.length < 3) return null;
+      const opts = qzShuffle([id].concat(qzSample(pool, 3))).map(qzPersonOpt);
+      return { kind:"El apodo", key:"nick:"+id, prompt:`¿A quién le dicen <b>«${escapeHtml(DATA.characters[id].apodo)}»</b>?`, opts, answer:id,
+        explain:`A ${escapeHtml(DATA.characters[id].name)}.`, href:`#/character/${id}` };
+    },
+    // cuántos estuvieron
+    howMany(){
+      const r = qzPick(all.filter(x=> valid(x).length >= 2)); if(!r) return null;
+      const n = valid(r).length;
+      const set = new Set([n]); const deltas = qzShuffle([-3,-2,-1,1,2,3,4]);
+      for(const d of deltas){ if(set.size >= 4) break; if(n + d >= 1) set.add(n + d); }
+      const opts = [...set].sort((a,b)=> a-b).map(k=> ({ key:String(k), label:String(k), html:`<b class="qz-ico">${k}</b><span class="qz-l">${k===1?"persona":"personas"}</span>` }));
+      return { kind:"¿Cuántos fueron?", key:"many:"+r.season.id+":"+r.index, r,
+        prompt:`¿Cuántas personas aparecen en ${qzStoryRef(r)}?`, opts, answer:String(n),
+        explain:`${n}: ${escapeHtml(andList(valid(r).map(shortName)))}.` };
+    },
+    // qué pasó primero (dos historias de temporadas distintas)
+    first(){
+      const a = qzPick(all), b = qzPick(all.filter(x=> x.season !== (a && a.season)));
+      if(!a || !b) return null;
+      const first = DATA.seasons.indexOf(a.season) < DATA.seasons.indexOf(b.season) ? a : b;
+      const opts = qzShuffle([a, b]).map(x=> ({ key:x.season.id+":"+x.index, label:x.event.title, html:`<span class="qz-l">${escapeHtml(x.event.title)}</span>` }));
+      return { kind:"¿Qué pasó primero?", key:"first:"+[a,b].map(x=> x.season.id+":"+x.index).sort().join("|"), r:first,
+        prompt:"¿Cuál de estas dos historias pasó primero?", opts, answer:first.season.id+":"+first.index,
+        explain:`${qzStoryRef(first)} fue antes${first === a ? ` que ${qzStoryRef(b)}` : ` que ${qzStoryRef(a)}`}.` };
+    }
+  };
+}
+// una partida: QZ_LEN preguntas de tipos variados, sin repetir la misma pregunta
+function buildQuizRound(){
+  const G = quizGenerators();
+  const weights = [["notThere",3],["whichStory",3],["where",2],["when",2],["both",2],["duo",1],["most",1],["nickname",1],["howMany",1],["first",2]];
+  const bag = []; weights.forEach(([k,w])=>{ for(let i=0;i<w;i++) bag.push(k); });
+  const out = [], seen = new Set(), kindCount = {};
+  for(let tries = 0; out.length < QZ_LEN && tries < 400; tries++){
+    const k = qzPick(bag);
+    if((kindCount[k]||0) >= 3) continue;
+    let q = null; try{ q = G[k](); }catch(e){ q = null; }
+    if(!q || seen.has(q.key) || q.opts.length < 2) continue;
+    seen.add(q.key); kindCount[k] = (kindCount[k]||0) + 1;
+    q.explain = q.explain.replace(/\.\.$/, ".");   // "…y María C.." → "…y María C."
+    out.push(q);
+  }
+  return out;
+}
+function quizRank(score, n){
+  const k = score / Math.max(1, n);
+  if(k === 1) return ["Historiador del Hoyo", "Perfecto. Te sabes la crónica mejor que quienes la vivieron."];
+  if(k >= .8) return ["Del núcleo duro", "Estuviste en todas, o te las contaron con lujo de detalles."];
+  if(k >= .5) return ["Fue a hartos carretes", "Te sabes lo importante; algunos detalles se perdieron en la noche."];
+  if(k >= .3) return ["Escuchó un par de historias", "Hay temporadas enteras que te tocan leer."];
+  return ["¿Recién llegaste?", "Buen momento para leer la crónica desde la S0."];
+}
+function readBest(){ try{ return JSON.parse(localStorage.getItem(QZ_BEST)) || null; }catch(e){ return null; } }
+function writeBest(v){ try{ localStorage.setItem(QZ_BEST, JSON.stringify(v)); }catch(e){ /* sin storage: no se recuerda el récord */ } }
+
+function viewQuiz(){
+  renderSeasonsStrip(null);
+  const app = document.getElementById("app");
+  let round = [], qi = 0, score = 0, streak = 0, bestStreak = 0, answered = false, log = [];
+  const best = ()=> readBest();
+  function frame(inner){
+    app.innerHTML = `<section class="qz-page"><div class="qz-wrap">${inner}</div></section>`;
+  }
+  function start(){
+    const b = best();
+    frame(`
+      <div class="qz-hero">
+        <div class="qz-eyebrow">El juego de la crónica</div>
+        <h1>¿Cuánto sabes de Yoshe con Hoyo?</h1>
+        <p class="qz-lead">${QZ_LEN} preguntas armadas al azar desde las historias: quién no estuvo, de qué historia es un pedazo, dónde fue, en qué temporada… Cada partida es distinta.</p>
+        <button type="button" class="qz-btn primary qz-go" data-act="start">Empezar</button>
+        ${b ? `<div class="qz-best">Tu mejor partida en este navegador: <b>${b.score}/${b.n}</b> · ${escapeHtml(quizRank(b.score, b.n)[0])}</div>` : ""}
+        <div class="qz-kinds">${["¿Quién no estuvo?","¿De qué historia es?","¿Dónde fue?","¿En qué temporada?","¿Quién estuvo en las dos?","Su dupla","¿Qué pasó primero?"].map(k=> `<span>${k}</span>`).join("")}</div>
+      </div>
+      ${siteFooter()}`);
+    setupReveals();
+  }
+  function ask(){
+    answered = false;
+    const q = round[qi];
+    frame(`
+      <div class="qz-top">
+        <div class="qz-progress"><i style="width:${(qi/round.length*100).toFixed(1)}%"></i></div>
+        <div class="qz-meta"><span>Pregunta <b>${qi+1}</b> de ${round.length}</span><span class="qz-score">${score} ${score===1?"punto":"puntos"}${streak >= 2 ? ` · <em>racha ${streak} 🔥</em>` : ""}</span></div>
+      </div>
+      <div class="qz-card" style="--scolor:${q.r ? q.r.season.color : "var(--amber)"}">
+        <div class="qz-kind">${escapeHtml(q.kind)}</div>
+        <h2 class="qz-q">${q.prompt}</h2>
+        ${q.context || ""}
+        <div class="qz-opts${q.opts.length === 2 ? " is-two" : ""}">${q.opts.map((o,k)=> `<button type="button" class="qz-opt" data-key="${escapeHtml(o.key)}"><span class="qz-n">${k+1}</span>${o.html}</button>`).join("")}</div>
+        <div class="qz-feedback" id="qzFeedback" aria-live="polite"></div>
+      </div>`);
+  }
+  function answer(key){
+    if(answered) return;
+    answered = true;
+    const q = round[qi];
+    const ok = key === q.answer;
+    if(ok){ score++; streak++; bestStreak = Math.max(bestStreak, streak); } else streak = 0;
+    log.push({ q, ok });
+    app.querySelectorAll(".qz-opt").forEach(b=>{
+      b.disabled = true;
+      if(b.dataset.key === q.answer) b.classList.add("is-right");
+      else if(b.dataset.key === key) b.classList.add("is-wrong");
+      else b.classList.add("is-dim");
+    });
+    const href = q.href || (q.r ? storyHref(q.r.season.id, q.r.index) : null);
+    const last = qi === round.length - 1;
+    document.getElementById("qzFeedback").innerHTML = `
+      <div class="qz-verdict ${ok ? "ok" : "bad"}">${ok ? qzPick(["¡Bien!","¡Exacto!","¡Eso!","Correcto."]) : qzPick(["No…","Casi.","Nop.","Fallaste esta."])}</div>
+      <p>${q.explain}</p>
+      <div class="qz-next-row">
+        ${href ? `<a class="qz-link" href="${href}" target="_blank" rel="noopener">${q.r && !q.href ? "Leer la historia ↗" : "Ver más ↗"}</a>` : "<span></span>"}
+        <button type="button" class="qz-btn primary" data-act="next">${last ? "Ver resultado" : "Siguiente →"}</button>
+      </div>`;
+    const sc = app.querySelector(".qz-score"); if(sc) sc.innerHTML = `${score} ${score===1?"punto":"puntos"}${streak >= 2 ? ` · <em>racha ${streak} 🔥</em>` : ""}`;
+    const nb = app.querySelector('[data-act="next"]'); if(nb) nb.focus({ preventScroll:true });
+    const fb = document.getElementById("qzFeedback"); if(fb && fb.scrollIntoView) fb.scrollIntoView({ block:"nearest", behavior:"smooth" });
+  }
+  function finish(){
+    const n = round.length;
+    const [title, line] = quizRank(score, n);
+    const prev = best();
+    const isBest = !prev || score/n > prev.score/prev.n;
+    if(isBest) writeBest({ score, n });
+    frame(`
+      <div class="qz-end">
+        <div class="qz-eyebrow">Resultado</div>
+        <div class="qz-final"><b>${score}</b><span>/ ${n}</span></div>
+        <h1 class="qz-rank">${escapeHtml(title)}</h1>
+        <p class="qz-lead">${escapeHtml(line)}${bestStreak >= 3 ? ` Mejor racha: ${bestStreak} seguidas.` : ""}</p>
+        ${isBest && prev ? `<div class="qz-best is-new">¡Tu mejor partida hasta ahora!</div>` : ""}
+        <div class="qz-end-actions">
+          <button type="button" class="qz-btn primary" data-act="start">Otra partida</button>
+          <button type="button" class="qz-btn" data-act="share">Compartir resultado</button>
+        </div>
+        <ol class="qz-review">${log.map(({q, ok})=>{
+          const href = q.href || (q.r ? storyHref(q.r.season.id, q.r.index) : null);
+          return `<li class="${ok ? "ok" : "bad"}"><span class="qz-mark">${ok ? "✓" : "✗"}</span><div><div class="qz-rv-q">${q.prompt}</div><div class="qz-rv-a">${q.explain}</div></div>${href ? `<a href="${href}" aria-label="Ver">→</a>` : ""}</li>`;
+        }).join("")}</ol>
+      </div>
+      ${siteFooter()}`);
+    setupReveals();
+  }
+  function begin(){ round = buildQuizRound(); qi = 0; score = 0; streak = 0; bestStreak = 0; log = []; if(!round.length){ frame(`<div class="qz-hero"><h1>Todavía no hay suficientes historias para jugar.</h1></div>`); return; } ask(); window.scrollTo({ top:0, behavior:"instant" }); }
+  app.onclick = e=>{
+    const opt = e.target.closest(".qz-opt"); if(opt){ answer(opt.dataset.key); return; }
+    const b = e.target.closest("[data-act]"); if(!b) return;
+    const act = b.dataset.act;
+    if(act === "start") begin();
+    else if(act === "next"){ if(qi < round.length - 1){ qi++; ask(); window.scrollTo({ top:0, behavior:"instant" }); } else finish(); }
+    else if(act === "share"){
+      const text = `Saqué ${score}/${round.length} en el juego de Yoshe con Hoyo (${quizRank(score, round.length)[0]}). ¿Cuánto sabes tú?`;
+      const url = location.href.split("#")[0] + "#/juego";
+      try{
+        if(navigator.share && matchMedia("(pointer:coarse)").matches){ navigator.share({ title:"Yoshe con Hoyo", text, url }).catch(()=>{}); return; }
+        navigator.clipboard.writeText(`${text} ${url}`).then(()=> showToast("Resultado copiado: pégalo en el grupo."), ()=> showToast("No se pudo copiar."));
+      }catch(err){ showToast("No se pudo copiar."); }
+    }
+  };
+  // teclado: 1-4 responde, Enter sigue
+  const onKey = e=>{
+    if(overlayOpen() || e.target.closest && e.target.closest("input, textarea")) return;
+    if(/^[1-4]$/.test(e.key) && !answered){ const b = app.querySelectorAll(".qz-opt")[Number(e.key)-1]; if(b){ e.preventDefault(); b.click(); } }
+  };
+  document.addEventListener("keydown", onKey);
+  viewCleanups.push(()=>{ document.removeEventListener("keydown", onKey); app.onclick = null; });
+  start();
+}
+
 /* =========================== render: RÉCORDS =========================== */
 // El salón de la fama: todo calculado desde DATA (quién aparece más, el lugar más visitado, el
 // dúo inseparable, la noche más concurrida...). Nada inventado: si cambian las historias,
@@ -2159,6 +2435,7 @@ function render(){
     else if(parts[0]==="elenco") viewCast();
     else if(parts[0]==="records") viewRecords();
     else if(parts[0]==="resumen") parts[1] ? viewRecap(parts[1]) : viewRecapIndex();
+    else if(parts[0]==="juego") viewQuiz();
     else viewHome();
     window.scrollTo({top: restoreY!==undefined ? restoreY : 0, behavior:"instant"});
     // #/season/N/M: enlace directo a una historia (las lunas del 3D, el buscador, las fichas).
