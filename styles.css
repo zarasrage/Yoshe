@@ -1459,7 +1459,34 @@ a.stat-cell:hover{background:color-mix(in srgb, var(--pcolor) 12%, transparent);
 .net-head{position:absolute; z-index:2; top:0; left:0; right:0; padding:22px 28px 0; pointer-events:none;}
 /* the title and the hint let the pointer through to the cloud (a face half under the header
    row still has to take its click); only the mode buttons are clickable */
-.net-head .map-modes{pointer-events:auto;}
+.net-head .map-modes, .net-head .map-nets, .net-head .map-add{pointer-events:auto;}
+/* las dos redes: historias compartidas y quién se comió a quién */
+.map-nets{display:inline-flex; gap:4px; padding:3px; border-radius:999px; border:1px solid var(--line); background:rgba(4,14,32,.6); margin-bottom:6px;}
+.map-nets a{font-family:'JetBrains Mono',monospace; font-size:.62rem; letter-spacing:.08em; padding:6px 12px; border-radius:999px; color:var(--ink-dim); text-decoration:none; white-space:nowrap; transition:background .2s, color .2s;}
+.map-nets a:hover{color:#fff;}
+.map-nets a.active{background:rgba(104,216,255,.16); color:#fff; box-shadow:inset 0 0 0 1px rgba(104,216,255,.4);}
+.net-page.is-besos .map-nets a.active{background:rgba(255,111,168,.18); box-shadow:inset 0 0 0 1px rgba(255,111,168,.5);}
+.net-page.is-besos .net-stage{background:radial-gradient(ellipse 60% 50% at 45% 50%, rgba(255,80,150,.07), transparent 70%);}
+.map-add{padding:7px 14px; border-radius:999px; border:1px dashed rgba(255,111,168,.6); background:rgba(255,111,168,.08); color:#ffb3d1; font-family:'JetBrains Mono',monospace; font-size:.62rem; cursor:pointer;}
+.mi-legend{display:flex; flex-direction:column; gap:6px; margin:4px 0 14px;}
+.mi-legend span{display:flex; align-items:center; gap:8px; font-size:.82rem; color:var(--ink-dim);}
+.mi-legend i{width:22px; height:3px; border-radius:3px; background:var(--k); box-shadow:0 0 8px var(--k);}
+.mi-leaders{display:flex; flex-wrap:wrap; gap:0 14px;}
+.mi-hooks{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px;}
+.mi-hooks li{border-left:3px solid var(--k); padding-left:8px;}
+.mi-hooks button{display:flex; align-items:center; gap:10px; width:100%; padding:4px 0; border:0; background:none; color:inherit; font:inherit; font-size:.9rem; text-align:left; cursor:pointer;}
+.mi-hooks .face{width:28px; height:28px; margin:0; flex:none;}
+.mi-hooks em{font-style:normal; font-family:'JetBrains Mono',monospace; font-size:.58rem; letter-spacing:.04em; color:var(--k); white-space:nowrap;}
+.mi-hk-note{font-size:.76rem; line-height:1.45; color:var(--ink-faint); padding:0 0 2px 38px;}
+.mi-hk-note a{color:var(--amber); text-decoration:none; font-family:'JetBrains Mono',monospace; font-size:.6rem;}
+.hk-local{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px;}
+.hk-local li{display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:.86rem; padding:8px 10px; border-radius:10px; border:1px solid var(--line);}
+.hk-local button{border:1px solid rgba(255,110,110,.4); background:none; color:#ffb0b0; border-radius:8px; padding:4px 10px; font-family:'JetBrains Mono',monospace; font-size:.6rem; cursor:pointer;}
+.tg-hook{display:flex; justify-content:center; margin:-8px 0 22px;}
+.tg-hook span{display:inline-flex; align-items:center; gap:8px; padding:7px 14px; border-radius:999px; font-size:.84rem; color:#fff;
+  background:color-mix(in srgb, var(--k) 18%, rgba(4,14,32,.8)); border:1px solid color-mix(in srgb, var(--k) 60%, transparent);}
+.tg-hook a{color:var(--amber); text-decoration:none; font-family:'JetBrains Mono',monospace; font-size:.62rem;}
+@media (max-width:900px){ .map-nets a{padding:5px 9px; font-size:.56rem;} }
 .net-eyebrow{font-family:'JetBrains Mono',monospace; font-size:.66rem; letter-spacing:.32em; text-transform:uppercase; color:var(--violet);}
 .net-head h1{font-family:'Cormorant Garamond',Georgia,serif; font-weight:500; font-size:clamp(1.9rem, 3.4vw, 2.9rem); line-height:1.05; margin:4px 0 0;
   text-shadow:0 2px 18px rgba(0,0,0,.6); width:max-content; max-width:100%;}

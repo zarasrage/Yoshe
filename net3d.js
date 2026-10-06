@@ -13,7 +13,7 @@
 
    opts:
      nodes   [{ id, name, label, color, img|null, initials, n, primary }]
-     edges   [{ a, b, w }]
+     edges   [{ a, b, w, rgb? }]   rgb: "r,g,b" de esa línea (si no, opts.edgeRGB o el cian)
      insets  ()=>({ top, right, bottom })  espacio que tapan los paneles: el centro se corre
      onHover(id|null), onSelect(id|null), onOpen(id)
      canHover  true en desktop (hover muestra, clic abre); false en touch (1er toque
@@ -236,15 +236,18 @@
         const k = e.w/maxW;
         let al = (0.08 + 0.32*k) * fog((a.v.z + b.v.z)/2);
         if(focusId) al *= 0.25;
-        ctx.strokeStyle = `rgba(120,200,255,${al.toFixed(3)})`;
+        ctx.strokeStyle = `rgba(${e.rgb || o.edgeRGB || "120,200,255"},${al.toFixed(3)})`;
         ctx.lineWidth = (0.6 + 2.6*k) * (a.v.s + b.v.s)/2;
         ctx.beginPath(); ctx.moveTo(a.v.sx, a.v.sy); ctx.lineTo(b.v.sx, b.v.sy); ctx.stroke();
       }
       for(const e of hot){
         const a = byId[e.a], b = byId[e.b], other = e.a === focusId ? b : a, k = e.w/maxW;
-        const g = ctx.createLinearGradient(a.v.sx, a.v.sy, b.v.sx, b.v.sy);
-        g.addColorStop(0, `rgba(${a.rgb.join(",")},.95)`); g.addColorStop(1, `rgba(${b.rgb.join(",")},.95)`);
-        ctx.strokeStyle = g;
+        if(e.rgb) ctx.strokeStyle = `rgba(${e.rgb},.95)`;   // la línea tiene su propio color (su tipo): se respeta
+        else {
+          const g = ctx.createLinearGradient(a.v.sx, a.v.sy, b.v.sx, b.v.sy);
+          g.addColorStop(0, `rgba(${a.rgb.join(",")},.95)`); g.addColorStop(1, `rgba(${b.rgb.join(",")},.95)`);
+          ctx.strokeStyle = g;
+        }
         ctx.lineWidth = (1.4 + 3.4*k) * (a.v.s + b.v.s)/2;
         ctx.beginPath(); ctx.moveTo(a.v.sx, a.v.sy); ctx.lineTo(b.v.sx, b.v.sy); ctx.stroke();
         other._hot = true;

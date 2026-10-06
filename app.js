@@ -9,7 +9,7 @@
 const OV_KEY = "ychOverrides_v1";
 // extraCharacters / extraPlaces: personas y lugares nuevos que aparecieron en una historia
 // escrita desde el editor (con sus campos pendientes, como pide la convención de contenido)
-const OV_EMPTY = ()=> ({characters:{}, places:{}, seasonMeta:{}, extraEvents:{}, armageddon:{}, extraCharacters:{}, extraPlaces:{}});
+const OV_EMPTY = ()=> ({characters:{}, places:{}, seasonMeta:{}, extraEvents:{}, armageddon:{}, extraCharacters:{}, extraPlaces:{}, extraHookups:[]});
 function loadOverrides(){
   let ov = null;
   try{ ov = JSON.parse(localStorage.getItem(OV_KEY)); }catch(e){ ov = null; }
@@ -36,6 +36,8 @@ function applyOverrides(){
     });
   });
   if(ov.armageddon) Object.assign(DATA.armageddon, ov.armageddon);
+  // la red de besos: lo agregado en modo edición se suma a DATA.hookups
+  if((ov.extraHookups||[]).length) DATA.hookups = (DATA.hookups||[]).concat(ov.extraHookups);
   if(fixed) saveOverrides(ov);
 }
 applyOverrides();
@@ -102,6 +104,8 @@ function overridesAsText(){
   const nc = Object.entries(ov.extraCharacters||{}), np = Object.entries(ov.extraPlaces||{});
   if(nc.length) L.push("", `## Personas nuevas`, ...nc.map(([id,c])=> `- ${c.name} (${id})`));
   if(np.length) L.push("", `## Lugares nuevos`, ...np.map(([id,p])=> `- ${p.icon||""} ${p.name} (${id})`));
+  const hk = ov.extraHookups||[];
+  if(hk.length) L.push("", `## Red de besos (agregados)`, ...hk.map(h=> `- ${charName(h.a)} (${h.a}) y ${charName(h.b)} (${h.b}): ${(HOOK_KINDS[h.kind]||HOOK_KINDS.beso).label}${h.story ? ` — historia: ${h.story.title}` : ""}${h.note ? ` — nota: ${h.note}` : ""}`));
   const fields = (title, obj, nameOf)=>{
     const rows = Object.entries(obj||{}).filter(([,patch])=> patch && Object.keys(patch).length);
     if(!rows.length) return;
@@ -1701,22 +1705,107 @@ function mapData(mode){
   return { nodes, edges };
 }
 
-function viewMap(){
+// ---- quién se comió a quién (DATA.hookups + los agregados en modo edición) ----
+// Solo lo que cuentan las historias o lo que contó el usuario; cada línea dice de dónde sale.
+const HOOK_KINDS = {
+  beso:   { label:"se comieron",            rgb:"255,111,168", icon:"💋" },
+  pinche: { label:"pinches",                rgb:"255,179,92",  icon:"🔥" },
+  ex:     { label:"ex",                     rgb:"180,140,255", icon:"💔" },
+  full:   { label:"llegaron hasta el final", rgb:"255,77,94",  icon:"🌶️" }
+};
+function hookupsAll(){
+  return (DATA.hookups||[]).filter(h=> DATA.characters[h.a] && DATA.characters[h.b] && h.a !== h.b);
+}
+// la historia que lo cuenta: {season, index} (por título, así no se rompe si cambia el orden)
+function hookStory(h){
+  if(!h.story) return null;
+  const s = DATA.seasons.find(x=> String(x.id) === String(h.story.season)); if(!s) return null;
+  const i = s.events.findIndex(e=> e.title === h.story.title);
+  return i >= 0 ? { season:s, index:i, event:s.events[i] } : null;
+}
+function hookKind(h){ return HOOK_KINDS[h.kind] || HOOK_KINDS.beso; }
+function mapDataHookups(){
+  const hs = hookupsAll();
+  const deg = {}; hs.forEach(h=>{ deg[h.a] = (deg[h.a]||0) + 1; deg[h.b] = (deg[h.b]||0) + 1; });
+  const nodes = Object.keys(deg).map(id=>{
+    const c = DATA.characters[id], img = avatarSrc(c);
+    return { id, name:c.name, label:shortName(id), color:c.color || "#7fb8ff", img, imgFull: !!img && !c.thumb,
+      initials:initials(c.name), n:deg[id], primary: c.tier !== "secundario" };
+  });
+  // una línea por pareja (si hay dos registros de la misma pareja, gana el primero)
+  const seen = new Set(), edges = [];
+  hs.forEach(h=>{ const k = [h.a,h.b].sort().join("|"); if(seen.has(k)) return; seen.add(k); edges.push({ a:h.a, b:h.b, w:1, rgb:hookKind(h).rgb, h }); });
+  return { nodes, edges, deg };
+}
+// modo edición: agregar o borrar los que se agregaron en este navegador
+function openHookupEditor(){
+  const people = Object.entries(DATA.characters).sort((a,b)=> a[1].name.localeCompare(b[1].name));
+  const opts = `<option value="">— elige —</option>` + people.map(([id,c])=> `<option value="${id}">${escapeHtml(c.name)}</option>`).join("");
+  const stories = `<option value="">— ninguna (lo cuento yo) —</option>` + allEventsFlat().map(r=> `<option value="${r.season.id}|${escapeHtml(r.event.title)}">${escapeHtml(r.season.code)} · ${escapeHtml(r.event.title)}</option>`).join("");
+  const local = (loadOverrides().extraHookups||[]);
+  openModal(`
+    <h3>Agregar a la red 💋</h3>
+    <p class="se-sub">Queda en este navegador; pásalo al sitio de todos con 📋 Copiar para Claude.</p>
+    <div class="se-grid">
+      <div><label for="hk_a">Persona</label><select id="hk_a">${opts}</select></div>
+      <div><label for="hk_b">Con</label><select id="hk_b">${opts}</select></div>
+    </div>
+    <label for="hk_kind">Qué fue</label>
+    <select id="hk_kind">${Object.entries(HOOK_KINDS).map(([k,v])=> `<option value="${k}">${v.icon} ${escapeHtml(v.label)}</option>`).join("")}</select>
+    <label for="hk_story">La historia donde pasó (opcional)</label><select id="hk_story">${stories}</select>
+    <label for="hk_note">Nota (opcional)</label><input id="hk_note" placeholder="ej: en el Año Nuevo">
+    <div class="se-error" id="hk_err" role="alert"></div>
+    ${local.length ? `<label>Agregados en este navegador</label><ul class="hk-local">${local.map(h=> `<li>${escapeHtml((DATA.characters[h.a]||{}).name||h.a)} ${hookKind(h).icon} ${escapeHtml((DATA.characters[h.b]||{}).name||h.b)}<button type="button" onclick="deleteHookup('${h.uid}')">Borrar</button></li>`).join("")}</ul>` : ""}
+    <div class="modal-actions">
+      <button type="button" onclick="closeModal()">Cerrar</button>
+      <button type="button" class="primary" onclick="saveHookup()">Agregar</button>
+    </div>`);
+}
+function saveHookup(){
+  const v = id=> document.getElementById(id).value;
+  const a = v("hk_a"), b = v("hk_b"), err = document.getElementById("hk_err");
+  if(!a || !b){ err.textContent = "Elige a las dos personas."; return; }
+  if(a === b){ err.textContent = "Tienen que ser dos personas distintas."; return; }
+  if(hookupsAll().some(h=> (h.a===a && h.b===b) || (h.a===b && h.b===a))){ err.textContent = "Esa pareja ya está en la red."; return; }
+  const st = v("hk_story");
+  const h = { a, b, kind:v("hk_kind"), story: st ? { season:Number(st.split("|")[0]), title:st.split("|").slice(1).join("|") } : null, note:v("hk_note").trim() || null, uid:newUid(), local:true };
+  const ov = loadOverrides();
+  ov.extraHookups = (ov.extraHookups||[]).concat([h]);
+  saveOverrides(ov);
+  DATA.hookups = (DATA.hookups||[]).concat([h]);
+  closeModal(); render();
+  showToast("Agregado a la red. Para que lo vean todos: 📋 Copiar para Claude.");
+}
+function deleteHookup(uid){
+  if(!confirm("¿Borrar esta línea de la red?")) return;
+  const ov = loadOverrides();
+  ov.extraHookups = (ov.extraHookups||[]).filter(h=> h.uid !== uid);
+  saveOverrides(ov);
+  DATA.hookups = (DATA.hookups||[]).filter(h=> h.uid !== uid);
+  closeModal(); render();
+}
+
+function viewMap(which){
   renderSeasonsStrip(null);
   const app = document.getElementById("app");
+  const besos = which === "besos";
   const canHover = matchMedia("(hover:hover) and (pointer:fine)").matches;
   const wide = ()=> matchMedia("(min-width:901px)").matches;
   app.innerHTML = `
-    <section class="net-page">
+    <section class="net-page${besos ? " is-besos" : ""}">
       <div class="net-stage" id="netStage" aria-hidden="true"></div>
       <div class="net-head">
-        <div class="net-eyebrow">Mapa</div>
-        <h1>Red de relaciones</h1>
+        <div class="map-nets" role="tablist" aria-label="Qué red mostrar">
+          <a href="#/map" role="tab" aria-selected="${!besos}" class="${besos ? "" : "active"}">🕸️ Historias</a>
+          <a href="#/map/besos" role="tab" aria-selected="${besos}" class="${besos ? "active" : ""}">💋 Quién se comió a quién</a>
+        </div>
+        <h1>${besos ? "Quién se comió a quién" : "Red de relaciones"}</h1>
         <div class="net-head-row">
+          ${besos ? `<button type="button" class="map-add edit-only-btn" onclick="openHookupEditor()">➕ Agregar</button>` : `
           <div class="map-modes" role="group" aria-label="Quiénes mostrar">
             <button type="button" data-mode="all" class="${mapMode==='all'?'active':''}">Todos</button>
             <button type="button" data-mode="group" class="${mapMode==='group'?'active':''}">Solo el grupo</button>
-          </div>
+          </div>`}
           <div class="net-hint">${canHover ? "arrastra para girar · rueda para acercar" : "desliza para girar · pellizca para acercar"}</div>
         </div>
       </div>
@@ -1728,18 +1817,45 @@ function viewMap(){
   const info = document.getElementById("mapInfo");
   const head = app.querySelector(".net-head");
   let g = null, net = null, selected = null;
+  const hint = canHover ? "Pasa sobre alguien para ver sus conexiones; clic para abrir su ficha." : "Toca a alguien para ver sus conexiones; tócalo de nuevo para abrir su ficha.";
 
   const idleInfo = ()=>{
+    if(besos){
+      const top = Object.entries(g.deg||{}).sort((x,y)=> y[1]-x[1]);
+      const max = top.length ? top[0][1] : 0, leaders = top.filter(x=> x[1] === max).map(x=> x[0]);
+      const used = [...new Set(g.edges.map(e=> e.h.kind in HOOK_KINDS ? e.h.kind : "beso"))];
+      info.innerHTML = g.edges.length ? `
+        <div class="mi-eyebrow">La red de besos</div>
+        <div class="mi-big"><b>${g.nodes.length}</b> personas · <b>${g.edges.length}</b> ${g.edges.length===1?"pareja":"parejas"}</div>
+        ${max > 1 ? `<div class="mi-sub">${leaders.length > 1 ? "Los que suman más" : "Quien suma más"}</div>
+        <div class="mi-leaders">${leaders.map(id=> `<button type="button" class="mi-pair" data-pick="${id}">${faceHtml(id,{static:true})}<span class="mi-pn">${escapeHtml(shortName(id))}<em>${max} en la red</em></span></button>`).join("")}</div>` : ""}
+        <div class="mi-legend">${used.map(k=> `<span style="--k:rgb(${HOOK_KINDS[k].rgb})"><i></i>${HOOK_KINDS[k].icon} ${escapeHtml(HOOK_KINDS[k].label)}</span>`).join("")}</div>
+        <p class="mi-hint">Solo lo que cuentan las historias. ${hint}</p>`
+      : `<div class="mi-eyebrow">La red de besos</div><p class="mi-hint">Todavía no hay nadie en esta red.${isEditOn() ? " Agrega el primero con ➕." : ""}</p>`;
+      return;
+    }
     const strongest = g.edges.slice().sort((a,b)=> b.w-a.w)[0];
     info.innerHTML = `
       <div class="mi-eyebrow">La red</div>
       <div class="mi-big"><b>${g.nodes.length}</b> personas · <b>${g.edges.length}</b> conexiones</div>
       ${strongest ? `<div class="mi-sub">El lazo más fuerte</div>
       <button type="button" class="mi-pair" data-pick="${strongest.a}">${faceHtml(strongest.a,{static:true})}${faceHtml(strongest.b,{static:true})}<span class="mi-pn">${escapeHtml(shortName(strongest.a))} y ${escapeHtml(shortName(strongest.b))}<em>${strongest.w} historias en común</em></span></button>` : ""}
-      <p class="mi-hint">${canHover ? "Pasa sobre alguien para ver sus conexiones; clic para abrir su ficha." : "Toca a alguien para ver sus conexiones; tócalo de nuevo para abrir su ficha."}</p>`;
+      <p class="mi-hint">${hint}</p>`;
   };
   const nodeInfo = id=>{
     const n = g.nodes.find(x=> x.id === id); if(!n) return idleInfo();
+    if(besos){
+      const links = g.edges.filter(e=> e.a===id || e.b===id);
+      info.innerHTML = `
+        <div class="mi-head">${faceHtml(id)}<div class="mi-who"><div class="mi-name">${escapeHtml(n.name)}</div><div class="mi-sub2">${links.length} en la red</div></div>
+          <a class="mi-go" href="#/character/${id}">Ver ficha →</a></div>
+        <ol class="mi-hooks">${links.map(e=>{
+          const o = e.a===id ? e.b : e.a, k = hookKind(e.h), st = hookStory(e.h);
+          return `<li style="--k:rgb(${k.rgb})"><button type="button" data-pick="${o}">${faceHtml(o,{static:true})}<span class="mi-ln">${escapeHtml(DATA.characters[o].name)}</span><em>${k.icon} ${escapeHtml(k.label)}</em></button>
+            ${e.h.note || st ? `<div class="mi-hk-note">${e.h.note ? escapeHtml(e.h.note) : ""}${st ? ` <a href="${storyHref(st.season.id, st.index)}">${escapeHtml(st.season.code)} · ${escapeHtml(st.event.title)} →</a>` : ""}</div>` : ""}</li>`;
+        }).join("")}</ol>`;
+      return;
+    }
     const links = g.edges.filter(e=> e.a===id || e.b===id).map(e=> [e.a===id?e.b:e.a, e.w]).sort((a,b)=> b[1]-a[1]);
     info.innerHTML = `
       <div class="mi-head">${faceHtml(id)}<div class="mi-who"><div class="mi-name">${escapeHtml(n.name)}</div><div class="mi-sub2">${n.n} ${n.n===1?"historia":"historias"} · ${links.length} ${links.length===1?"conexión":"conexiones"}</div></div>
@@ -1754,12 +1870,13 @@ function viewMap(){
   });
 
   function mount(){
-    g = mapData(mapMode);
+    g = besos ? mapDataHookups() : mapData(mapMode);
     selected = null;
     showInfo(null);
-    document.getElementById("netList").innerHTML = g.nodes.slice().sort((a,b)=> b.n-a.n).map(n=>
-      `<li><a href="#/character/${n.id}">${escapeHtml(n.name)}, ${n.n} ${n.n===1?"historia":"historias"}</a></li>`).join("");
-    if(typeof mountNet3D !== "function") return;
+    document.getElementById("netList").innerHTML = besos
+      ? g.edges.map(e=> `<li>${escapeHtml(DATA.characters[e.a].name)} y ${escapeHtml(DATA.characters[e.b].name)}: ${escapeHtml(hookKind(e.h).label)}</li>`).join("")
+      : g.nodes.slice().sort((a,b)=> b.n-a.n).map(n=> `<li><a href="#/character/${n.id}">${escapeHtml(n.name)}, ${n.n} ${n.n===1?"historia":"historias"}</a></li>`).join("");
+    if(typeof mountNet3D !== "function" || !g.nodes.length) return;
     net = mountNet3D(stage, {
       nodes: g.nodes, edges: g.edges, canHover,
       // lo que tapan el título y el panel: la nube se centra en lo que queda libre
@@ -2338,8 +2455,11 @@ function viewTogether(a, b){
       const pl = Object.entries(placeT).sort((x,y)=> y[1]-x[1]);
       const others = castOf(shared.map(r=> r.event)).filter(([c])=> c !== a && c !== b);
       const seasonsT = [...new Set(shared.map(r=> r.season.code))];
+      const hk = hookupsAll().find(h=> (h.a===a && h.b===b) || (h.a===b && h.b===a));
+      const hkSt = hk && hookStory(hk);
       body = `
         <div class="tg-num"><b>${n}</b><span>${n===1?"historia":"historias"} en común</span></div>
+        ${hk ? `<div class="tg-hook" style="--k:rgb(${hookKind(hk).rgb})"><span>${hookKind(hk).icon} ${escapeHtml(hookKind(hk).label)}${hkSt ? ` · <a href="${storyHref(hkSt.season.id, hkSt.index)}">${escapeHtml(hkSt.event.title)} →</a>` : ""} · <a href="#/map/besos">ver la red</a></span></div>` : ""}
         <div class="tg-bars">
           <div class="tg-bar" style="--fcolor:${A.color}"><span>${escapeHtml(fa)}</span><i><em style="width:${pct(a)}%"></em></i><b>${pct(a)}%</b><small>de sus ${counts[a]} historias son con ${escapeHtml(fb)}</small></div>
           <div class="tg-bar" style="--fcolor:${B.color}"><span>${escapeHtml(fb)}</span><i><em style="width:${pct(b)}%"></em></i><b>${pct(b)}%</b><small>de sus ${counts[b]} historias son con ${escapeHtml(fa)}</small></div>
@@ -2563,7 +2683,7 @@ function render(){
     if(parts[0]==="season" && parts[1]!==undefined) viewSeason(parts[1]);
     else if(parts[0]==="character" && parts[1]!==undefined) viewCharacter(parts[1]);
     else if(parts[0]==="place" && parts[1]!==undefined) viewPlace(parts[1]);
-    else if(parts[0]==="map") viewMap();
+    else if(parts[0]==="map") viewMap(parts[1]);
     else if(parts[0]==="armageddon") viewArmageddon();
     else if(parts[0]==="elenco") viewCast();
     else if(parts[0]==="records") viewRecords();

@@ -87,6 +87,10 @@ const DATA = {
       ]
     }
   ],
+  hookups: [   // la red "quién se comió a quién" (#/map/besos)
+    { a:"char-id", b:"char-id", kind:"beso"|"pinche"|"ex"|"full",
+      story:{ season:5, title:"título exacto de la historia" }|null, note:"..."|null }
+  ],
   armageddon: { intro: "..." }  // profecía general; el destino de cada persona vive en character.destino
 };
 ```
@@ -240,6 +244,7 @@ Una nube 3D de personas (`net3d.js`, `mountNet3D(container, opts)`): cada una de
 - **Layout:** fuerzas en 3D calculadas una vez al montar (repulsión, resortes por historias compartidas, gravedad, choque; arranque en espiral de Fibonacci, así que siempre sale igual). Se normaliza para que el 85% quede dentro de radio 1 (con el máximo, un par de sueltos apretaba a todos al centro), y **el radio dibujado sale del mismo radio de choque, en la misma escala**: así los círculos no se pisan en 3D. Los nombres se ponen del encendido hacia afuera y de adelante hacia atrás, y uno que chocaría con otro ya puesto no sale.
 - **Pantalla fija, como la galaxia:** `render()` pone el mismo bloqueo (`setGalaxyLock`, `html.galaxy-lock`) si existe `.net-page` (o `.wr-page`, los resúmenes); la rueda llega a la escena por `lockWheel` (la home lo apunta a `solarWheel`, el mapa a `net3dWheel`; `render()` lo vacía). Arrastrar gira en los dos ejes (con inercia, pitch con tope), rueda/pinch del trackpad y pellizco acercan, y en reposo gira sola despacio (no con alguien elegido ni con el mouse encima de alguien: se le escapaba de debajo antes del clic). `.map-info` está en `OWN_SCROLL`: su lista scrollea adentro.
 - **Panel `#mapInfo`:** a la derecha en desktop; en el teléfono (≤900px) hoja inferior de **alto fijo** (si cambiara de alto al elegir a alguien, la nube saltaría). `insets()` le dice a `net3d` cuánto tapan el título y el panel, y la nube se centra (suavizado) en lo que queda libre. En reposo: totales y el lazo más fuerte. Desktop: pasar el mouse muestra a la persona y sus conexiones, clic abre la ficha. Touch: el 1er toque elige (la nube gira hasta dejarla al frente), el 2º abre la ficha. Tocar a alguien en la lista del panel lo elige en la red. Esc suelta. Filtro "Todos / Solo el grupo" (`mapMode`) remonta.
+- **Dos redes en la misma pantalla** (pestañas arriba): `#/map` = historias compartidas; `#/map/besos` = **quién se comió a quién** (`DATA.hookups`, `mapDataHookups()`), con una línea por pareja coloreada por tipo (`HOOK_KINDS`: 💋 se comieron, 🔥 pinches, 💔 ex, 🌶️ hasta el final; `net3d` acepta `rgb` por arista). El panel dice de qué historia sale cada una (`hookStory(h)` la busca por temporada + **título**, así no se rompe si cambia el orden). **Solo lo que cuentan las historias o lo que el usuario contó**: lo dudoso no entra (p. ej. Cristóbal con Daniela/Blanca, la gótica sin nombre). En modo edición, "➕ Agregar" (`openHookupEditor`) guarda en `overrides.extraHookups` y sale en "📋 Copiar para Claude". La página Juntos muestra el tipo si la pareja está en esta red.
 - Hay una lista `.sr-only` con todos (el canvas no es accesible por sí solo). No hay pie de página (la pantalla no scrollea). `unmountNet3D()` va en `viewCleanups`: no deja rAF, listeners ni observers; sin canvas (jsdom) devuelve `null` y queda solo el panel.
 
 Armagedón es la única ruta que cambia el humor del sitio: `body.mood-doom` (lo pone el router, y el foco del Hoyo mientras está abierto) tiñe `#skyWash` de rojo y desatura `#skyPhoto`.
