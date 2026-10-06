@@ -1500,9 +1500,10 @@ function viewCharacter(id){
     <section class="co-section reveal" style="--pcolor:${c.color}">
       <div class="dossier-eyebrow">Su gente</div>
       <h2>Con quién comparte la crónica</h2>
+      <p class="co-sub">Toca a alguien para ver todo lo que han vivido juntos.</p>
       <div class="co-grid">${co.slice(0, 12).map(([cid, n])=>{
         const p = DATA.characters[cid];
-        return `<a class="co-card" href="#/character/${cid}" style="--fcolor:${p.color}">
+        return `<a class="co-card" href="#/juntos/${id}/${cid}" style="--fcolor:${p.color}" title="${escapeHtml(c.name.split(" ")[0])} y ${escapeHtml(p.name.split(" ")[0])}: sus historias juntos">
           ${faceHtml(cid, {static:true})}
           <span class="co-name">${escapeHtml(p.name)}</span>
           <span class="co-n">${n} ${n===1?"historia":"historias"} en común</span>
@@ -2305,6 +2306,90 @@ function viewQuiz(){
   start();
 }
 
+/* =========================== render: JUNTOS (#/juntos/a/b) =========================== */
+// Dos personas frente a frente: cuántas historias comparten, qué parte de la crónica de cada
+// una es con la otra, la primera y la última juntas, sus lugares y quién más suele estar.
+// Si no comparten ninguna, quién las une. Todo calculado desde DATA.
+function viewTogether(a, b){
+  renderSeasonsStrip(null);
+  const app = document.getElementById("app");
+  const all = allEventsFlat();
+  const counts = {}; all.forEach(r=> r.event.chars.forEach(c=>{ if(DATA.characters[c]) counts[c] = (counts[c]||0) + 1; }));
+  const people = Object.keys(counts).sort((x,y)=> (DATA.characters[x].tier==="secundario") - (DATA.characters[y].tier==="secundario") || counts[y]-counts[x] || DATA.characters[x].name.localeCompare(DATA.characters[y].name));
+  if(!DATA.characters[a]) a = null;
+  if(!DATA.characters[b] || b === a) b = null;
+  // las parejas que más se repiten: atajos
+  const pairs = {};
+  all.forEach(r=>{ const cs = r.event.chars.filter(c=> DATA.characters[c]); for(let i=0;i<cs.length;i++) for(let j=i+1;j<cs.length;j++){ const k = [cs[i],cs[j]].sort().join("|"); pairs[k] = (pairs[k]||0) + 1; } });
+  const topPairs = Object.entries(pairs).sort((x,y)=> y[1]-x[1]).slice(0, 6);
+  const opt = (sel, other)=> `<option value="">— elige a alguien —</option>` + people.map(id=> `<option value="${id}" ${id===sel?"selected":""} ${id===other?"disabled":""}>${escapeHtml(DATA.characters[id].name)} (${counts[id]})</option>`).join("");
+  const big = id=>{ const c = DATA.characters[id], src = avatarSrc(c);
+    return `<a class="tg-face" href="#/character/${id}" style="--fcolor:${c.color}" title="${escapeHtml(c.name)}">${src ? `<img src="${src}" alt="" class="${c.thumb?'':'is-full'}">` : `<b>${escapeHtml(initials(c.name))}</b>`}</a>`; };
+
+  let body = "";
+  if(a && b){
+    const A = DATA.characters[a], B = DATA.characters[b];
+    const fa = shortName(a), fb = shortName(b);
+    const shared = all.filter(r=> r.event.chars.includes(a) && r.event.chars.includes(b));
+    const n = shared.length;
+    const pct = id=> Math.round(n / counts[id] * 100);
+    if(n){
+      const placeT = {}; shared.forEach(r=>{ if(DATA.places[r.event.place]) placeT[r.event.place] = (placeT[r.event.place]||0) + 1; });
+      const pl = Object.entries(placeT).sort((x,y)=> y[1]-x[1]);
+      const others = castOf(shared.map(r=> r.event)).filter(([c])=> c !== a && c !== b);
+      const seasonsT = [...new Set(shared.map(r=> r.season.code))];
+      body = `
+        <div class="tg-num"><b>${n}</b><span>${n===1?"historia":"historias"} en común</span></div>
+        <div class="tg-bars">
+          <div class="tg-bar" style="--fcolor:${A.color}"><span>${escapeHtml(fa)}</span><i><em style="width:${pct(a)}%"></em></i><b>${pct(a)}%</b><small>de sus ${counts[a]} historias son con ${escapeHtml(fb)}</small></div>
+          <div class="tg-bar" style="--fcolor:${B.color}"><span>${escapeHtml(fb)}</span><i><em style="width:${pct(b)}%"></em></i><b>${pct(b)}%</b><small>de sus ${counts[b]} historias son con ${escapeHtml(fa)}</small></div>
+        </div>
+        ${seasonDotsHtml(seasonsT)}
+        <div class="tg-grid">
+          ${n > 1 ? `<div class="tg-cell"><div class="tg-k">La primera juntos</div>${storyCardHtml(shared[0], {noPlace:false})}</div>
+          <div class="tg-cell"><div class="tg-k">La última, por ahora</div>${storyCardHtml(shared[n-1])}</div>`
+                  : `<div class="tg-cell tg-wide"><div class="tg-k">Su única historia juntos</div>${storyCardHtml(shared[0])}</div>`}
+        </div>
+        <div class="tg-grid">
+          ${pl.length ? `<div class="tg-cell"><div class="tg-k">Dónde coinciden</div><ul class="tg-list">${pl.map(([p,k])=> `<li><a href="#/place/${p}">${DATA.places[p].icon||"📍"} ${escapeHtml(DATA.places[p].name)}</a><b>${k}</b></li>`).join("")}</ul></div>` : ""}
+          ${others.length ? `<div class="tg-cell"><div class="tg-k">Quién más suele estar</div><ul class="tg-list">${others.slice(0,6).map(([c,k])=> `<li><a href="#/juntos/${a}/${c}">${faceHtml(c,{static:true})} ${escapeHtml(DATA.characters[c].name)}</a><b>${k}</b></li>`).join("")}</ul></div>` : ""}
+        </div>
+        ${n > 2 ? `<h2 class="tg-h">Todas sus historias juntos</h2><div class="tg-stories">${shared.map(r=> storyCardHtml(r)).join("")}</div>` : ""}`;
+    } else {
+      // no comparten: ¿quién los une? (alguien que comparte historias con los dos)
+      const coA = {}, coB = {};
+      all.forEach(r=>{ const cs = r.event.chars; if(cs.includes(a)) cs.forEach(c=> coA[c] = (coA[c]||0) + 1); if(cs.includes(b)) cs.forEach(c=> coB[c] = (coB[c]||0) + 1); });
+      const bridges = Object.keys(coA).filter(c=> c !== a && c !== b && coB[c] && DATA.characters[c]).sort((x,y)=> (coA[y]+coB[y]) - (coA[x]+coB[x])).slice(0, 5);
+      body = `
+        <div class="tg-num tg-zero"><b>0</b><span>historias en común, todavía</span></div>
+        <p class="tg-lead">${escapeHtml(fa)} y ${escapeHtml(fb)} no han coincidido en ninguna historia de la crónica.</p>
+        ${bridges.length ? `<div class="tg-cell tg-wide"><div class="tg-k">Los une</div><ul class="tg-list">${bridges.map(c=> `<li><span>${faceHtml(c)} ${escapeHtml(DATA.characters[c].name)}</span><b>${coA[c]} con ${escapeHtml(fa)} · ${coB[c]} con ${escapeHtml(fb)}</b></li>`).join("")}</ul></div>` : ""}`;
+    }
+  }
+  app.innerHTML = `
+    <section class="season-hero tg-hero" style="--scolor:var(--amber); border-bottom:none;">
+      <div class="scode-big">Juntos</div>
+      <h1>${a && b ? `${escapeHtml(DATA.characters[a].name.split(" ")[0])} <span class="tg-amp">&</span> ${escapeHtml(DATA.characters[b].name.split(" ")[0])}` : "Dos personas, frente a frente"}</h1>
+      ${a && b ? `<div class="tg-faces">${big(a)}<span class="tg-amp">&</span>${big(b)}</div>` : `<p class="hito">Elige a dos personas y mira todo lo que han vivido juntas en la crónica.</p>`}
+      <div class="tg-pick">
+        <select id="tgA" aria-label="Primera persona">${opt(a, b)}</select>
+        <button type="button" class="tg-swap" id="tgSwap" aria-label="Intercambiar" ${a && b ? "" : "disabled"}>⇄</button>
+        <select id="tgB" aria-label="Segunda persona">${opt(b, a)}</select>
+      </div>
+    </section>
+    <div class="tg-wrap">
+      ${body}
+      ${topPairs.length ? `<div class="tg-pairs"><div class="tg-k">Las parejas que más se repiten</div>${topPairs.map(([k,n])=>{ const [x,y] = k.split("|");
+        return `<a href="#/juntos/${x}/${y}" class="${(x===a&&y===b)||(x===b&&y===a)?"on":""}">${faceHtml(x,{static:true})}${faceHtml(y,{static:true})}<span>${escapeHtml(shortName(x))} y ${escapeHtml(shortName(y))}</span><b>${n}</b></a>`; }).join("")}</div>` : ""}
+    </div>
+    ${siteFooter()}`;
+  const go = ()=>{ const x = document.getElementById("tgA").value, y = document.getElementById("tgB").value; location.replace(`#/juntos/${x||"-"}/${y||"-"}`); };
+  document.getElementById("tgA").addEventListener("change", go);
+  document.getElementById("tgB").addEventListener("change", go);
+  document.getElementById("tgSwap").addEventListener("click", ()=>{ if(a && b) location.replace(`#/juntos/${b}/${a}`); });
+  setupReveals();
+}
+
 /* =========================== render: RÉCORDS =========================== */
 // El salón de la fama: todo calculado desde DATA (quién aparece más, el lugar más visitado, el
 // dúo inseparable, la noche más concurrida...). Nada inventado: si cambian las historias,
@@ -2371,6 +2456,7 @@ function viewRecords(){
           <div class="rec-duo">${faceHtml(a)}<span class="rec-amp">&</span>${faceHtml(b)}</div>
           <h3>${escapeHtml(chars[a].name.split(" ")[0])} y ${escapeHtml(chars[b].name.split(" ")[0])}</h3>
           <p>${duo[1]} historias en común: la pareja que más se repite en la crónica.</p>
+          <a class="rec-more" href="#/juntos/${a}/${b}">Todo lo que han vivido juntos →</a>
         </section>`; })() : ""}
 
         ${places.length ? `
@@ -2483,6 +2569,7 @@ function render(){
     else if(parts[0]==="records") viewRecords();
     else if(parts[0]==="resumen") parts[1] ? viewRecap(parts[1]) : viewRecapIndex();
     else if(parts[0]==="juego") viewQuiz();
+    else if(parts[0]==="juntos") viewTogether(parts[1], parts[2]);
     else viewHome();
     window.scrollTo({top: restoreY!==undefined ? restoreY : 0, behavior:"instant"});
     // #/season/N/M: enlace directo a una historia (las lunas del 3D, el buscador, las fichas).
