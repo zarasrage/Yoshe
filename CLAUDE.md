@@ -97,7 +97,19 @@ Hay una función `autoTagText(text)` que hace esto automáticamente a partir de 
 
 ### Vistas (router por hash, sin librería)
 
-`render()` lee `location.hash` y despacha a: `viewHome()` (solo la galaxia), `viewCast()` (`#/elenco`: personajes y lugares), `viewSeason(id)`, `viewCharacter(id)`, `viewPlace(id)`, `viewMap()`, `viewArmageddon()`, `viewRecords()` (`#/records`: el salón de la fama, todo calculado desde `DATA`).
+`render()` lee `location.hash` y despacha a: `viewHome()` (solo la galaxia), `viewCast()` (`#/elenco`: personajes y lugares), `viewSeason(id)`, `viewCharacter(id)`, `viewPlace(id)`, `viewMap()`, `viewArmageddon()`, `viewRecords()` (`#/records`: el salón de la fama, todo calculado desde `DATA`), `viewRecapIndex()` / `viewRecap(id)` (`#/resumen`, `#/resumen/<id>`), `viewQuiz()` (`#/juego`) y `viewTogether(a, b)` (`#/juntos/<a>/<b>`).
+
+### Páginas calculadas desde DATA (resúmenes, juego, juntos)
+
+Las tres se arman solas desde `DATA` y **no inventan nada**: si un dato no existe, esa parte no sale.
+
+- **Resúmenes** (`#/resumen/<id>`, `personRecap(id)` + `recapSlides(id)`): el paso de una persona por la crónica en diapositivas a pantalla completa, estilo "resumen del año" (cuántas historias y su lugar en el ranking, el debut, su temporada, su dupla, su lugar, la historia más concurrida, apodo/habilidad/frase si no están pendientes, y al final el destino del Armagedón o su última aparición). Los empates se dicen como empates. Es una pantalla fija (`.wr-page` entra en el mismo `setGalaxyLock` que la galaxia y el mapa): toque derecha/izquierda, deslizar, flechas; avanza sola cada 6.5s con barras de progreso (no con reduced-motion); mantener apretado pausa. `#/resumen` es el índice. Botón "▶ Ver su resumen" en cada ficha.
+- **Juego** (`#/juego`, `quizGenerators()` + `buildQuizRound()`): 10 preguntas al azar de 10 tipos (quién no estuvo, de qué historia es un pedazo con los nombres tapados, dónde, en qué temporada, quién estuvo en las dos, la dupla, quién aparece más, apodos, cuántos fueron, qué pasó primero). Cada generador devuelve `null` si los datos no alcanzan, y la ronda los reintenta. Cada respuesta enlaza a su historia. Mejor partida en `localStorage` (`ychQuizBest_v1`). Botón 🎯 en el nav.
+- **Juntos** (`#/juntos/<a>/<b>`): dos personas frente a frente (historias en común, % de la crónica de cada una, primera/última juntas, lugares, quién más suele estar; si no comparten ninguna, quién las une). Las tarjetas "Con quién comparte la crónica" de las fichas y el dúo de Récords llevan acá.
+
+`body.route-full` (resúmenes y juego) esconde la fila de temporadas del nav en el teléfono, igual que `route-home`.
+
+**Regex:** nada de lookbehind (`(?<=...)`) en `app.js`: Safari anterior a 16.4 no lo entiende y un literal así hace que **todo** `app.js` no cargue (pantalla en blanco).
 
 **Enlace directo a una historia:** `#/season/N/M` (M = índice en `s.events`) renderiza la temporada y hace scroll a esa tarjeta destacándola (`flashEvent`), salvo al volver con "atrás" (ahí manda el scroll recordado). Lo usan las lunas del 3D, el buscador, el dado, las bitácoras de las fichas, los récords y el botón 🔗 de cada historia (`shareStory`: menú nativo en el teléfono, copiar enlace en desktop). Para enlazar una historia usa `storyHref(seasonId, idx)`, no `location.hash` + `setTimeout(flashEvent)`.
 
@@ -110,6 +122,12 @@ Antes de despachar, `render()` siempre llama a `unmountSolar()` (también de hom
 ### Persistencia (modo edición)
 
 Los cambios hechos desde el botón ✏️ (bios, apodos, frases, habilidades, destinos, hitos, nuevas historias) se guardan en `localStorage` del navegador vía `patchCharacter()`, `patchPlace()`, `patchSeasonMeta()`, `addEventToSeason()`, `patchArmageddon()` — todas mutan `DATA` en memoria Y persisten un "override" parcial. `applyOverrides()` los reaplica al cargar. Hay export/import de JSON como respaldo manual (no hay backend ni base de datos).
+
+**Editor de historias** (`openStoryEditor(seasonId, uid?)`, botón "➕ Agregar historia" de cada temporada y "➕ Nueva historia" de la barra de edición): temporada, fecha, título, texto, lugar y quiénes estuvieron, con vista previa de cómo va a quedar (`renderContent(autoTagText(...))`). Los nombres que aparecen en el texto se suman solos a "quiénes estuvieron" (salvo que los saques a mano) y el primer lugar mencionado se elige solo. Se pueden crear ahí mismo **personas y lugares nuevos**: quedan con sus campos pendientes ("— rol pendiente —", "Cuéntame más sobre...") en `overrides.extraCharacters` / `extraPlaces`, que `applyOverrides()` agrega a `DATA` antes que todo lo demás. Mientras escribes, el borrador se guarda (`ychStoryDraft_v1`). Cada historia escrita desde el editor lleva `uid` y `local:true`: en modo edición su tarjeta muestra "✏️ Editar o borrar" (también se puede mover de temporada). Esc cierra los modales; el clic afuera no cierra el editor (botaría lo escrito).
+
+**Pasar los cambios al sitio de todos:** lo del modo edición vive en un solo navegador. "📋 Copiar para Claude" (`copyForClaude()` / `overridesAsText()`) copia todo como texto legible (historias nuevas con su texto, personas/lugares nuevos, campos editados) para pegarlo en el chat y agregarlo a `data.js`; si el portapapeles falla, lo muestra en un modal. "⬇ Exportar" sigue bajando el JSON.
+
+**IA en el editor (pendiente, decisión del usuario):** se pidió que el editor pula el texto con la API de Claude. No se hizo: llamar a la API desde el navegador en un sitio público exige dejar la API key en el cliente. Lo seguro es un proxy chico en un servidor (p. ej. una Edge Function de Supabase o un Cloudflare Worker) que guarde la key como secreto y que el editor llame a ese endpoint.
 
 **Importante:** todo acceso a `localStorage` está envuelto en try/catch. Algunos visores (Quick Look de iOS, vistas previas sandboxed) bloquean `localStorage` y sin el try/catch eso rompía toda la página (pantalla en blanco). Si agregas una llamada nueva a `localStorage`, protégela igual.
 
@@ -157,7 +175,7 @@ images/
 ### Estructura de archivos
 
 ```
-index.html        # esqueleto; carga styles.css, data.js, solar.js, app.js
+index.html        # esqueleto; carga styles.css, data.js, solar.js, net3d.js, app.js
 styles.css        # todo el CSS (incluye .home-sky / .solar-*)
 data.js           # DATA
 solar.js          # sistema solar 3D: solarCapable / mountSolar / unmountSolar
@@ -220,7 +238,7 @@ Una nube 3D de personas (`net3d.js`, `mountNet3D(container, opts)`): cada una de
 
 - **Canvas 2D, no WebGL/three.js, a propósito:** son ~40 nodos y ~200 líneas; proyectarlos a mano (rotación + división por profundidad) cuesta casi nada, anda en cualquier teléfono, no compite con el contexto WebGL de la galaxia y deja fotos y nombres nítidos. El 3D sale de la perspectiva, el orden de dibujo (lo de atrás primero) y una niebla que apaga lo lejano.
 - **Layout:** fuerzas en 3D calculadas una vez al montar (repulsión, resortes por historias compartidas, gravedad, choque; arranque en espiral de Fibonacci, así que siempre sale igual). Se normaliza para que el 85% quede dentro de radio 1 (con el máximo, un par de sueltos apretaba a todos al centro), y **el radio dibujado sale del mismo radio de choque, en la misma escala**: así los círculos no se pisan en 3D. Los nombres se ponen del encendido hacia afuera y de adelante hacia atrás, y uno que chocaría con otro ya puesto no sale.
-- **Pantalla fija, como la galaxia:** `render()` pone el mismo bloqueo (`setGalaxyLock`, `html.galaxy-lock`) si existe `.net-page`; la rueda llega a la escena por `lockWheel` (la home lo apunta a `solarWheel`, el mapa a `net3dWheel`; `render()` lo vacía). Arrastrar gira en los dos ejes (con inercia, pitch con tope), rueda/pinch del trackpad y pellizco acercan, y en reposo gira sola despacio (no con alguien elegido ni con el mouse encima de alguien: se le escapaba de debajo antes del clic). `.map-info` está en `OWN_SCROLL`: su lista scrollea adentro.
+- **Pantalla fija, como la galaxia:** `render()` pone el mismo bloqueo (`setGalaxyLock`, `html.galaxy-lock`) si existe `.net-page` (o `.wr-page`, los resúmenes); la rueda llega a la escena por `lockWheel` (la home lo apunta a `solarWheel`, el mapa a `net3dWheel`; `render()` lo vacía). Arrastrar gira en los dos ejes (con inercia, pitch con tope), rueda/pinch del trackpad y pellizco acercan, y en reposo gira sola despacio (no con alguien elegido ni con el mouse encima de alguien: se le escapaba de debajo antes del clic). `.map-info` está en `OWN_SCROLL`: su lista scrollea adentro.
 - **Panel `#mapInfo`:** a la derecha en desktop; en el teléfono (≤900px) hoja inferior de **alto fijo** (si cambiara de alto al elegir a alguien, la nube saltaría). `insets()` le dice a `net3d` cuánto tapan el título y el panel, y la nube se centra (suavizado) en lo que queda libre. En reposo: totales y el lazo más fuerte. Desktop: pasar el mouse muestra a la persona y sus conexiones, clic abre la ficha. Touch: el 1er toque elige (la nube gira hasta dejarla al frente), el 2º abre la ficha. Tocar a alguien en la lista del panel lo elige en la red. Esc suelta. Filtro "Todos / Solo el grupo" (`mapMode`) remonta.
 - Hay una lista `.sr-only` con todos (el canvas no es accesible por sí solo). No hay pie de página (la pantalla no scrollea). `unmountNet3D()` va en `viewCleanups`: no deja rAF, listeners ni observers; sin canvas (jsdom) devuelve `null` y queda solo el panel.
 
