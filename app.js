@@ -7,18 +7,36 @@
    Usa "Exportar cambios" para respaldarlos o pasarlos a otro dispositivo.
    ========================================================================= */
 const OV_KEY = "ychOverrides_v1";
+// extraCharacters / extraPlaces: personas y lugares nuevos que aparecieron en una historia
+// escrita desde el editor (con sus campos pendientes, como pide la convención de contenido)
+const OV_EMPTY = ()=> ({characters:{}, places:{}, seasonMeta:{}, extraEvents:{}, armageddon:{}, extraCharacters:{}, extraPlaces:{}});
 function loadOverrides(){
-  try{ return JSON.parse(localStorage.getItem(OV_KEY)) || {characters:{}, places:{}, seasonMeta:{}, extraEvents:{}, armageddon:{}}; }
-  catch(e){ return {characters:{}, places:{}, seasonMeta:{}, extraEvents:{}, armageddon:{}}; }
+  let ov = null;
+  try{ ov = JSON.parse(localStorage.getItem(OV_KEY)); }catch(e){ ov = null; }
+  // un respaldo de una versión anterior no trae las llaves nuevas: se completan
+  return Object.assign(OV_EMPTY(), ov || {});
 }
 function saveOverrides(ov){ try{ localStorage.setItem(OV_KEY, JSON.stringify(ov)); }catch(e){ /* storage unavailable — edits won't persist across reloads in this context */ } }
+// id corto y único para las historias escritas desde el editor (así se pueden editar y borrar)
+const newUid = ()=> "h" + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
 function applyOverrides(){
   const ov = loadOverrides();
+  let fixed = false;
+  Object.entries(ov.extraCharacters||{}).forEach(([id,c])=>{ if(!DATA.characters[id]) DATA.characters[id] = Object.assign({}, c); });
+  Object.entries(ov.extraPlaces||{}).forEach(([id,p])=>{ if(!DATA.places[id]) DATA.places[id] = Object.assign({}, p); });
   Object.entries(ov.characters||{}).forEach(([id,patch])=>{ if(DATA.characters[id]) Object.assign(DATA.characters[id], patch); });
   Object.entries(ov.places||{}).forEach(([id,patch])=>{ if(DATA.places[id]) Object.assign(DATA.places[id], patch); });
   Object.entries(ov.seasonMeta||{}).forEach(([sid,patch])=>{ const s=DATA.seasons.find(x=>String(x.id)===String(sid)); if(s) Object.assign(s, patch); });
-  Object.entries(ov.extraEvents||{}).forEach(([sid,events])=>{ const s=DATA.seasons.find(x=>String(x.id)===String(sid)); if(s) events.forEach(e=>s.events.push(e)); });
+  Object.entries(ov.extraEvents||{}).forEach(([sid,events])=>{
+    const s=DATA.seasons.find(x=>String(x.id)===String(sid));
+    events.forEach(e=>{
+      // historias guardadas antes de que existiera el editor nuevo: se les da su id
+      if(!e.uid){ e.uid = newUid(); e.local = true; fixed = true; }
+      if(s) s.events.push(e);
+    });
+  });
   if(ov.armageddon) Object.assign(DATA.armageddon, ov.armageddon);
+  if(fixed) saveOverrides(ov);
 }
 applyOverrides();
 
@@ -184,10 +202,24 @@ function toggleEditMode(){
   render();
 }
 function openModal(html){
-  document.getElementById("modalBox").innerHTML = html;
+  const box = document.getElementById("modalBox");
+  box.classList.remove("modal-wide");
+  box.innerHTML = html;
   document.getElementById("modalOverlay").classList.add("active");
 }
-function closeModal(){ document.getElementById("modalOverlay").classList.remove("active"); }
+function closeModal(){
+  document.getElementById("modalOverlay").classList.remove("active");
+  document.getElementById("modalBox").classList.remove("modal-wide");
+  SE = null;
+}
+// Esc cierra el modal; un clic afuera también, salvo en el editor de historias (ahí un clic
+// perdido botaría lo que llevas escrito de una historia que estás corrigiendo)
+document.addEventListener("keydown", e=>{
+  if(e.key === "Escape" && document.getElementById("modalOverlay").classList.contains("active")){ e.stopPropagation(); closeModal(); }
+}, true);
+document.getElementById("modalOverlay").addEventListener("click", e=>{
+  if(e.target.id === "modalOverlay" && !SE) closeModal();
+});
 
 function openCharEditModal(id){
   const c = DATA.characters[id];
@@ -291,41 +323,283 @@ function submitSeasonMeta(seasonId){
   closeModal(); render();
 }
 
-function openAddEventModal(seasonId){
-  const charOptions = Object.entries(DATA.characters).map(([id,c])=>
-    `<label style="font-weight:400; display:flex; align-items:center; gap:8px; margin:4px 0;">
-      <input type="checkbox" value="${id}" style="width:auto;">${escapeHtml(c.name)}
-    </label>`).join("");
-  const placeOptions = `<option value="">— sin lugar —</option>` + Object.entries(DATA.places).map(([id,p])=>
-    `<option value="${id}">${escapeHtml(p.name)}</option>`).join("");
-  openModal(`
-    <h3>Nueva historia</h3>
-    <label>Fecha</label><input id="ne_date" placeholder="ej: Marzo 2024">
-    <label>Título</label><input id="ne_title" placeholder="ej: La noche del asado">
-    <label>Lugar</label><select id="ne_place">${placeOptions}</select>
-    <label>Personajes involucrados</label>
-    <div style="max-height:140px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:10px;">${charOptions}</div>
-    <label>Cuenta la historia (escribe los nombres tal cual — se resaltan solos)</label>
-    <textarea id="ne_content" placeholder="Escribe la anécdota completa acá…"></textarea>
-    <div class="modal-actions">
-      <button onclick="closeModal()">Cancelar</button>
-      <button class="primary" onclick="submitAddEvent('${seasonId}')">Agregar historia</button>
-    </div>
-  `);
+/* =========================== EDITOR DE HISTORIAS =========================== */
+// Escribir (o corregir) una historia desde la página. Lo que importa: no perder lo escrito
+// (borrador autoguardado), que los nombres se marquen solos (autoTagText) y se vea cómo va a
+// quedar antes de guardar, y que una persona o un lugar que todavía no existe se pueda agregar
+// ahí mismo, con sus campos pendientes ("— rol pendiente —", "Cuéntame..."), como pide la
+// convención de contenido. Todo queda en este navegador (overrides); "Exportar cambios" es el
+// camino para que llegue al sitio de todos.
+const DRAFT_KEY = "ychStoryDraft_v1";
+const NEW_COLORS = ["#d9748a","#6b9bf2","#7fae6f","#e0b84f","#c9853f","#8b6bf2","#3f8c82","#f2a65a"];
+let SE = null;   // el estado del editor abierto
+
+function slugify(name){
+  return String(name).normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase()
+    .replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"") || "x";
 }
-function submitAddEvent(seasonId){
-  const date = document.getElementById("ne_date").value || "Fecha sin especificar";
-  const title = document.getElementById("ne_title").value || "Historia sin título";
-  const place = document.getElementById("ne_place").value || null;
-  const chars = Array.from(document.querySelectorAll('#modalBox input[type="checkbox"]:checked')).map(el=>el.value);
-  const contentText = document.getElementById("ne_content").value || "";
-  const eventObj = {date, title, place, chars, content: autoTagText(contentText)};
-  addEventToSeason(seasonId, eventObj);
-  closeModal();
-  location.hash = `#/season/${seasonId}`;
-  render();
+function uniqueKey(base, taken){ let k = base, n = 2; while(taken[k]) k = `${base}-${n++}`; return k; }
+function readDraft(){ try{ return JSON.parse(localStorage.getItem(DRAFT_KEY)) || null; }catch(e){ return null; } }
+function writeDraft(d){ try{ if(d) localStorage.setItem(DRAFT_KEY, JSON.stringify(d)); else localStorage.removeItem(DRAFT_KEY); }catch(e){ /* sin storage: el borrador vive mientras el editor esté abierto */ } }
+function findLocalEvent(uid){
+  for(const s of DATA.seasons){ const i = s.events.findIndex(e=> e.uid === uid); if(i >= 0) return { season:s, index:i, event:s.events[i] }; }
+  return null;
 }
 
+// la temporada que estás mirando (para el botón "Nueva historia" de la barra de edición);
+// fuera de una temporada, la actual (la última)
+function currentSeasonId(){
+  const m = location.hash.match(/^#\/season\/([^/]+)/);
+  if(m && DATA.seasons.some(s=> String(s.id) === m[1])) return m[1];
+  return DATA.seasons[DATA.seasons.length-1].id;
+}
+// compatibilidad: los botones viejos llaman a openAddEventModal
+function openAddEventModal(seasonId){ openStoryEditor(seasonId); }
+
+function openStoryEditor(seasonId, uid){
+  const found = uid ? findLocalEvent(uid) : null;
+  const draft = !found ? readDraft() : null;
+  const cur = DATA.seasons.find(x=> String(x.id) === String(seasonId)) || DATA.seasons[DATA.seasons.length-1];
+  SE = found ? {
+    uid, season: String(found.season.id), date: isPending(found.event.date) ? "" : (found.event.date||""), title: found.event.title||"",
+    place: found.event.place||"", text: plainText(found.event.content), chars: found.event.chars.slice(),
+    newPeople: [], newPlace: null, dismissed: [], placeTouched: true
+  } : Object.assign({
+    uid:null, season: String(cur.id), date:"", title:"", place:"", text:"", chars:[], newPeople:[], newPlace:null, dismissed:[], placeTouched:false
+  }, draft || {});
+  const hasDraft = !found && draft && (draft.text || draft.title);
+
+  const seasonOpts = DATA.seasons.map(s=> `<option value="${s.id}" ${String(s.id)===SE.season?"selected":""}>${escapeHtml(s.code)} · ${escapeHtml(s.title)}</option>`).join("");
+  openModal(`
+    <div class="se">
+      <h3>${found ? "Editar historia" : "Nueva historia"}</h3>
+      <p class="se-sub">${found ? "Esta historia se escribió en este navegador: puedes corregirla o borrarla." : "Cuéntala como te salga; los nombres que el sitio conoce se marcan solos."}${hasDraft ? ` <button type="button" class="se-link" onclick="discardStoryDraft()">Descartar borrador</button>` : ""}</p>
+      <div class="se-grid">
+        <div><label for="se_season">Temporada</label><select id="se_season">${seasonOpts}</select></div>
+        <div><label for="se_date">Fecha</label><input id="se_date" placeholder="ej: 14 de agosto de 2025" value="${escapeHtml(SE.date)}"></div>
+      </div>
+      <label for="se_title">Título</label><input id="se_title" placeholder="ej: La noche del asado" value="${escapeHtml(SE.title)}">
+      <label for="se_text">La historia</label>
+      <textarea id="se_text" rows="8" placeholder="Quiénes estaban, dónde, qué pasó y cómo terminó… Deja una línea en blanco para separar párrafos.">${escapeHtml(SE.text)}</textarea>
+      <div class="se-hint">¿Falta un dato? Termina con <code>— Cuéntame más: …</code> y queda marcado como pendiente.</div>
+      <label for="se_place">Lugar</label>
+      <select id="se_place"></select>
+      <div class="se-newplace" id="se_newplace" hidden>
+        <input id="se_np_icon" maxlength="4" placeholder="📍" aria-label="Ícono del lugar (emoji)">
+        <input id="se_np_name" placeholder="Nombre del lugar nuevo" aria-label="Nombre del lugar nuevo">
+      </div>
+      <label for="se_find">Quiénes estuvieron <span class="se-count" id="se_count"></span></label>
+      <div class="se-people">
+        <div class="se-chips" id="se_chips"></div>
+        <input id="se_find" placeholder="Busca a alguien, o escribe un nombre nuevo…" autocomplete="off">
+        <div class="se-suggest" id="se_suggest"></div>
+      </div>
+      <label>Así se va a ver</label>
+      <div class="se-preview" id="se_preview"></div>
+      <div class="se-error" id="se_error" role="alert"></div>
+      <div class="modal-actions">
+        ${found ? `<button type="button" class="danger se-del" onclick="deleteLocalStory()">Borrar</button>` : ""}
+        <button type="button" onclick="closeStoryEditor()">Cancelar</button>
+        <button type="button" class="primary" onclick="saveStoryEditor()">${found ? "Guardar cambios" : "Guardar historia"}</button>
+      </div>
+    </div>`);
+  document.getElementById("modalBox").classList.add("modal-wide");
+
+  const $ = id=> document.getElementById(id);
+  const sync = ()=>{
+    SE.season = $("se_season").value; SE.date = $("se_date").value; SE.title = $("se_title").value; SE.text = $("se_text").value;
+    if(SE.newPlace){ SE.newPlace.icon = $("se_np_icon").value; SE.newPlace.name = $("se_np_name").value; }
+  };
+  let t = null;
+  const changed = ()=>{
+    sync();
+    detectFromText();
+    renderEditorPeople(); renderEditorPreview();
+    if(!SE.uid){ clearTimeout(t); t = setTimeout(()=> writeDraft(draftOf()), 400); }
+  };
+  ["se_season","se_date","se_title","se_text","se_np_icon","se_np_name"].forEach(id=> $(id).addEventListener("input", changed));
+  $("se_season").addEventListener("change", changed);
+  $("se_place").addEventListener("change", ()=>{
+    SE.placeTouched = true;
+    const v = $("se_place").value;
+    if(v === "__new"){ SE.newPlace = SE.newPlace || { icon:"", name:"" }; SE.place = ""; }
+    else { SE.newPlace = null; SE.place = v; }
+    renderEditorPlace(); changed();
+    if(v === "__new") setTimeout(()=> $("se_np_name").focus(), 30);
+  });
+  $("se_find").addEventListener("input", renderEditorSuggest);
+  $("se_find").addEventListener("keydown", e=>{
+    if(e.key === "Enter"){ e.preventDefault(); const first = $("se_suggest").querySelector("button"); if(first) first.click(); }
+  });
+  renderEditorPlace(); detectFromText(); renderEditorPeople(); renderEditorSuggest(); renderEditorPreview();
+  setTimeout(()=> (SE.text ? $("se_title") : $("se_text")).focus(), 60);
+}
+function draftOf(){ const d = Object.assign({}, SE); delete d.uid; return (d.text || d.title || d.date) ? d : null; }
+function discardStoryDraft(){ writeDraft(null); const sid = SE && SE.season; closeStoryEditor(); openStoryEditor(sid); }
+function closeStoryEditor(){ closeModal(); }
+
+// los nombres que aparecen en el texto se suman solos a "quiénes estuvieron" (salvo que los
+// hayas sacado a mano), y el primer lugar que aparece se elige solo si no tocaste el lugar
+function detectFromText(){
+  if(!SE) return;
+  const segs = autoTagText(SE.text);
+  segs.forEach(sg=>{
+    if(sg.t === "char" && !SE.chars.includes(sg.id) && !SE.dismissed.includes(sg.id)) SE.chars.push(sg.id);
+  });
+  SE.newPeople.forEach(np=>{
+    if(!np.inText && new RegExp(`(^|[^\\p{L}])${np.name.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")}([^\\p{L}]|$)`, "u").test(SE.text)) np.inText = true;
+  });
+  if(!SE.placeTouched && !SE.newPlace){
+    const pl = segs.find(sg=> sg.t === "place");
+    if(pl && SE.place !== pl.id){ SE.place = pl.id; renderEditorPlace(); }
+  }
+}
+function renderEditorPlace(){
+  const sel = document.getElementById("se_place"); if(!sel) return;
+  sel.innerHTML = `<option value="">— sin lugar —</option>` +
+    Object.entries(DATA.places).sort((a,b)=> a[1].name.localeCompare(b[1].name)).map(([id,p])=> `<option value="${id}" ${id===SE.place?"selected":""}>${p.icon||"📍"} ${escapeHtml(p.name)}</option>`).join("") +
+    `<option value="__new" ${SE.newPlace?"selected":""}>➕ Lugar nuevo…</option>`;
+  const np = document.getElementById("se_newplace");
+  np.hidden = !SE.newPlace;
+  if(SE.newPlace){ document.getElementById("se_np_icon").value = SE.newPlace.icon||""; document.getElementById("se_np_name").value = SE.newPlace.name||""; }
+}
+function renderEditorPeople(){
+  const box = document.getElementById("se_chips"); if(!box) return;
+  const known = SE.chars.filter(id=> DATA.characters[id]);
+  box.innerHTML = known.map(id=> `<span class="se-chip" style="--fcolor:${DATA.characters[id].color}">${faceHtml(id,{static:true})}${escapeHtml(DATA.characters[id].name)}<button type="button" aria-label="Quitar a ${escapeHtml(DATA.characters[id].name)}" onclick="editorRemovePerson('${id}')">×</button></span>`).join("") +
+    SE.newPeople.map((np,i)=> `<span class="se-chip is-new">${escapeHtml(np.name)} <em>nuevo</em><button type="button" aria-label="Quitar a ${escapeHtml(np.name)}" onclick="editorRemoveNew(${i})">×</button></span>`).join("") ||
+    `<span class="se-none">Todavía nadie: escribe la historia o búscalos abajo.</span>`;
+  const n = known.length + SE.newPeople.length;
+  document.getElementById("se_count").textContent = n ? `· ${n}` : "";
+}
+function renderEditorSuggest(){
+  const box = document.getElementById("se_suggest"); if(!box || !SE) return;
+  const q = document.getElementById("se_find").value.trim();
+  const norm = x=> String(x||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase();
+  const nq = norm(q);
+  let list = Object.entries(DATA.characters).filter(([id])=> !SE.chars.includes(id));
+  if(nq) list = list.filter(([,c])=> norm(c.name).includes(nq) || norm(c.apodo).includes(nq));
+  // sin búsqueda: el grupo primero y después los que más aparecen
+  const cnt = {}; allEventsFlat().forEach(r=> r.event.chars.forEach(id=> cnt[id] = (cnt[id]||0)+1));
+  list.sort((a,b)=> (a[1].tier==="secundario") - (b[1].tier==="secundario") || (cnt[b[0]]||0) - (cnt[a[0]]||0) || a[1].name.localeCompare(b[1].name));
+  const exact = q && Object.values(DATA.characters).some(c=> norm(c.name) === nq) || SE.newPeople.some(np=> norm(np.name) === nq);
+  box.innerHTML = list.slice(0, q ? 8 : 12).map(([id,c])=> `<button type="button" onclick="editorAddPerson('${id}')">${faceHtml(id,{static:true})}<span>${escapeHtml(c.name)}</span></button>`).join("") +
+    (q && !exact ? `<button type="button" class="se-add-new" onclick="editorAddNew()">➕ Agregar a <b>${escapeHtml(q)}</b> como persona nueva</button>` : "");
+}
+function editorAddPerson(id){
+  if(!SE.chars.includes(id)) SE.chars.push(id);
+  SE.dismissed = SE.dismissed.filter(x=> x !== id);
+  const f = document.getElementById("se_find"); f.value = ""; f.focus();
+  renderEditorPeople(); renderEditorSuggest(); if(!SE.uid) writeDraft(draftOf());
+}
+function editorAddNew(){
+  const f = document.getElementById("se_find");
+  const name = f.value.trim().replace(/\s+/g," ");
+  if(!name) return;
+  SE.newPeople.push({ name });
+  f.value = ""; f.focus();
+  renderEditorPeople(); renderEditorSuggest(); if(!SE.uid) writeDraft(draftOf());
+}
+function editorRemovePerson(id){
+  SE.chars = SE.chars.filter(x=> x !== id);
+  if(!SE.dismissed.includes(id)) SE.dismissed.push(id);
+  renderEditorPeople(); renderEditorSuggest(); if(!SE.uid) writeDraft(draftOf());
+}
+function editorRemoveNew(i){ SE.newPeople.splice(i,1); renderEditorPeople(); renderEditorSuggest(); if(!SE.uid) writeDraft(draftOf()); }
+
+function renderEditorPreview(){
+  const box = document.getElementById("se_preview"); if(!box || !SE) return;
+  const s = DATA.seasons.find(x=> String(x.id) === SE.season);
+  const place = SE.newPlace && SE.newPlace.name ? { icon: SE.newPlace.icon || "📍", name: SE.newPlace.name } : DATA.places[SE.place];
+  const body = SE.text.trim() ? renderContent(autoTagText(SE.text.trim())) : `<span class="se-ph">La historia va a aparecer acá, con los nombres marcados.</span>`;
+  box.style.setProperty("--scolor", s ? s.color : "var(--amber)");
+  box.innerHTML = `
+    <div class="se-pv-meta"><span>${s ? escapeHtml(s.code) : ""}</span>${escapeHtml(SE.date.trim() || "fecha pendiente")}${place ? ` · ${place.icon||"📍"} ${escapeHtml(place.name)}` : ""}</div>
+    <h4>${escapeHtml(SE.title.trim() || "Sin título todavía")}</h4>
+    <div class="se-pv-body">${body}</div>`;
+}
+
+function saveStoryEditor(){
+  if(!SE) return;
+  const $ = id=> document.getElementById(id);
+  SE.season = $("se_season").value; SE.date = $("se_date").value.trim(); SE.title = $("se_title").value.trim(); SE.text = $("se_text").value.trim();
+  const err = $("se_error");
+  const fail = (msg, el)=>{ err.textContent = msg; if(el) el.focus(); };
+  if(!SE.text) return fail("Falta la historia: escribe aunque sea un par de líneas.", $("se_text"));
+  if(!SE.title) return fail("Ponle un título (aunque sea provisorio).", $("se_title"));
+  if(SE.newPlace && !(SE.newPlace.name||"").trim()) return fail("Escribe el nombre del lugar nuevo, o elige uno de la lista.", $("se_np_name"));
+
+  const ov = loadOverrides();
+  // 1) personas y lugares nuevos, con sus campos pendientes (no se inventa nada)
+  const newIds = SE.newPeople.map((np, i)=>{
+    const existing = Object.entries(DATA.characters).find(([,c])=> c.name.toLowerCase() === np.name.toLowerCase());
+    if(existing) return existing[0];
+    const id = uniqueKey(slugify(np.name), DATA.characters);
+    const c = { name:np.name, role:"— rol pendiente —", tier:"secundario", color: NEW_COLORS[(Object.keys(DATA.characters).length + i) % NEW_COLORS.length],
+      bio:`Cuéntame más sobre ${np.name}: quién es y cómo se relaciona con el grupo.`, apodo:null, frase:null, habilidad:null, destino:null, tags:[] };
+    DATA.characters[id] = c; ov.extraCharacters[id] = Object.assign({}, c);
+    return id;
+  });
+  let placeId = SE.place || null;
+  if(SE.newPlace){
+    const name = SE.newPlace.name.trim();
+    const existing = Object.entries(DATA.places).find(([,p])=> p.name.toLowerCase() === name.toLowerCase());
+    if(existing) placeId = existing[0];
+    else {
+      placeId = uniqueKey(slugify(name), DATA.places);
+      const p = { name, icon:(SE.newPlace.icon||"").trim() || "📍", desc:`Cuéntame más sobre ${name}: dónde queda y por qué importa en la historia del grupo.` };
+      DATA.places[placeId] = p; ov.extraPlaces[placeId] = Object.assign({}, p);
+    }
+  }
+  // 2) el texto con sus nombres marcados (ya con las personas nuevas en DATA)
+  const content = autoTagText(SE.text);
+  const chars = [...new Set(SE.chars.filter(id=> DATA.characters[id]).concat(newIds))];
+  content.forEach(sg=>{ if(sg.t === "char" && !chars.includes(sg.id)) chars.push(sg.id); });
+  if(!placeId){ const pl = content.find(sg=> sg.t === "place"); if(pl) placeId = pl.id; }
+  const ev = { date: SE.date || "Fecha sin especificar", title: SE.title, place: placeId, chars, content, uid: SE.uid || newUid(), local:true };
+
+  // 3) guardar: nueva, o reemplazando la anterior (también si cambió de temporada)
+  const target = DATA.seasons.find(x=> String(x.id) === SE.season);
+  if(SE.uid){
+    const f = findLocalEvent(SE.uid);
+    if(f) f.season.events.splice(f.index, 1);
+    Object.keys(ov.extraEvents).forEach(k=>{ ov.extraEvents[k] = ov.extraEvents[k].filter(e=> e.uid !== SE.uid); });
+    if(f && String(f.season.id) === SE.season) target.events.splice(f.index, 0, ev);
+    else target.events.push(ev);
+  } else target.events.push(ev);
+  // el orden de las locales en overrides sigue al de la temporada
+  ov.extraEvents[SE.season] = target.events.filter(e=> e.local).map(e=> Object.assign({}, e));
+  saveOverrides(ov);
+  if(!SE.uid) writeDraft(null);
+  const madeNew = newIds.length > 0 || !!SE.newPlace;
+  closeStoryEditor();
+  const href = storyHref(target.id, target.events.indexOf(ev));
+  if(location.hash === href) render(); else location.hash = href;
+  setTimeout(()=> flashEvent(target.id, target.events.indexOf(ev)), 140);
+  showToast(madeNew ? "Historia guardada. Completa después la ficha de lo nuevo (sale como pendiente)." : "Historia guardada en este navegador. Para que la vean todos: ⬇ Exportar cambios.");
+}
+function deleteLocalStory(){
+  if(!SE || !SE.uid) return;
+  if(!confirm("¿Borrar esta historia? No se puede deshacer.")) return;
+  const f = findLocalEvent(SE.uid);
+  const ov = loadOverrides();
+  Object.keys(ov.extraEvents).forEach(k=>{ ov.extraEvents[k] = ov.extraEvents[k].filter(e=> e.uid !== SE.uid); });
+  saveOverrides(ov);
+  if(f) f.season.events.splice(f.index, 1);
+  closeStoryEditor();
+  if(f) location.hash = `#/season/${f.season.id}`;
+  render();
+  showToast("Historia borrada.");
+}
+
+// aviso chico abajo, que se va solo
+function showToast(msg){
+  let el = document.getElementById("toast");
+  if(!el){ el = document.createElement("div"); el.id = "toast"; el.className = "toast"; el.setAttribute("role","status"); document.body.appendChild(el); }
+  el.textContent = msg;
+  el.classList.remove("show"); void el.offsetWidth; el.classList.add("show");
+  clearTimeout(showToast.t); showToast.t = setTimeout(()=> el.classList.remove("show"), 4200);
+}
 
 function allEventsFlat(){
   const out=[];
@@ -983,7 +1257,7 @@ function viewSeason(id){
       ${statsHtml}
       <div class="edit-only-btn edit-row">
         <button class="back-btn" style="margin:0;" onclick="openSeasonMetaModal('${s.id}')">✏️ Editar título/hito</button>
-        <button class="back-btn" style="margin:0;" onclick="openAddEventModal('${s.id}')">➕ Agregar historia</button>
+        <button class="back-btn" style="margin:0;" onclick="openStoryEditor('${s.id}')">➕ Agregar historia</button>
       </div>
     </section>`;
 
@@ -1028,6 +1302,7 @@ function viewSeason(id){
         <button type="button" class="share-btn" onclick="shareStory(${s.id},${idx},this)" aria-label="Compartir esta historia" title="Copiar enlace a esta historia">🔗</button></div>
       <h3>${escapeHtml(e.title)}</h3>
       ${renderEventBody(e, place, side)}
+      ${e.local ? `<div class="edit-only-btn edit-row local-row"><span class="local-tag">escrita en este navegador</span><button class="back-btn" style="margin:0;" onclick="openStoryEditor('${s.id}','${e.uid}')">✏️ Editar o borrar</button></div>` : ""}
     </article>`;
   }).join("");
 

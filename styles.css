@@ -1097,6 +1097,56 @@ body.edit-on .edit-bar{display:flex; animation:editBarIn .45s var(--ease);}
 .modal-actions button:active{transform:translateY(0) scale(.97);}
 .modal-actions button.primary{background:linear-gradient(160deg,var(--amber),#3aa9dd); border-color:transparent; color:#03121f; font-weight:700; box-shadow:0 0 18px rgba(104,216,255,.35);}
 .modal-actions button.primary:hover{box-shadow:0 4px 24px rgba(104,216,255,.5); background:linear-gradient(160deg,#8ce4ff,#48b8e8);}
+/* ---- editor de historias (openStoryEditor) ---- */
+.modal-box.modal-wide{max-width:680px;}
+.se-sub{margin:-6px 0 4px; color:var(--ink-dim); font-size:.88rem; line-height:1.5;}
+.se-link{background:none; border:0; padding:0; color:var(--amber); font:inherit; font-size:.8rem; text-decoration:underline; text-underline-offset:3px; cursor:pointer;}
+.se-grid{display:grid; grid-template-columns:1fr 1fr; gap:0 14px;}
+.se-hint{margin-top:6px; font-size:.76rem; color:var(--ink-faint); line-height:1.5;}
+.se-hint code{font-family:'JetBrains Mono',monospace; font-size:.72rem; color:var(--ink-dim);}
+.modal-box #se_text{min-height:170px;}
+.se-newplace{display:grid; grid-template-columns:70px 1fr; gap:10px; margin-top:8px;}
+.se-newplace[hidden]{display:none;}
+.se-newplace input:first-child{text-align:center; font-size:1.1rem;}
+.se-count{color:var(--amber); letter-spacing:.04em;}
+.se-people{border:1px solid var(--line); border-radius:12px; padding:10px; background:rgba(2,10,24,.5);}
+.se-chips{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;}
+.se-chip{display:inline-flex; align-items:center; gap:6px; padding:3px 4px 3px 3px; border-radius:999px; font-size:.82rem;
+  background:color-mix(in srgb, var(--fcolor, #7fb8ff) 16%, rgba(4,14,32,.9)); border:1px solid color-mix(in srgb, var(--fcolor, #7fb8ff) 45%, transparent);}
+.se-chip .face{width:22px; height:22px; margin:0;}
+.se-chip.is-new{padding-left:10px; border-style:dashed; --fcolor:var(--amber);}
+.se-chip em{font-style:normal; font-family:'JetBrains Mono',monospace; font-size:.56rem; letter-spacing:.1em; text-transform:uppercase; color:var(--amber);}
+.se-chip button{width:20px; height:20px; border-radius:50%; border:0; background:rgba(255,255,255,.08); color:var(--ink-dim); cursor:pointer; line-height:1; font-size:.9rem;}
+.se-chip button:hover{background:rgba(255,120,120,.25); color:#fff;}
+.se-none{font-size:.8rem; color:var(--ink-faint); padding:4px 2px;}
+.se-suggest{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;}
+.se-suggest button{display:inline-flex; align-items:center; gap:7px; padding:4px 10px 4px 4px; border-radius:999px; border:1px solid var(--line);
+  background:rgba(120,180,255,.04); color:var(--ink-dim); font:inherit; font-size:.8rem; cursor:pointer; transition:border-color .2s, background .2s, color .2s;}
+.se-suggest button:hover, .se-suggest button:focus-visible{border-color:rgba(104,216,255,.5); background:rgba(104,216,255,.1); color:#fff; outline:none;}
+.se-suggest .face{width:22px; height:22px; margin:0;}
+.se-suggest .se-add-new{padding:6px 12px; border-style:dashed; color:var(--amber);}
+.se-preview{border-radius:14px; padding:16px 18px; background:rgba(2,10,24,.6); border:1px solid color-mix(in srgb, var(--scolor) 35%, transparent);
+  box-shadow:inset 3px 0 0 var(--scolor);}
+.se-pv-meta{font-family:'JetBrains Mono',monospace; font-size:.62rem; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-faint);}
+.se-pv-meta span{color:var(--scolor); margin-right:8px;}
+.se-preview h4{margin:6px 0 8px; font-family:'Cormorant Garamond',Georgia,serif; font-size:1.35rem; font-weight:600;}
+.se-pv-body{white-space:pre-line; font-size:.9rem; line-height:1.65; color:var(--ink-dim); max-height:260px; overflow-y:auto;}
+.se-ph{color:var(--ink-faint); font-style:italic;}
+.se-error{color:#ff9a9a; font-size:.84rem; min-height:1.2em; margin-top:12px;}
+.modal-actions button.danger{margin-right:auto; border-color:rgba(255,110,110,.35); color:#ffb0b0;}
+.modal-actions button.danger:hover{background:rgba(255,90,90,.14); border-color:rgba(255,110,110,.7);}
+.local-row{align-items:center; margin-top:14px;}
+.local-tag{font-family:'JetBrains Mono',monospace; font-size:.58rem; letter-spacing:.12em; text-transform:uppercase; color:var(--amber); opacity:.8;}
+.toast{position:fixed; left:50%; bottom:24px; z-index:80; transform:translate(-50%, 20px); opacity:0; pointer-events:none;
+  max-width:min(92vw, 520px); padding:12px 18px; border-radius:12px; text-align:center; font-size:.86rem; line-height:1.45;
+  background:rgba(6,20,42,.96); border:1px solid rgba(104,216,255,.45); box-shadow:0 12px 40px rgba(0,0,0,.5);
+  transition:opacity .3s var(--ease), transform .3s var(--ease);}
+.toast.show{opacity:1; transform:translate(-50%, 0);}
+body.edit-on .toast{bottom:76px;}
+@media (max-width:600px){
+  .modal-box{padding:22px 18px;}
+  .se-grid{grid-template-columns:1fr;}
+}
 /* !important because some of these rows also need their own display value when visible; an
    inline `style="display:flex"` used to win over this rule and leak edit controls into the
    read-only view */
