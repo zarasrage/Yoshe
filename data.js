@@ -65,6 +65,7 @@ const DATA = {
     "matrimonio-pablito-emi": {name:"Matrimonio de Pablito y Emi", icon:"💍", desc:"Talca, 9 de marzo de 2024. Boda con harta gente conocida — cordero al palo incluido."},
     "galapagos":        {name:"Galápagos",       icon:"🐢", desc:"Viaje de Agustín y Sofía, del 2 al 8 de febrero de 2024."},
     "bosque-luz":       {name:"Bosque Luz",      icon:"🎆", desc:"Fiesta de Año Nuevo (31 de diciembre de 2023 → 1 de enero de 2024) a la que fue un grupo grande."},
+    "casa-nacha-cardenas": {name:"Casa de la Nacha Cárdenas", icon:"🏠", desc:"La casa de María Ignacia Cárdenas. Ahí se hizo la despedida de Blanca, el 1 de abril de 2023: el inicio de la S1."},
     "casa-heidi":       {name:"Casa de Heidi",   icon:"🏠", desc:"La casa de Heidi Meyer, lejísimos, arriba en el monte."},
   },
   seasons: [
@@ -111,11 +112,13 @@ const DATA = {
       hito:"La despedida de Blanca: la primera gran reunión de los integrantes clave del Yoshe.",
       events:[
         {
-          date:"— fecha pendiente —", title:"La despedida de Blanca",
-          place:null, chars:["blanca","maca-hermantraut","maria-ignacia-cardenas","sofia-yanez","agustin-gonzalez","fernanda-monsalve","juan-pablo-cisterna","gerardo-cortes","cristobal-jones"],
+          date:"1 de abril de 2023", title:"La despedida de Blanca",
+          place:"casa-nacha-cardenas", chars:["blanca","maca-hermantraut","maria-ignacia-cardenas","sofia-yanez","agustin-gonzalez","fernanda-monsalve","juan-pablo-cisterna","gerardo-cortes","cristobal-jones"],
           images:["images/events/despedida-blanca-1.jpg"],
           content:[
-            {t:"text",v:"El punto de quiebre. Aquí empieza la S1: la primera gran reunión de los integrantes clave del Yoshe.\n\nLa excusa fue despedir a "},
+            {t:"text",v:"El punto de quiebre. Aquí empieza la S1: la primera gran reunión de los integrantes clave del Yoshe.\n\nEl 1 de abril de 2023, en la "},
+            {t:"place",id:"casa-nacha-cardenas"},
+            {t:"text",v:", la excusa fue despedir a "},
             {t:"char",id:"blanca"},
             {t:"text",v:", que se volvía a España. Llegó un elenco de personajes icónicos: "},
             {t:"char",id:"maca-hermantraut"},
@@ -137,7 +140,7 @@ const DATA = {
             {t:"char",id:"maria-ignacia-cardenas"},
             {t:"text",v:". Y "},
             {t:"char",id:"cristobal-jones"},
-            {t:"text",v:" se la había estado joteando todo ese tiempo, pasivamente, sin que ella le contara que tenía novio. Así que todos estaban, de una u otra forma, involucrados. Blanca se fue y dejó a Jones con el corazón roto y con las bolas llenas.\n\nDe esa noche son de las primeras fotos que hay con Jones: las primeras de esta gran amistad. — Cuéntame más: ¿cuándo fue y dónde se hizo la despedida?"}
+            {t:"text",v:" se la había estado joteando todo ese tiempo, pasivamente, sin que ella le contara que tenía novio. Así que todos estaban, de una u otra forma, involucrados. Blanca se fue y dejó a Jones con el corazón roto y con las bolas llenas.\n\nDe esa noche son de las primeras fotos que hay con Jones: las primeras de esta gran amistad."}
           ]
         },
         {
