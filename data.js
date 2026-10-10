@@ -108,8 +108,38 @@ const DATA = {
     },
     {
       id:1, code:"S1", title:"Los Inicios", color:"#f2a65a",
-      hito:"Cuéntame cuál fue el hito que marcó el inicio de la S1.",
+      hito:"La despedida de Blanca: la primera gran reunión de los integrantes clave del Yoshe.",
       events:[
+        {
+          date:"— fecha pendiente —", title:"La despedida de Blanca",
+          place:null, chars:["blanca","maca-hermantraut","maria-ignacia-cardenas","sofia-yanez","agustin-gonzalez","fernanda-monsalve","juan-pablo-cisterna","gerardo-cortes","cristobal-jones"],
+          images:["images/events/despedida-blanca-1.jpg"],
+          content:[
+            {t:"text",v:"El punto de quiebre. Aquí empieza la S1: la primera gran reunión de los integrantes clave del Yoshe.\n\nLa excusa fue despedir a "},
+            {t:"char",id:"blanca"},
+            {t:"text",v:", que se volvía a España. Llegó un elenco de personajes icónicos: "},
+            {t:"char",id:"maca-hermantraut"},
+            {t:"text",v:", "},
+            {t:"char",id:"maria-ignacia-cardenas"},
+            {t:"text",v:", "},
+            {t:"char",id:"sofia-yanez"},
+            {t:"text",v:", "},
+            {t:"char",id:"agustin-gonzalez"},
+            {t:"text",v:", "},
+            {t:"char",id:"fernanda-monsalve"},
+            {t:"text",v:" (la Feña), "},
+            {t:"char",id:"juan-pablo-cisterna"},
+            {t:"text",v:" (el Polilla), "},
+            {t:"char",id:"gerardo-cortes"},
+            {t:"text",v:" y "},
+            {t:"char",id:"cristobal-jones"},
+            {t:"text",v:".\n\nEra raro que calzara toda esa gente junta, pero había una razón: ya habían salido antes con Blanca, gracias a "},
+            {t:"char",id:"maria-ignacia-cardenas"},
+            {t:"text",v:". Y "},
+            {t:"char",id:"cristobal-jones"},
+            {t:"text",v:" se la había estado joteando todo ese tiempo, pasivamente, sin que ella le contara que tenía novio. Así que todos estaban, de una u otra forma, involucrados. Blanca se fue y dejó a Jones con el corazón roto y con las bolas llenas.\n\nDe esa noche son de las primeras fotos que hay con Jones: las primeras de esta gran amistad. — Cuéntame más: ¿cuándo fue y dónde se hizo la despedida?"}
+          ]
+        },
         {
           date:"31 de diciembre de 2023 → 1 de enero de 2024", title:"Año Nuevo en Bosque Luz",
           place:"bosque-luz", chars:["agustin-gonzalez","sofia-yanez","hernan-suarez","maca-hermantraut","maria-ignacia-cardenas","juan-pablo-cisterna","cristobal-jones","valeria-dassori","paula-jara","hernan-miranda","jamil","aranza","gaston"],
