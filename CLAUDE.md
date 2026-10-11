@@ -76,7 +76,7 @@ const DATA = {
       events: [
         {
           date, title, place: "place-id"|null, chars: ["char-id", ...],
-          images: ["images/events/....jpg", ...],  // opcional, foto(s) de esa historia (o `image` legacy, una sola)
+          images: ["images/events/....jpg", ...],  // opcional, foto(s) de esa historia (o `image` legacy, una sola); con 2+ (o fotos + video) salen en carrusel
           video: "images/events/....mp4",           // opcional, un video de esa historia
           content: [
             {t:"text", v:"..."},
@@ -146,7 +146,9 @@ Proceso para agregar una foto de personaje:
 5. Regenerar la miniatura: `python3 tools/make_thumbs.py <id-slug>` (necesita Pillow) y agregar `thumb:"images/characters/<id-slug>/thumb.webp"` al personaje. Recorta de `photos[0]` un cuadrado de cabeza y hombros guiado por el canal alfa (por eso necesita fondo transparente) y lo guarda a 224px en WebP (~12KB). Es lo que muestran los círculos del elenco y del panel de foco del 3D; sin `thumb` caen al retrato grande entero (~350KB) con un zoom por CSS (`.is-full`). Si cambia la primera foto, hay que regenerarla.
 6. Si el fondo NO era transparente, removerlo con flood-fill desde las esquinas (tolerancia por distancia de color) + `scipy.ndimage.gaussian_filter` para suavizar el borde — ver conversación anterior para el script exacto (usa `skimage.segmentation.flood`).
 
-El carrusel de fotos (`cyclePhoto()`) cicla entre `photos[]` con una transición tipo "portal warp" (scale + rotateY + blur). Si un personaje solo tiene una foto, el click no hace nada (por diseño).
+**Fotos de una historia:** con más de una (fotos y/o video) salen en un carrusel (`renderMediaItems` → `.media-carousel`): una a la vez, se desliza con el dedo (scroll-snap nativo) o con los botones ‹ ›, con puntos abajo (`mcGo`/`mcStep`/`mcSync`, handlers inline: no dejan listeners vivos). En el teléfono (≤720px) van debajo del título y antes del relato; en desktop, al costado.
+
+El carrusel de fotos de personajes (`cyclePhoto()`) cicla entre `photos[]` con una transición tipo "portal warp" (scale + rotateY + blur). Si un personaje solo tiene una foto, el click no hace nada (por diseño).
 
 ## Diseño / paleta
 

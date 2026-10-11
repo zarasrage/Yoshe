@@ -868,8 +868,9 @@ function getEventMedia(e){
   if(e.video) media.push({type:"video", src:e.video});
   return media;
 }
-/* Multiple items render as a fanned strip of polaroids instead of one — same card, same
-   frame, just more of them. */
+/* Multiple items render as a carousel of polaroids: one at a time, swipe (native scroll-snap)
+   or the ‹ › buttons, with dots underneath. Handlers are inline attributes (scroll doesn't
+   bubble), so nothing is left listening when the view changes. */
 function renderMediaItems(media, e, place){
   const cap = `${place?escapeHtml(place.name):"lugar sin registrar"} · ${escapeHtml(e.date)}`;
   const items = media.map((m,i)=>{
@@ -878,8 +879,30 @@ function renderMediaItems(media, e, place){
       ? `<div class="frame"><video controls playsinline preload="metadata" src="${escapeHtml(m.src)}"></video></div>`
       : `<div class="frame" style="background:url('${escapeHtml(m.src)}') center/cover no-repeat"></div>`;
     return `<div class="polaroid" style="--rot:${rot}deg">${frame}<div class="cap">${cap}</div></div>`;
-  }).join("");
-  return media.length>1 ? `<div class="polaroid-stack">${items}</div>` : items;
+  });
+  if(media.length<2) return items.join("");
+  const n = media.length;
+  return `<div class="media-carousel">
+      <div class="mc-track" onscroll="mcSync(this)">${items.map((it,i)=>`<div class="mc-slide" aria-label="${i+1} de ${n}">${it}</div>`).join("")}</div>
+      <button type="button" class="mc-btn mc-prev" onclick="mcStep(this,-1)" aria-label="Foto anterior" disabled>‹</button>
+      <button type="button" class="mc-btn mc-next" onclick="mcStep(this,1)" aria-label="Foto siguiente">›</button>
+      <div class="mc-dots">${media.map((_,i)=>`<button type="button" class="${i?"":"on"}" onclick="mcGo(this,${i})" aria-label="Ver ${i+1} de ${n}"></button>`).join("")}</div>
+    </div>`;
+}
+function mcGo(el, i){
+  const track = el.closest(".media-carousel").querySelector(".mc-track");
+  const slides = track.children;
+  i = Math.max(0, Math.min(slides.length-1, i));
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  track.scrollTo({left: slides[i].offsetLeft - track.offsetLeft, behavior: reduce ? "auto" : "smooth"});
+}
+function mcIndex(track){ return Math.round(track.scrollLeft / Math.max(1, track.clientWidth)); }
+function mcStep(btn, d){ mcGo(btn, mcIndex(btn.closest(".media-carousel").querySelector(".mc-track")) + d); }
+function mcSync(track){
+  const box = track.closest(".media-carousel"), i = mcIndex(track), n = track.children.length;
+  box.querySelectorAll(".mc-dots button").forEach((b,k)=>b.classList.toggle("on", k===i));
+  box.querySelector(".mc-prev").disabled = i<=0;
+  box.querySelector(".mc-next").disabled = i>=n-1;
 }
 function renderPlacePlate(e, place){
   return `<div class="place-plate"${e.place?` onclick="navigateTo('place','${e.place}')"`:""}>
