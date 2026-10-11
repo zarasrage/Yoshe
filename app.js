@@ -261,15 +261,15 @@ function openModal(html){
 function closeModal(){
   document.getElementById("modalOverlay").classList.remove("active");
   document.getElementById("modalBox").classList.remove("modal-wide");
-  SE = null;
+  SE = null; SUB = null;
 }
-// Esc cierra el modal; un clic afuera también, salvo en el editor de historias (ahí un clic
-// perdido botaría lo que llevas escrito de una historia que estás corrigiendo)
+// Esc cierra el modal; un clic afuera también, salvo en los editores de historia (ahí un clic
+// perdido botaría lo que llevas escrito de una historia que estás corrigiendo o contando)
 document.addEventListener("keydown", e=>{
   if(e.key === "Escape" && document.getElementById("modalOverlay").classList.contains("active")){ e.stopPropagation(); closeModal(); }
 }, true);
 document.getElementById("modalOverlay").addEventListener("click", e=>{
-  if(e.target.id === "modalOverlay" && !SE) closeModal();
+  if(e.target.id === "modalOverlay" && !SE && !SUB) closeModal();
 });
 
 function openCharEditModal(id){
@@ -295,7 +295,9 @@ function openCharEditModal(id){
     </div>
   `);
 }
-function resizeImageFile(file, maxW, cb){
+// asBlob=true devuelve un Blob real (para subir a Supabase Storage) en vez del data-URL que
+// necesita patchCharacter() para guardarlo en localStorage
+function resizeImageFile(file, maxW, cb, asBlob){
   const reader = new FileReader();
   reader.onload = ()=>{
     const img = new Image();
@@ -305,7 +307,8 @@ function resizeImageFile(file, maxW, cb){
       const canvas = document.createElement("canvas");
       canvas.width=w; canvas.height=h;
       canvas.getContext("2d").drawImage(img,0,0,w,h);
-      cb(canvas.toDataURL("image/jpeg", 0.82));
+      if(asBlob) canvas.toBlob(blob=> cb(blob), "image/jpeg", 0.82);
+      else cb(canvas.toDataURL("image/jpeg", 0.82));
     };
     img.src = reader.result;
   };
@@ -641,6 +644,276 @@ function deleteLocalStory(){
   if(f) location.hash = `#/season/${f.season.id}`;
   render();
   showToast("Historia borrada.");
+}
+
+/* =========================== CONTAR UNA HISTORIA (pública, vía Supabase) ===========================
+   Botón 📨 del nav, sin modo edición: cualquiera cuenta una historia y queda publicada de
+   inmediato para todos (sin revisión — ver CLAUDE.md, "Historias subidas por la gente"), a
+   diferencia del editor de arriba (SE/openStoryEditor) que guarda en overrides de este navegador
+   y necesita "📋 Copiar para Claude" para llegar a los demás. Mismo patrón de estado/preview que
+   SE, pero en su propio objeto (SUB): SE está enredado de punta a punta con localStorage/overrides,
+   así que repetir el patrón acá fue más simple y seguro que separarlo en un widget compartido. */
+let SUB = null;
+const SUB_MAX_PHOTOS = 6;
+
+function openSubmitStoryModal(){
+  const cur = DATA.seasons.find(x=> String(x.id) === String(currentSeasonId())) || DATA.seasons[DATA.seasons.length-1];
+  SUB = { season: String(cur.id), date:"", title:"", place:"", text:"", chars:[], newPeople:[], newPlace:null, dismissed:[], placeTouched:false, submitterName:"", photos:[] };
+  const seasonOpts = DATA.seasons.map(s=> `<option value="${s.id}" ${String(s.id)===SUB.season?"selected":""}>${escapeHtml(s.code)} · ${escapeHtml(s.title)}</option>`).join("");
+  openModal(`
+    <div class="se">
+      <h3>Contar una historia</h3>
+      <p class="se-sub">Se publica de inmediato para todos, tal como la escribas — no hay revisión antes de que se vea. Cuéntala como te salga; los nombres que el sitio conoce se marcan solos.</p>
+      <div class="se-grid">
+        <div><label for="sub_season">Temporada</label><select id="sub_season">${seasonOpts}</select></div>
+        <div><label for="sub_date">Fecha</label><input id="sub_date" placeholder="ej: 14 de agosto de 2025"></div>
+      </div>
+      <label for="sub_title">Título</label><input id="sub_title" placeholder="ej: La noche del asado">
+      <label for="sub_text">La historia</label>
+      <textarea id="sub_text" rows="8" placeholder="Quiénes estaban, dónde, qué pasó y cómo terminó… Deja una línea en blanco para separar párrafos."></textarea>
+      <label for="sub_place">Lugar</label>
+      <select id="sub_place"></select>
+      <div class="se-newplace" id="sub_newplace" hidden>
+        <input id="sub_np_icon" maxlength="4" placeholder="📍" aria-label="Ícono del lugar (emoji)">
+        <input id="sub_np_name" placeholder="Nombre del lugar nuevo" aria-label="Nombre del lugar nuevo">
+      </div>
+      <label for="sub_find">Quiénes estuvieron <span class="se-count" id="sub_count"></span></label>
+      <div class="se-people">
+        <div class="se-chips" id="sub_chips"></div>
+        <input id="sub_find" placeholder="Busca a alguien, o escribe un nombre nuevo…" autocomplete="off">
+        <div class="se-suggest" id="sub_suggest"></div>
+      </div>
+      <label>Fotos (opcional, hasta ${SUB_MAX_PHOTOS})</label>
+      <div class="se-photos" id="sub_photos"></div>
+      <input type="file" id="sub_photos_input" accept="image/*" multiple style="display:none" onchange="subAddPhotos(this)">
+      <button type="button" class="se-link" onclick="document.getElementById('sub_photos_input').click()">➕ Agregar fotos</button>
+      <label for="sub_who">Tu nombre (opcional)</label><input id="sub_who" placeholder="¿Quién la cuenta?">
+      <label>Así se va a ver</label>
+      <div class="se-preview" id="sub_preview"></div>
+      <div class="se-error" id="sub_error" role="alert"></div>
+      <div class="modal-actions">
+        <button type="button" onclick="closeSubmitModal()">Cancelar</button>
+        <button type="button" class="primary" id="sub_save_btn" onclick="submitStoryFromModal()">Publicar</button>
+      </div>
+    </div>`);
+  document.getElementById("modalBox").classList.add("modal-wide");
+
+  const $ = id=> document.getElementById(id);
+  const sync = ()=>{
+    SUB.season = $("sub_season").value; SUB.date = $("sub_date").value; SUB.title = $("sub_title").value; SUB.text = $("sub_text").value;
+    if(SUB.newPlace){ SUB.newPlace.icon = $("sub_np_icon").value; SUB.newPlace.name = $("sub_np_name").value; }
+    SUB.submitterName = $("sub_who").value;
+  };
+  const changed = ()=>{ sync(); subDetectFromText(); subRenderPeople(); subRenderPreview(); };
+  ["sub_season","sub_date","sub_title","sub_text","sub_np_icon","sub_np_name","sub_who"].forEach(id=> $(id).addEventListener("input", changed));
+  $("sub_season").addEventListener("change", changed);
+  $("sub_place").addEventListener("change", ()=>{
+    SUB.placeTouched = true;
+    const v = $("sub_place").value;
+    if(v === "__new"){ SUB.newPlace = SUB.newPlace || { icon:"", name:"" }; SUB.place = ""; }
+    else { SUB.newPlace = null; SUB.place = v; }
+    subRenderPlace(); changed();
+    if(v === "__new") setTimeout(()=> $("sub_np_name").focus(), 30);
+  });
+  $("sub_find").addEventListener("input", subRenderSuggest);
+  $("sub_find").addEventListener("keydown", e=>{
+    if(e.key === "Enter"){ e.preventDefault(); const first = $("sub_suggest").querySelector("button"); if(first) first.click(); }
+  });
+  subRenderPlace(); subDetectFromText(); subRenderPeople(); subRenderSuggest(); subRenderPreview(); subRenderPhotos();
+  setTimeout(()=> $("sub_title").focus(), 60);
+}
+function closeSubmitModal(){ closeModal(); }
+
+// mismo criterio que detectFromText() del editor local: los nombres del texto se suman solos
+function subDetectFromText(){
+  if(!SUB) return;
+  const segs = autoTagText(SUB.text);
+  segs.forEach(sg=>{
+    if(sg.t === "char" && !SUB.chars.includes(sg.id) && !SUB.dismissed.includes(sg.id)) SUB.chars.push(sg.id);
+  });
+  if(!SUB.placeTouched && !SUB.newPlace){
+    const pl = segs.find(sg=> sg.t === "place");
+    if(pl && SUB.place !== pl.id){ SUB.place = pl.id; subRenderPlace(); }
+  }
+}
+function subRenderPlace(){
+  const sel = document.getElementById("sub_place"); if(!sel) return;
+  sel.innerHTML = `<option value="">— sin lugar —</option>` +
+    Object.entries(DATA.places).sort((a,b)=> a[1].name.localeCompare(b[1].name)).map(([id,p])=> `<option value="${id}" ${id===SUB.place?"selected":""}>${p.icon||"📍"} ${escapeHtml(p.name)}</option>`).join("") +
+    `<option value="__new" ${SUB.newPlace?"selected":""}>➕ Lugar nuevo…</option>`;
+  const np = document.getElementById("sub_newplace");
+  np.hidden = !SUB.newPlace;
+  if(SUB.newPlace){ document.getElementById("sub_np_icon").value = SUB.newPlace.icon||""; document.getElementById("sub_np_name").value = SUB.newPlace.name||""; }
+}
+function subRenderPeople(){
+  const box = document.getElementById("sub_chips"); if(!box) return;
+  const known = SUB.chars.filter(id=> DATA.characters[id]);
+  box.innerHTML = known.map(id=> `<span class="se-chip" style="--fcolor:${DATA.characters[id].color}">${faceHtml(id,{static:true})}${escapeHtml(DATA.characters[id].name)}<button type="button" aria-label="Quitar a ${escapeHtml(DATA.characters[id].name)}" onclick="subRemovePerson('${id}')">×</button></span>`).join("") +
+    SUB.newPeople.map((np,i)=> `<span class="se-chip is-new">${escapeHtml(np.name)} <em>nuevo</em><button type="button" aria-label="Quitar a ${escapeHtml(np.name)}" onclick="subRemoveNew(${i})">×</button></span>`).join("") ||
+    `<span class="se-none">Todavía nadie: escribe la historia o búscalos abajo.</span>`;
+  const n = known.length + SUB.newPeople.length;
+  document.getElementById("sub_count").textContent = n ? `· ${n}` : "";
+}
+function subRenderSuggest(){
+  const box = document.getElementById("sub_suggest"); if(!box || !SUB) return;
+  const q = document.getElementById("sub_find").value.trim();
+  const norm = x=> String(x||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase();
+  const nq = norm(q);
+  let list = Object.entries(DATA.characters).filter(([id])=> !SUB.chars.includes(id));
+  if(nq) list = list.filter(([,c])=> norm(c.name).includes(nq) || norm(c.apodo).includes(nq));
+  const cnt = {}; allEventsFlat().forEach(r=> r.event.chars.forEach(id=> cnt[id] = (cnt[id]||0)+1));
+  list.sort((a,b)=> (a[1].tier==="secundario") - (b[1].tier==="secundario") || (cnt[b[0]]||0) - (cnt[a[0]]||0) || a[1].name.localeCompare(b[1].name));
+  const exact = q && Object.values(DATA.characters).some(c=> norm(c.name) === nq) || SUB.newPeople.some(np=> norm(np.name) === nq);
+  box.innerHTML = list.slice(0, q ? 8 : 12).map(([id,c])=> `<button type="button" onclick="subAddPerson('${id}')">${faceHtml(id,{static:true})}<span>${escapeHtml(c.name)}</span></button>`).join("") +
+    (q && !exact ? `<button type="button" class="se-add-new" onclick="subAddNew()">➕ Agregar a <b>${escapeHtml(q)}</b> como persona nueva</button>` : "");
+}
+function subAddPerson(id){
+  if(!SUB.chars.includes(id)) SUB.chars.push(id);
+  SUB.dismissed = SUB.dismissed.filter(x=> x !== id);
+  const f = document.getElementById("sub_find"); f.value = ""; f.focus();
+  subRenderPeople(); subRenderSuggest();
+}
+function subAddNew(){
+  const f = document.getElementById("sub_find");
+  const name = f.value.trim().replace(/\s+/g," ");
+  if(!name) return;
+  SUB.newPeople.push({ name });
+  f.value = ""; f.focus();
+  subRenderPeople(); subRenderSuggest();
+}
+function subRemovePerson(id){
+  SUB.chars = SUB.chars.filter(x=> x !== id);
+  if(!SUB.dismissed.includes(id)) SUB.dismissed.push(id);
+  subRenderPeople(); subRenderSuggest();
+}
+function subRemoveNew(i){ SUB.newPeople.splice(i,1); subRenderPeople(); subRenderSuggest(); }
+
+function subRenderPreview(){
+  const box = document.getElementById("sub_preview"); if(!box || !SUB) return;
+  const s = DATA.seasons.find(x=> String(x.id) === SUB.season);
+  const place = SUB.newPlace && SUB.newPlace.name ? { icon: SUB.newPlace.icon || "📍", name: SUB.newPlace.name } : DATA.places[SUB.place];
+  const body = SUB.text.trim() ? renderContent(autoTagText(SUB.text.trim())) : `<span class="se-ph">La historia va a aparecer acá, con los nombres marcados.</span>`;
+  box.style.setProperty("--scolor", s ? s.color : "var(--amber)");
+  box.innerHTML = `
+    <div class="se-pv-meta"><span>${s ? escapeHtml(s.code) : ""}</span>${escapeHtml(SUB.date.trim() || "fecha pendiente")}${place ? ` · ${place.icon||"📍"} ${escapeHtml(place.name)}` : ""}</div>
+    <h4>${escapeHtml(SUB.title.trim() || "Sin título todavía")}</h4>
+    <div class="se-pv-body">${body}</div>`;
+}
+
+function subAddPhotos(input){
+  const files = Array.from(input.files||[]).slice(0, Math.max(0, SUB_MAX_PHOTOS - SUB.photos.length));
+  input.value = "";
+  files.forEach(file=>{
+    resizeImageFile(file, 1400, (blob)=>{
+      if(!blob || !SUB) return;
+      SUB.photos.push({ blob, url: URL.createObjectURL(blob) });
+      subRenderPhotos();
+    }, true);
+  });
+}
+function subRemovePhoto(i){
+  const [p] = SUB.photos.splice(i,1);
+  if(p) try{ URL.revokeObjectURL(p.url); }catch(e){}
+  subRenderPhotos();
+}
+function subRenderPhotos(){
+  const box = document.getElementById("sub_photos"); if(!box || !SUB) return;
+  box.innerHTML = SUB.photos.map((p,i)=> `<span class="se-photo"><img src="${p.url}" alt=""><button type="button" aria-label="Quitar foto" onclick="subRemovePhoto(${i})">×</button></span>`).join("");
+}
+
+async function submitStoryFromModal(){
+  if(!SUB) return;
+  const $ = id=> document.getElementById(id);
+  SUB.season = $("sub_season").value; SUB.date = $("sub_date").value.trim(); SUB.title = $("sub_title").value.trim(); SUB.text = $("sub_text").value.trim();
+  SUB.submitterName = $("sub_who").value.trim();
+  const err = $("sub_error");
+  const fail = (msg, el)=>{ err.textContent = msg; if(el) el.focus(); const btn=$("sub_save_btn"); if(btn){ btn.disabled=false; btn.textContent="Publicar"; } };
+  if(!SUB.text) return fail("Falta la historia: escribe aunque sea un par de líneas.", $("sub_text"));
+  if(!SUB.title) return fail("Ponle un título (aunque sea provisorio).", $("sub_title"));
+  if(SUB.newPlace && !(SUB.newPlace.name||"").trim()) return fail("Escribe el nombre del lugar nuevo, o elige uno de la lista.", $("sub_np_name"));
+  if(typeof submitStory !== "function") return fail("No se pudo conectar para publicar. Intenta de nuevo en un rato.");
+
+  const btn = $("sub_save_btn"); btn.disabled = true; btn.textContent = "Publicando…";
+
+  // personas y lugares nuevos, con sus campos pendientes — mismo criterio que saveStoryEditor()
+  const newPeople = SUB.newPeople.map((np, i)=>{
+    const existing = Object.entries(DATA.characters).find(([,c])=> c.name.toLowerCase() === np.name.toLowerCase());
+    if(existing) return { id: existing[0], name: np.name, existing:true };
+    const id = uniqueKey(slugify(np.name), DATA.characters);
+    return { id, name: np.name, existing:false };
+  });
+  let placeId = SUB.place || null, newPlace = null;
+  if(SUB.newPlace){
+    const name = SUB.newPlace.name.trim();
+    const existing = Object.entries(DATA.places).find(([,p])=> p.name.toLowerCase() === name.toLowerCase());
+    if(existing) placeId = existing[0];
+    else { placeId = uniqueKey(slugify(name), DATA.places); newPlace = { id: placeId, name, icon:(SUB.newPlace.icon||"").trim() || "📍" }; }
+  }
+  // las personas/lugares nuevos entran a DATA de este navegador antes de autoTagText, para que
+  // su nombre en el texto quede marcado como {t:"char"/"place"} y no como texto plano
+  newPeople.filter(np=> !np.existing).forEach((np,i)=>{
+    DATA.characters[np.id] = { name:np.name, role:"— rol pendiente —", tier:"secundario",
+      color: NEW_COLORS[(Object.keys(DATA.characters).length + i) % NEW_COLORS.length],
+      bio:`Cuéntame más sobre ${np.name}: quién es y cómo se relaciona con el grupo.`,
+      apodo:null, frase:null, habilidad:null, destino:null, tags:[] };
+  });
+  if(newPlace) DATA.places[newPlace.id] = { name:newPlace.name, icon:newPlace.icon, desc:`Cuéntame más sobre ${newPlace.name}: dónde queda y por qué importa en la historia del grupo.` };
+
+  const content = autoTagText(SUB.text);
+  const charIds = [...new Set(SUB.chars.filter(id=> DATA.characters[id]).concat(newPeople.map(np=> np.id)))];
+  content.forEach(sg=>{ if(sg.t === "char" && !charIds.includes(sg.id)) charIds.push(sg.id); });
+  if(!placeId){ const pl = content.find(sg=> sg.t === "place"); if(pl) placeId = pl.id; }
+
+  const result = await submitStory({
+    seasonId: SUB.season, dateText: SUB.date || null, title: SUB.title, bodyText: SUB.text, content,
+    placeId, newPlace, charIds, newPeople: newPeople.filter(np=> !np.existing).map(np=> ({id:np.id, name:np.name})),
+    submitterName: SUB.submitterName || null
+  }, SUB.photos.map(p=> p.blob));
+
+  if(!result.ok) return fail("No se pudo publicar — revisa tu conexión e intenta de nuevo.");
+  closeSubmitModal();
+  showToast("¡Gracias! tu historia ya está publicada.");
+  applySupabaseStories();
+}
+
+/* Historias ya publicadas por otros: se traen después del primer pintado (no bloquean nada) y
+   se mezclan en DATA en memoria, igual que applyOverrides() mezcla extraEvents/extraCharacters/
+   extraPlaces (mismo marcador de "pendiente" para personas/lugares nuevos). Si Supabase no
+   responde, no pasa nada: el sitio queda igual que si esto no existiera. */
+async function applySupabaseStories(){
+  if(typeof fetchStories !== "function") return;
+  let rows;
+  try{ rows = await fetchStories(); }catch(e){ return; }
+  if(!rows || !rows.length) return;
+  let added = false;
+  rows.forEach(row=>{
+    const uid = "sb-" + row.id;
+    if(DATA.seasons.some(s=> s.events.some(e=> e.uid === uid))) return;
+    const s = DATA.seasons.find(x=> String(x.id) === String(row.season_id));
+    if(!s) return;
+    (row.new_people||[]).forEach((np,i)=>{
+      if(!np || DATA.characters[np.id]) return;
+      DATA.characters[np.id] = { name:np.name, role:"— rol pendiente —", tier:"secundario",
+        color: NEW_COLORS[(Object.keys(DATA.characters).length + i) % NEW_COLORS.length],
+        bio:`Cuéntame más sobre ${np.name}: quién es y cómo se relaciona con el grupo.`,
+        apodo:null, frase:null, habilidad:null, destino:null, tags:[] };
+    });
+    if(row.new_place && !DATA.places[row.new_place.id]){
+      DATA.places[row.new_place.id] = { name: row.new_place.name, icon: row.new_place.icon || "📍",
+        desc:`Cuéntame más sobre ${row.new_place.name}: dónde queda y por qué importa en la historia del grupo.` };
+    }
+    // el nombre de quien la contó no es parte del relato que se escribió: se agrega como una
+    // última línea al mostrarla, sin tocar el content guardado
+    const content = (row.content||[]).slice();
+    if(row.submitter_name) content.push({ t:"text", v: `\n\n— Contado por ${row.submitter_name}.` });
+    s.events.push({
+      date: row.date_text || "Fecha sin especificar", title: row.title, place: row.place_id || null,
+      chars: row.char_ids || [], content, images: (row.images && row.images.length) ? row.images.slice() : undefined,
+      uid, source:"supabase"
+    });
+    added = true;
+  });
+  if(added) render();
 }
 
 // aviso chico abajo, que se va solo
@@ -3019,3 +3292,6 @@ try{
 }catch(e){ /* decorative chrome failing should never block the app */ }
 
 render();
+// historias subidas por otros desde entonces: se traen y mezclan después del primer pintado,
+// nunca lo bloquean (ver applySupabaseStories)
+applySupabaseStories();

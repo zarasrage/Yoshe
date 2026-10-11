@@ -1112,7 +1112,7 @@ body.edit-on .edit-bar{display:flex; animation:editBarIn .45s var(--ease);}
 .se-grid{display:grid; grid-template-columns:1fr 1fr; gap:0 14px;}
 .se-hint{margin-top:6px; font-size:.76rem; color:var(--ink-faint); line-height:1.5;}
 .se-hint code{font-family:'JetBrains Mono',monospace; font-size:.72rem; color:var(--ink-dim);}
-.modal-box #se_text{min-height:170px;}
+.modal-box #se_text, .modal-box #sub_text{min-height:170px;}
 .se-newplace{display:grid; grid-template-columns:70px 1fr; gap:10px; margin-top:8px;}
 .se-newplace[hidden]{display:none;}
 .se-newplace input:first-child{text-align:center; font-size:1.1rem;}
@@ -1141,6 +1141,14 @@ body.edit-on .edit-bar{display:flex; animation:editBarIn .45s var(--ease);}
 .se-pv-body{white-space:pre-line; font-size:.9rem; line-height:1.65; color:var(--ink-dim); max-height:260px; overflow-y:auto;}
 .se-ph{color:var(--ink-faint); font-style:italic;}
 .se-error{color:#ff9a9a; font-size:.84rem; min-height:1.2em; margin-top:12px;}
+/* ---- fotos del formulario público "Contar una historia" (openSubmitStoryModal) ---- */
+.se-photos{display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;}
+.se-photos:empty{margin-top:0;}
+.se-photo{position:relative; width:72px; height:72px; border-radius:10px; overflow:hidden; border:1px solid var(--line); flex:none;}
+.se-photo img{width:100%; height:100%; object-fit:cover; display:block;}
+.se-photo button{position:absolute; top:3px; right:3px; width:20px; height:20px; border-radius:50%; border:0;
+  background:rgba(10,16,28,.75); color:#fff; cursor:pointer; line-height:1; font-size:.85rem;}
+.se-photo button:hover{background:rgba(255,90,90,.75);}
 .modal-actions button.danger{margin-right:auto; border-color:rgba(255,110,110,.35); color:#ffb0b0;}
 .modal-actions button.danger:hover{background:rgba(255,90,90,.14); border-color:rgba(255,110,110,.7);}
 .local-row{align-items:center; margin-top:14px;}
