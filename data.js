@@ -114,7 +114,7 @@ const DATA = {
         {
           date:"1 de abril de 2023", title:"La despedida de Blanca",
           place:"casa-nacha-cardenas", chars:["blanca","maca-hermantraut","maria-ignacia-cardenas","sofia-yanez","agustin-gonzalez","fernanda-monsalve","juan-pablo-cisterna","gerardo-cortes","cristobal-jones"],
-          images:["images/events/despedida-blanca-1.jpg"],
+          images:["images/events/despedida-blanca-1.jpg","images/events/despedida-blanca-2.jpg"],
           content:[
             {t:"text",v:"El punto de quiebre. Aquí empieza la S1: la primera gran reunión de los integrantes clave del Yoshe.\n\nEl 1 de abril de 2023, en la "},
             {t:"place",id:"casa-nacha-cardenas"},
