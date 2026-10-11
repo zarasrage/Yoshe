@@ -50,6 +50,7 @@ const DATA = {
     "blanca":             {name:"Blanca",                  role:"— rol pendiente —", tier:"secundario", color:"#8b6bf2", bio:"Estudiante de intercambio española. Se suponía que tenía novio allá en España, pero después se supo que eso no se lo contaba a todo el mundo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
     "javier-diaz":        {name:"Javier Díaz",             role:"— rol pendiente —", tier:"secundario", color:"#3f8c82", bio:"Cuéntame más sobre el Javo: quién es y cómo se relaciona con el grupo.", apodo:"Javo", frase:null, habilidad:null, destino:null, tags:[]},
     "milf":               {name:"Milf",                    role:"— rol pendiente —", tier:"secundario", color:"#d9748a", bio:"Cuéntame más sobre la Milf: quién es y cómo se relaciona con el grupo.", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
+    "simon":              {name:"Simón",                   role:"— rol pendiente —", tier:"secundario", color:"#e8e2d0", bio:"Un westie blanco que andaba perdido en Costa Cachagua, en mayo de 2023, y que el grupo se robó. Cuéntame más sobre Simón: ¿qué fue de él?", apodo:null, frase:null, habilidad:null, destino:null, tags:[]},
     "popo":               {name:"Felipe González",         role:"— rol pendiente —", tier:"secundario", color:"#6b9bf2", bio:"Hermano chico de Agustín. Se llama Felipe, pero todos le dicen Popo.", apodo:"Popo", frase:null, habilidad:null, destino:null, tags:[]},
   },
   places: {
@@ -141,6 +142,18 @@ const DATA = {
             {t:"text",v:". Y "},
             {t:"char",id:"cristobal-jones"},
             {t:"text",v:" se la había estado joteando todo ese tiempo, pasivamente, sin que ella le contara que tenía novio. Así que todos estaban, de una u otra forma, involucrados. Blanca se fue y dejó a Jones con el corazón roto y con las bolas llenas.\n\nDe esa noche son de las primeras fotos que hay con Jones: las primeras de esta gran amistad."}
+          ]
+        },
+        {
+          date:"20 de mayo de 2023", title:"El robo de Simón",
+          place:"costa-cachagua", chars:["agustin-gonzalez","simon"],
+          images:["images/events/simon-westie-1.jpg"],
+          content:[
+            {t:"text",v:"En "},
+            {t:"place",id:"costa-cachagua"},
+            {t:"text",v:" se robaron un perro. Se llamaba "},
+            {t:"char",id:"simon"},
+            {t:"text",v:" y era un westie blanco que andaba perdido. — Cuéntame más: ¿quiénes estaban, cómo terminó Simón con ustedes y qué pasó con él después?"}
           ]
         },
         {
