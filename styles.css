@@ -785,7 +785,6 @@ footer.site-footer{
   padding:10px; letter-spacing:.06em; text-transform:uppercase; overflow:hidden;
 }
 .polaroid .frame video{width:100%; height:100%; object-fit:cover; display:block;}
-.polaroid .cap{font-family:'JetBrains Mono',monospace; font-size:.6rem; color:rgba(0,0,0,.55); text-align:center; margin-top:9px; letter-spacing:.05em;}
 
 /* empty season: instead of a paragraph floating in dead space, a small orbiting figure
    that says "nothing here yet" in the language of the rest of the site */
@@ -1901,8 +1900,10 @@ a.stat-cell:hover{background:color-mix(in srgb, var(--pcolor) 12%, transparent);
    columnas del timeline, no según el lado de la tarjeta: con flex-wrap las de la izquierda
    quedaban al final de la historia). */
 @media (max-width:720px){
-  .event-split{flex-direction:column; align-items:stretch;}
-  .event-media{order:-1; flex:none; max-width:none;}
+  /* grid y no flex en columna: con flex, Chromium calculaba mal el alto del carrusel (scroll
+     horizontal + fotos con aspect-ratio) y la foto quedaba encima del texto */
+  .event-split{display:grid; grid-template-columns:minmax(0,1fr); gap:16px;}
+  .event-media{order:-1; max-width:none; min-width:0;}
   .event-media .polaroid{max-width:260px; margin:0;}
 }
 

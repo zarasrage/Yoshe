@@ -872,13 +872,13 @@ function getEventMedia(e){
    or the ‹ › buttons, with dots underneath. Handlers are inline attributes (scroll doesn't
    bubble), so nothing is left listening when the view changes. */
 function renderMediaItems(media, e, place){
-  const cap = `${place?escapeHtml(place.name):"lugar sin registrar"} · ${escapeHtml(e.date)}`;
+  // sin pie de foto: la fecha y el lugar ya están en la tarjeta, arriba
   const items = media.map((m,i)=>{
     const rot = (i%2===0? -1.4 : 1.6) * (1 + (i%2));
     const frame = m.type==="video"
       ? `<div class="frame"><video controls playsinline preload="metadata" src="${escapeHtml(m.src)}"></video></div>`
       : `<div class="frame" style="background:url('${escapeHtml(m.src)}') center/cover no-repeat"></div>`;
-    return `<div class="polaroid" style="--rot:${rot}deg">${frame}<div class="cap">${cap}</div></div>`;
+    return `<div class="polaroid" style="--rot:${rot}deg">${frame}</div>`;
   });
   if(media.length<2) return items.join("");
   const n = media.length;
