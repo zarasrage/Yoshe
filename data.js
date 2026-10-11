@@ -67,6 +67,7 @@ const DATA = {
     "galapagos":        {name:"Galápagos",       icon:"🐢", desc:"Viaje de Agustín y Sofía, del 2 al 8 de febrero de 2024."},
     "bosque-luz":       {name:"Bosque Luz",      icon:"🎆", desc:"Fiesta de Año Nuevo (31 de diciembre de 2023 → 1 de enero de 2024) a la que fue un grupo grande."},
     "casa-nacha-cardenas": {name:"Casa de la Nacha Cárdenas", icon:"🏠", desc:"La casa de María Ignacia Cárdenas. Ahí se hizo la despedida de Blanca, el 1 de abril de 2023: el inicio de la S1."},
+    "punta-cana":       {name:"Punta Cana",      icon:"🌴", desc:"República Dominicana. Destino del viaje del 11 al 18 de enero de 2026, el que marcó el inicio de la S5."},
     "casa-heidi":       {name:"Casa de Heidi",   icon:"🏠", desc:"La casa de Heidi Meyer, lejísimos, arriba en el monte."},
   },
   seasons: [
@@ -326,8 +327,28 @@ const DATA = {
     },
     {
       id:5, code:"S5", title:"La Estabilidad", color:"#6b9bf2",
-      hito:"Cuéntame cuál fue el hito que marcó el inicio de la S5 (temporada actual).",
+      hito:"El viaje a Punta Cana: una semana en el Caribe que abrió la temporada actual.",
       events:[
+        {
+          date:"Del 11 al 18 de enero de 2026", title:"El viaje a Punta Cana",
+          place:"punta-cana", chars:["agustin-gonzalez","sofia-yanez","heidi-meyer","martin-valencia","maria-ignacia-demandes"],
+          images:["images/events/punta-cana-1.jpg","images/events/punta-cana-2.jpg"],
+          content:[
+            {t:"text",v:"Del 11 al 18 de enero de 2026, "},
+            {t:"char",id:"agustin-gonzalez"},
+            {t:"text",v:", "},
+            {t:"char",id:"sofia-yanez"},
+            {t:"text",v:", "},
+            {t:"char",id:"heidi-meyer"},
+            {t:"text",v:", "},
+            {t:"char",id:"martin-valencia"},
+            {t:"text",v:" y "},
+            {t:"char",id:"maria-ignacia-demandes"},
+            {t:"text",v:" se fueron de viaje a "},
+            {t:"place",id:"punta-cana"},
+            {t:"text",v:", en República Dominicana. Una semana en el Caribe, y el viaje que marca el inicio de la S5. — Cuéntame más: ¿qué hicieron allá, algún momento que se les quedó grabado?"}
+          ]
+        },
         {
           date:"Sábado 13 de junio", title:"La noche de oro en Vrava",
           place:"vrava", chars:["cristobal-jones","maria-ignacia-demandes","fernanda-monsalve","heidi-meyer","paula-jara","dawding","vallejos","tort","pezuna"],
