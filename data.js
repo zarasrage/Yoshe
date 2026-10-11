@@ -331,7 +331,7 @@ const DATA = {
       events:[
         {
           date:"Del 11 al 18 de enero de 2026", title:"El viaje a Punta Cana",
-          place:"punta-cana", chars:["agustin-gonzalez","sofia-yanez","heidi-meyer","martin-valencia","maria-ignacia-demandes"],
+          place:"punta-cana", chars:["agustin-gonzalez","sofia-yanez","heidi-meyer","martin-valencia","maria-ignacia-demandes","cristobal-jones"],
           images:["images/events/punta-cana-1.jpg","images/events/punta-cana-2.jpg"],
           content:[
             {t:"text",v:"Del 11 al 18 de enero de 2026, "},
@@ -342,8 +342,10 @@ const DATA = {
             {t:"char",id:"heidi-meyer"},
             {t:"text",v:", "},
             {t:"char",id:"martin-valencia"},
-            {t:"text",v:" y "},
+            {t:"text",v:", "},
             {t:"char",id:"maria-ignacia-demandes"},
+            {t:"text",v:" y "},
+            {t:"char",id:"cristobal-jones"},
             {t:"text",v:" se fueron de viaje a "},
             {t:"place",id:"punta-cana"},
             {t:"text",v:", en República Dominicana. Una semana en el Caribe, y el viaje que marca el inicio de la S5. — Cuéntame más: ¿qué hicieron allá, algún momento que se les quedó grabado?"}
