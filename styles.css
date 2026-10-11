@@ -1896,3 +1896,13 @@ a.stat-cell:hover{background:color-mix(in srgb, var(--pcolor) 12%, transparent);
 
 /* only for screen readers (the 3D map is a canvas: this list is its accessible version) */
 .sr-only{position:absolute !important; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;}
+
+/* En el teléfono las fotos van justo debajo del título, antes del relato (en las dos
+   columnas del timeline, no según el lado de la tarjeta: con flex-wrap las de la izquierda
+   quedaban al final de la historia). */
+@media (max-width:720px){
+  .event-split{flex-direction:column; align-items:stretch;}
+  .event-media{order:-1; flex:none; max-width:none;}
+  .event-media .polaroid, .event-media .polaroid-stack .polaroid{max-width:260px; margin:0;}
+  .event-media .polaroid-stack .polaroid{max-width:calc(50% - 6px);}
+}
