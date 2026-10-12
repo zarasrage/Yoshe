@@ -261,7 +261,7 @@ function openModal(html){
 function closeModal(){
   document.getElementById("modalOverlay").classList.remove("active");
   document.getElementById("modalBox").classList.remove("modal-wide");
-  SE = null; SUB = null;
+  SE = null; SUB = null; AISUB = null;
 }
 // Esc cierra el modal; un clic afuera también, salvo en los editores de historia (ahí un clic
 // perdido botaría lo que llevas escrito de una historia que estás corrigiendo o contando)
@@ -269,7 +269,7 @@ document.addEventListener("keydown", e=>{
   if(e.key === "Escape" && document.getElementById("modalOverlay").classList.contains("active")){ e.stopPropagation(); closeModal(); }
 }, true);
 document.getElementById("modalOverlay").addEventListener("click", e=>{
-  if(e.target.id === "modalOverlay" && !SE && !SUB) closeModal();
+  if(e.target.id === "modalOverlay" && !SE && !SUB && !AISUB) closeModal();
 });
 
 function openCharEditModal(id){
@@ -914,6 +914,84 @@ async function applySupabaseStories(){
     added = true;
   });
   if(added) render();
+}
+
+/* =========================== SUBIR HISTORIA CON IA ===========================
+   Botón ✨ del nav: solo texto suelto + fotos — la Edge Function ai-submit-story (ver
+   supabase/functions/ai-submit-story/index.ts) usa la API de Claude para armar el título,
+   elegir temporada/lugar/personas y pulir el texto, y publica directo, sin revisión
+   (a pedido del usuario: el sitio es para un grupo chico de amigos). El "roster" que se le
+   manda (temporadas/personas/lugares que ya existen) es lo único que la IA puede elegir o
+   proponer como nuevo — nunca inventa gente o lugares que no estén en el texto. */
+let AISUB = null;
+const AISUB_MAX_PHOTOS = 6;
+
+function openAIStoryModal(){
+  AISUB = { photos:[] };
+  openModal(`
+    <div class="se">
+      <h3>✨ Subir historia con IA</h3>
+      <p class="se-sub">Escribe lo que pasó como te salga: la IA arma el título, elige la temporada, el lugar y quiénes estuvieron, y la publica directo — sin que nadie la revise antes.</p>
+      <label for="ai_text">La historia</label>
+      <textarea id="ai_text" rows="9" placeholder="Cuéntanos qué pasó, quiénes estaban, dónde y cómo terminó…"></textarea>
+      <label>Fotos (opcional, hasta ${AISUB_MAX_PHOTOS})</label>
+      <div class="se-photos" id="ai_photos"></div>
+      <input type="file" id="ai_photos_input" accept="image/*" multiple style="display:none" onchange="aiAddPhotos(this)">
+      <button type="button" class="se-link" onclick="document.getElementById('ai_photos_input').click()">➕ Agregar fotos</button>
+      <label for="ai_who">Tu nombre (opcional)</label><input id="ai_who" placeholder="¿Quién la cuenta?">
+      <div class="se-error" id="ai_error" role="alert"></div>
+      <div class="modal-actions">
+        <button type="button" onclick="closeModal()">Cancelar</button>
+        <button type="button" class="primary" id="ai_save_btn" onclick="submitAIStory()">✨ Publicar con IA</button>
+      </div>
+    </div>`);
+  document.getElementById("modalBox").classList.add("modal-wide");
+  aiRenderPhotos();
+  setTimeout(()=> document.getElementById("ai_text").focus(), 60);
+}
+function aiAddPhotos(input){
+  const files = Array.from(input.files||[]).slice(0, Math.max(0, AISUB_MAX_PHOTOS - AISUB.photos.length));
+  input.value = "";
+  files.forEach(file=>{
+    resizeImageFile(file, 1400, (blob)=>{
+      if(!blob || !AISUB) return;
+      AISUB.photos.push({ blob, url: URL.createObjectURL(blob) });
+      aiRenderPhotos();
+    }, true);
+  });
+}
+function aiRemovePhoto(i){
+  const [p] = AISUB.photos.splice(i,1);
+  if(p) try{ URL.revokeObjectURL(p.url); }catch(e){}
+  aiRenderPhotos();
+}
+function aiRenderPhotos(){
+  const box = document.getElementById("ai_photos"); if(!box || !AISUB) return;
+  box.innerHTML = AISUB.photos.map((p,i)=> `<span class="se-photo"><img src="${p.url}" alt=""><button type="button" aria-label="Quitar foto" onclick="aiRemovePhoto(${i})">×</button></span>`).join("");
+}
+// lo único que la IA puede elegir o proponer como nuevo: nada fuera de esta lista
+function aiRoster(){
+  return {
+    seasons: DATA.seasons.map(s=> ({ id:s.id, code:s.code, title:s.title })),
+    characters: Object.entries(DATA.characters).map(([id,c])=> ({ id, name:c.name, apodo:c.apodo||null })),
+    places: Object.entries(DATA.places).map(([id,p])=> ({ id, name:p.name }))
+  };
+}
+async function submitAIStory(){
+  if(!AISUB) return;
+  const text = document.getElementById("ai_text").value.trim();
+  const who = document.getElementById("ai_who").value.trim();
+  const err = document.getElementById("ai_error");
+  const btn = document.getElementById("ai_save_btn");
+  const fail = (msg)=>{ err.textContent = msg; if(btn){ btn.disabled=false; btn.textContent="✨ Publicar con IA"; } };
+  if(!text){ err.textContent = "Falta la historia: escribe aunque sea un par de líneas."; document.getElementById("ai_text").focus(); return; }
+  if(typeof submitStoryWithAI !== "function") return fail("No se pudo conectar para publicar. Intenta de nuevo en un rato.");
+  btn.disabled = true; btn.textContent = "Publicando…";
+  const result = await submitStoryWithAI(text, who || null, AISUB.photos.map(p=> p.blob), aiRoster());
+  if(!result.ok) return fail(result.error || "No se pudo publicar — revisa tu conexión e intenta de nuevo.");
+  closeModal();
+  showToast("¡Listo! la IA armó tu historia y ya está publicada.");
+  applySupabaseStories();
 }
 
 // aviso chico abajo, que se va solo

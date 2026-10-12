@@ -88,6 +88,24 @@
     }catch(e){ return []; }
   }
 
+  // "Subir historia con IA": solo texto suelto + fotos. La Edge Function (ai-submit-story) arma
+  // el resto (título, temporada, lugar, personas, texto pulido) con la API de Claude y publica
+  // directo — ver supabase/functions/ai-submit-story/index.ts. `roster` es {seasons,characters,places}
+  // tal como está en DATA, para que la IA solo elija entre lo que ya existe (o proponga algo nuevo).
+  async function submitStoryWithAI(text, submitterName, photoBlobs, roster){
+    try{
+      const client = await getClient();
+      const images = await uploadStoryPhotos(client, photoBlobs);
+      const { data, error } = await client.functions.invoke("ai-submit-story", {
+        body: { text, submitterName: submitterName || null, images, roster }
+      });
+      if(error) return { ok:false, error: error.message };
+      if(data && data.ok === false) return { ok:false, error: data.error || "Error desconocido." };
+      return { ok:true };
+    }catch(e){ return { ok:false, error: String((e && e.message) || e) }; }
+  }
+
   window.submitStory = submitStory;
   window.fetchStories = fetchStories;
+  window.submitStoryWithAI = submitStoryWithAI;
 })();

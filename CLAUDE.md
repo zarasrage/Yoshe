@@ -141,7 +141,15 @@ Botón 📨 del nav ("Contar una historia", `openSubmitStoryModal()` en `app.js`
 - **Cómo llegan al sitio:** `applySupabaseStories()` trae todas las filas de `stories` después del primer pintado (no bloquea nada, igual que `preloadSolar()`) y las mezcla en `DATA` en memoria **tal como `applyOverrides()` mezcla `extraEvents`/`extraCharacters`/`extraPlaces`**: cada fila se vuelve un evento con `uid:"sb-"+row.id` (para no duplicarlo si se vuelve a llamar) y `source:"supabase"` — sin `local:true`, porque no son editables/borrables desde el editor local. Las personas/lugares nuevos que trae la fila (`new_people`/`new_place`) se agregan a `DATA.characters`/`DATA.places` con los mismos campos pendientes que usa `saveStoryEditor()` ("— rol pendiente —", "Cuéntame..."). El nombre de quien contó la historia se agrega como una línea final al mostrarla (no toca el `content` guardado). Se vuelve a llamar después de publicar una historia nueva, así aparece sin recargar.
 - **Qué NO pasa por aquí:** la edición de bio/apodo/frase/destino/hito de personajes, lugares y temporadas existentes, y la red de amoríos (`#/map/besos`) — todo eso sigue en el flujo de siempre (overrides de este navegador + "📋 Copiar para Claude"). El editor local (`➕ Nueva historia` de la barra de edición) también sigue existiendo tal cual, para cuando tú mismo quieras escribir algo sin que pase por Supabase.
 
-**IA en el editor (pendiente, decisión del usuario):** se pidió que el editor pula el texto con la API de Claude. No se hizo: llamar a la API desde el navegador en un sitio público exige dejar la API key en el cliente. Lo seguro es un proxy chico en un servidor (p. ej. una Edge Function de Supabase o un Cloudflare Worker) que guarde la key como secreto y que el editor llame a ese endpoint.
+### Subir historia con IA (Edge Function + API de Claude)
+
+Botón ✨ del nav ("Subir historia con IA", `openAIStoryModal()` en `app.js`): el formulario más simple posible — solo un texto suelto, fotos opcionales y el nombre de quien cuenta — y la Edge Function de Supabase `ai-submit-story` (`supabase/functions/ai-submit-story/index.ts`) arma el resto (título, temporada, lugar, quiénes estuvieron, texto pulido) con la API de Claude y publica directo en `stories`, **sin revisión humana** (mismo criterio sin-moderación que el resto: el usuario lo pidió así a propósito, para un grupo chico de amigos).
+
+- **Por qué una Edge Function y no llamar a la API desde el navegador:** la API key de Anthropic no puede vivir en el cliente de un sitio público (cualquiera la vería y la usaría a tu costa). La Edge Function la guarda como secreto (`ANTHROPIC_API_KEY`, Dashboard → Edge Functions → Secrets) y es la única que la toca; el navegador solo le manda texto y URLs de fotos ya subidas a Storage.
+- **"No inventar hechos" también aplica a la IA:** el prompt (`SYSTEM_PROMPT` en `index.ts`) le pide pulir redacción y elegir entre lo que ya existe, nunca inventar — se le manda un "roster" con las temporadas/personas/lugares reales del sitio (`aiRoster()` en `app.js`, construido desde `DATA`) y la IA solo puede: (a) elegir un id de esa lista, (b) proponer una persona/lugar **nuevo** si el texto lo nombra claramente y no está en la lista (mismos campos pendientes que el resto, se agregan recién al mezclar en `applySupabaseStories()`), o (c) ante la duda, tratar un nombre como persona nueva en vez de adivinar a quién pertenece. La función además valida server-side que `season_id`/`place_id`/`char_ids` que vuelven de la IA existan de verdad en el roster antes de guardar (si no, los descarta o cae a la temporada más reciente) — nunca confía ciegamente en la respuesta.
+- **El resaltado de nombres NO lo decide el modelo:** la función le pide a Claude un JSON estructurado (`client.messages.parse()` + `zodOutputFormat`, ver `typescript/claude-api/tool-use.md` del skill `claude-api`) con el texto pulido y los ids de personas/lugar, pero el array `content` (los segmentos `{t:"text"|"char"|"place"}` que resaltan nombres) se calcula en la función misma con **el mismo algoritmo determinístico que `autoTagText()`/`buildNameIndex()` de `app.js`** (portado a Deno/TS dentro de `index.ts`) — así el resaltado es tan confiable como en cualquier otra historia del sitio, no depende de que el modelo arme bien un formato a mano.
+- **Modelo:** `claude-opus-5-5` (el modelo por default del equipo). Cambiarlo es una decisión del usuario, no algo para tocar por iniciativa propia.
+- **Deploy, aparte del sitio:** a diferencia de todo lo demás (que vive en GitHub Pages y se actualiza solo con cada push a `main`), la Edge Function **no se despliega sola** — hay que correr `supabase functions deploy ai-submit-story` (CLI, con el proyecto linkeado) o pegar `index.ts` en el editor del Dashboard (Edge Functions → Deploy a new function) cada vez que cambie. `SUPABASE_URL`/`SUPABASE_ANON_KEY` los inyecta la plataforma solos; `ANTHROPIC_API_KEY` hay que cargarlo a mano como secreto.
 
 **Importante:** todo acceso a `localStorage` está envuelto en try/catch. Algunos visores (Quick Look de iOS, vistas previas sandboxed) bloquean `localStorage` y sin el try/catch eso rompía toda la página (pantalla en blanco). Si agregas una llamada nueva a `localStorage`, protégela igual.
 
@@ -191,15 +199,20 @@ images/
 ### Estructura de archivos
 
 ```
-index.html        # esqueleto; carga styles.css, data.js, solar.js, net3d.js, app.js
+index.html        # esqueleto; carga styles.css, data.js, solar.js, net3d.js, supabase.js, app.js
 styles.css        # todo el CSS (incluye .home-sky / .solar-*)
 data.js           # DATA
 solar.js          # sistema solar 3D: solarCapable / mountSolar / unmountSolar
 net3d.js          # red de relaciones 3D (canvas 2D): mountNet3D / unmountNet3D / net3dWheel
+supabase.js       # cliente de historias subidas: submitStory / fetchStories / submitStoryWithAI
 app.js            # router, vistas, modo edición, cielo animado
 tools/            # make_thumbs.py: genera las miniaturas de personajes (Python + Pillow, se corre a mano)
 vendor/three/     # three.js r186 vendorizado y recortado a lo que se usa (ESM minificado) +
                   # postprocesado para el bloom; README.md dice cómo se regeneran. No se editan a mano.
+vendor/supabase/  # @supabase/supabase-js vendorizado (solo createClient), mismo criterio que vendor/three/.
+supabase/schema.sql               # tabla stories + políticas RLS + bucket media (se corre a mano en el SQL Editor)
+supabase/functions/ai-submit-story/index.ts  # Edge Function: arma y publica una historia con la API de Claude
+                  # (se despliega a mano, no viaja con el push a main — ver "Subir historia con IA")
 images/           # ver arriba
 ```
 
